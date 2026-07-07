@@ -248,18 +248,23 @@ def logging_node(state: PipelineState) -> PipelineState:
     step_records = _build_step_records(state)
     action_record = _build_action_record(state)
 
-    conn = _get_connection()
+    # DB 연결 시도 (실패해도 파이프라인은 계속 진행)
     try:
-        _ensure_tables(conn)
-        run_id = _insert_run(conn, run_record)
-        _insert_steps(conn, run_id, step_records)
-        _insert_action(conn, run_id, action_record)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+        conn = _get_connection()
+        try:
+            _ensure_tables(conn)
+            run_id = _insert_run(conn, run_record)
+            _insert_steps(conn, run_id, step_records)
+            _insert_action(conn, run_id, action_record)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[logging_node] DB 저장 실패 (무시됨): {e}")
+        finally:
+            conn.close()
+    except Exception as e:
+        # DB 연결 실패 시에도 파이프라인은 계속 진행
+        print(f"[logging_node] DB 연결 실패 (무시됨): {e}")
 
     # DB 적재와 별개로, state["log_entries"]엔 기존처럼 사람이 읽기 좋은 요약을 유지
     entries = state.get("log_entries", [])

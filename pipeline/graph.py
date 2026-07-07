@@ -14,14 +14,14 @@ LangGraph 파이프라인 그래프 조립.
 
 from langgraph.graph import StateGraph, END
 from schema.state import PipelineState
-from pipeline.dummy_nodes import (
-    detection_node,
-    classification_node,
-    decision_node,
-    action_node,
-    qa_node,
-    logging_node,
-)
+
+# 실제 agent 노드들 import
+from pipeline.detection_agent import detection_node
+from pipeline.classification_agent import classification_node
+from pipeline.decision_agent import decision_node
+from pipeline.action_agent import action_node
+from pipeline.QA_agent import qa_node
+from pipeline.logging_agent import logging_node
 
 
 def detection_router(state: PipelineState) -> str:
