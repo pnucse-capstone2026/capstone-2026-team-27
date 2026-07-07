@@ -85,17 +85,11 @@ CREATE TABLE IF NOT EXISTS action_log (
 );
 """
 
-_TABLES_ENSURED = False  # 프로세스당 한 번만 DDL 실행 (매 호출마다 CREATE 검사 안 하도록)
-
-
 def _ensure_tables(conn) -> None:
-    global _TABLES_ENSURED
-    if _TABLES_ENSURED:
-        return
+    """테이블이 없으면 생성. CREATE TABLE IF NOT EXISTS라서 이미 있으면 아무것도 안 함."""
     with conn.cursor() as cur:
         cur.execute(_DDL)
     conn.commit()
-    _TABLES_ENSURED = True
 
 
 # ── state → 레코드 변환 (DB 없이도 단독 테스트 가능하도록 순수 함수로 분리) ─────
