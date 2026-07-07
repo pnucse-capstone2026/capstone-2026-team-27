@@ -1,4 +1,4 @@
-# Cloud Anomaly Agent
+# 클라우드 비용 이상 징후 탐지 LangGrpah
 
 AWS 클라우드 비용 이상 징후를 탐지하고 자동으로 대응하는 LangGraph 기반 Multi-Agent 파이프라인
 
