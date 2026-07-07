@@ -1,11 +1,10 @@
 """
-tests/test_agents.py
 
 detection_agent.py + logging_agent.py 모듈 테스트.
 
 [실행 방법]
   프로젝트 루트에서:
-    pytest tests/test_agents.py -v
+    pytest test_agents.py -v
 
 [사전 준비]
   pip install pytest scikit-learn numpy psycopg2-binary python-dotenv
