@@ -7,3 +7,7 @@ venv/
 
 # Environment Variables
 .env
+.env
+.venv/
+__pycache__/
+*.pyc
