@@ -1,8 +1,11 @@
 # test_decision.py
 
 import os
+import sys
 
-from pipeline.nodes.decision_agent import decision_node  
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from pipeline.decision_agent import decision_node  
 from dotenv import load_dotenv
 
 load_dotenv()
