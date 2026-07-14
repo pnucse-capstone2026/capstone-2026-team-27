@@ -8,10 +8,18 @@ QA Agent
 2) 비용 SLA: 액션이 실제 비용 절감 효과를 가져왔는지
 3) 가용성 SLA: 서비스 가용성이 유지되는지 (액션 결과 정상 여부)
 
-처리 흐름:
+처리 흐름 (A안 — 실패 원인 구분 없이 항상 롤백 후 재시도):
 - 검증 통과 → qa_passed=True, logging으로 이동
-- 검증 실패 + rollback_count < 2 → qa_passed=False, rollback_count 증가, action으로 재시도
+- 검증 실패 + rollback_count < 2
+    → pre_action_snapshot으로 즉시 rollback_action() 실행 (실행 실패든 SLA 위반이든 동일하게 처리)
+    → qa_passed=False, rollback_count 증가, action으로 재시도
 - 검증 실패 + rollback_count >= 2 → qa_passed=False, 현재 상태 유지, 관리자 알림
+  (이 경우도 롤백 자체는 실행하되, 더 이상 action으로 재시도하지 않음)
+
+   주의: 여기서의 "재시도"는 node_contracts.md 스펙 그대로 "같은 selected_action을
+   처음부터 다시 실행"하는 것이다. SLA 위반(예: 비용 급증)으로 실패한 경우 원인이
+   그대로면 재시도해도 같은 이유로 다시 실패할 수 있다 — 이는 스펙상 의도된 동작이며,
+   rollback_count<2 만큼만 반복하고 그 이후엔 관리자 알림으로 넘어간다.
 """
 
 import json
@@ -20,6 +28,7 @@ from typing import Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from schema.state import PipelineState, SlaCheckResult
+from pipeline.action_agent import rollback_action
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -277,14 +286,67 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
     )
 
 
+def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
+    """
+    QA 실패 확정 시 pre_action_snapshot으로 즉시 롤백을 실행한다.
+    (A안: 실행 실패/SLA 위반 구분 없이 항상 동일하게 롤백한다)
+
+    ⚠️ action_result에 "이 액션은 이후 롤백되었다"는 사실을 명확히 남긴다.
+       action_result는 schema/state.py에서 Optional[dict]로만 선언돼 있어
+       (필드 구조가 고정된 TypedDict가 아님) 스키마 필드명을 바꾸지 않고도
+       아래 키들을 안전하게 추가할 수 있다:
+         - rolled_back        : bool  — 롤백 발생 여부
+         - rollback_status     : "success"/"failed"/"not_implemented" 등
+         - rollback_detail     : rollback_action()의 원본 반환값
+         - rollback_reason     : 왜 롤백했는지 (QA 실패 사유)
+         - rollback_attempt    : 몇 번째 롤백 시도인지 (rollback_count 증가 전 값 + 1)
+
+    입력: state (resource_type, resource_id, pre_action_snapshot, action_result 사용)
+    출력: 로그에 남길 롤백 결과 요약 문자열 ([ROLLBACK] 접두사로 검색/필터링 쉽게 함)
+    """
+    resource_type = state.get("resource_type")
+    resource_id = state.get("resource_id")
+    action_executed = state.get("action_executed")
+    snapshot = state.get("pre_action_snapshot")
+    attempt_no = state.get("rollback_count", 0) + 1
+
+    # NoAction/pending_approval 등 실제로 아무것도 실행되지 않은 경우
+    # (rule 기반 검증에서 이런 케이스는 이미 qa_passed=True로 처리되므로
+    #  여기 도달했다는 건 실제 액션이 실행되었다는 뜻이지만, 방어적으로 한 번 더 확인)
+    if action_executed in (None, "NoAction"):
+        return "[ROLLBACK] 스킵 - 실행된 액션 없음 (action_executed=NoAction/None)"
+
+    rollback_result = rollback_action(resource_type, resource_id, snapshot)
+    rollback_success = rollback_result.get("status") == "success"
+
+    # action_result를 그대로 덮어쓰지 않고, 기존 실행 결과 위에 롤백 정보를 덧붙인다.
+    # → 이 액션이 "실행됐다가 나중에 롤백됐다"는 사실이 action_result만 봐도 명확해짐.
+    updated_action_result = dict(state.get("action_result") or {})
+    updated_action_result["rolled_back"] = True
+    updated_action_result["rollback_status"] = rollback_result.get("status")
+    updated_action_result["rollback_detail"] = rollback_result
+    updated_action_result["rollback_reason"] = qa_reasoning
+    updated_action_result["rollback_attempt"] = attempt_no
+    state["action_result"] = updated_action_result
+
+    status_kr = "성공" if rollback_success else "실패"
+    return (
+        f"[ROLLBACK] {status_kr} (시도 {attempt_no}회차) - "
+        f"{resource_type}:{resource_id}의 '{action_executed}' 액션을 롤백함 "
+        f"(사유: {qa_reasoning}) → rollback_result={rollback_result}"
+    )
+
+
 def qa_node(state: PipelineState) -> PipelineState:
     """
     QA Agent 메인 노드 함수.
 
     SLA 검증 수행 후:
     - 통과: qa_passed=True
-    - 실패 + rollback_count < 2: qa_passed=False, rollback_count 증가
-    - 실패 + rollback_count >= 2: qa_passed=False (graph에서 logging으로 이동)
+    - 실패 + rollback_count < 2:
+        qa_passed=False, pre_action_snapshot으로 즉시 롤백 실행, rollback_count 증가
+        (graph.py의 qa_router가 이 결과를 보고 action으로 재시도시킴)
+    - 실패 + rollback_count >= 2: qa_passed=False, 롤백은 실행하되 재시도는 하지 않음 (관리자 알림)
     """
     # Rule-based 검증 시도
     rule_result = _apply_rule_based_qa(state)
@@ -299,17 +361,21 @@ def qa_node(state: PipelineState) -> PipelineState:
     state["sla_check_result"] = sla_result
     state["qa_passed"] = qa_passed
 
-    # 검증 실패 시 롤백 카운트 증가
+    log_entries = state.get("log_entries", [])
+
+    # 검증 실패 시: 실행 실패든 SLA 위반이든 구분 없이 항상 즉시 롤백 (A안)
     if not qa_passed:
+        rollback_log = _trigger_rollback(state, reasoning)
+        log_entries.append(rollback_log)
+
         current_count = state.get("rollback_count", 0)
         state["rollback_count"] = current_count + 1
 
         if state["rollback_count"] >= 2:
-            # 2회 초과: 현재 상태 유지, 관리자 알림 필요
+            # 2회 초과: 현재 상태 유지, 관리자 알림 필요 (더 이상 action으로 재시도하지 않음)
             reasoning += " [ALERT] 롤백 2회 초과, 관리자 확인 필요"
 
     # 로그 엔트리 추가
-    log_entries = state.get("log_entries", [])
     log_entries.append(f"[QA] {reasoning}")
     log_entries.append(f"[QA] SLA 결과: cpu_ok={sla_result['cpu_ok']}, cost_ok={sla_result['cost_ok']}, availability_ok={sla_result['availability_ok']}")
     log_entries.append(f"[QA] qa_passed={qa_passed}, rollback_count={state['rollback_count']}")
