@@ -25,21 +25,56 @@ import os
 from typing import Any, Optional
 
 import psycopg2
+from dotenv import load_dotenv
 
 from schema.state import PipelineState
+
+# .env 파일 로드 (PGHOST 등 접속 정보를 읽기 전에 반드시 실행되어야 함)
+load_dotenv()
 
 # ── DB 연결 설정 (psycopg2 표준 환경변수 사용) ────────────────────────────────
 # PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD 로 접속 정보를 주입한다.
 # 코드에 자격증명을 하드코딩하지 않는다.
 
+# .env에 반드시 있어야 하는 키 (없어도 기본값으로 동작은 하지만,
+# 기본값(postgres/빈 비밀번호)으로 실제 로컬 DB에 붙는 경우는 거의 없으므로
+# 누락 시 원인을 바로 알 수 있도록 미리 경고한다)
+_REQUIRED_PG_VARS = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+
+
+def _pg_connection_params() -> dict[str, str]:
+    """.env에서 읽은 PG 접속 정보를 dict로 반환 (비밀번호도 포함, 로그 출력 금지)."""
+    return {
+        "host":     os.environ.get("PGHOST", "localhost"),
+        "port":     os.environ.get("PGPORT", "5432"),
+        "dbname":   os.environ.get("PGDATABASE", "cloud_anomaly_agent"),
+        "user":     os.environ.get("PGUSER", "postgres"),
+        "password": os.environ.get("PGPASSWORD", ""),
+    }
+
+
+def _warn_missing_pg_env() -> None:
+    """PG 관련 환경변수가 .env에 없으면 어떤 키가 비어있는지 미리 알려준다."""
+    missing = [k for k in _REQUIRED_PG_VARS if not os.environ.get(k)]
+    if missing:
+        print(
+            f"[logging_node] 경고: .env에 다음 PostgreSQL 접속 변수가 없습니다: {missing} "
+            "— 기본값(localhost:5432/cloud_anomaly_agent/postgres, 빈 비밀번호)으로 "
+            "접속을 시도하며, 대부분 이 값으로는 로컬 DB 인증에 실패합니다."
+        )
+
+
 def _get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("PGHOST", "localhost"),
-        port=os.environ.get("PGPORT", "5432"),
-        dbname=os.environ.get("PGDATABASE", "cloud_anomaly_agent"),
-        user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", ""),
-    )
+    params = _pg_connection_params()
+    _warn_missing_pg_env()
+    try:
+        return psycopg2.connect(**params)
+    except Exception as exc:
+        # 비밀번호는 절대 출력하지 않고, 나머지 접속 정보 + 원인만 노출한다.
+        safe_params = {k: v for k, v in params.items() if k != "password"}
+        raise RuntimeError(
+            f"[logging_node] PostgreSQL 연결 실패 (접속정보: {safe_params}) — 원인: {exc}"
+        ) from exc
 
 
 _DDL = """
@@ -164,7 +199,11 @@ def _build_action_record(state: PipelineState) -> Optional[dict[str, Any]]:
         return None  # NoAction 선택 또는 아직 액션 미실행
 
     result = state.get("action_result") or {}
-    success = result.get("status") == "success"
+
+    # QA_agent.py의 _trigger_rollback()이 action_result에 rolled_back=True를 남긴다.
+    # 실행 자체는 성공(status=="success")했더라도 이후 QA 실패로 롤백됐다면
+    # 감사 로그(action_log.success)에는 최종적으로 "성공한 액션"으로 남기면 안 된다.
+    success = result.get("status") == "success" and not result.get("rolled_back", False)
 
     return {
         "resource_id":         state["resource_id"],
@@ -248,23 +287,27 @@ def logging_node(state: PipelineState) -> PipelineState:
     step_records = _build_step_records(state)
     action_record = _build_action_record(state)
 
-    # DB 연결 시도 (실패해도 파이프라인은 계속 진행)
+    # DB 연결 시도.
+    # 파이프라인 자체는 DB 장애와 무관하게 계속 진행해야 하므로 예외를 밖으로
+    # 던지지는 않지만, 원인 파악이 안 되면 안 되므로 "무시됨"으로 뭉개지 않고
+    # 연결 실패/저장 실패 원인을 반드시 콘솔에 출력한다.
     try:
-        conn = _get_connection()
+        conn = _get_connection()   # 실패 시 RuntimeError(원인 포함) 발생
         try:
             _ensure_tables(conn)
             run_id = _insert_run(conn, run_record)
             _insert_steps(conn, run_id, step_records)
             _insert_action(conn, run_id, action_record)
             conn.commit()
+            print(f"[logging_node] DB 저장 성공 (run_id={run_id})")
         except Exception as e:
             conn.rollback()
-            print(f"[logging_node] DB 저장 실패 (무시됨): {e}")
+            print(f"[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: {e!r}")
         finally:
             conn.close()
     except Exception as e:
-        # DB 연결 실패 시에도 파이프라인은 계속 진행
-        print(f"[logging_node] DB 연결 실패 (무시됨): {e}")
+        # _get_connection()에서 발생한 RuntimeError (원인이 이미 메시지에 포함됨)
+        print(f"[logging_node] {e}")
 
     # DB 적재와 별개로, state["log_entries"]엔 기존처럼 사람이 읽기 좋은 요약을 유지
     entries = state.get("log_entries", [])

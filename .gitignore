@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 
+# 재학습 시 매번 바뀌는 Isolation Forest 모델 캐시 (소스 아님)
+models/*.pkl
+
 # Virtual Environment
 venv/
 

@@ -162,6 +162,7 @@ class PipelineState(TypedDict):
     risk_level:         Optional[Literal["LOW", "MED", "HIGH"]]
     requires_approval:  bool
     decision_reasoning: Optional[str]
+    target_instance_type: Optional[str]  # Decision Agent가 Resize 선택 시 채움 (기본값 None)
 
     # ── Step 4: Action Agent ──────────────────────────────────────────────────
     pre_action_snapshot: Optional[
