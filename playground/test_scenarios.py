@@ -3,6 +3,8 @@ playground/test_scenarios.py
 
 3가지 더미 시나리오로 전체 파이프라인(Detection → Classification → Decision →
 Action → QA → Logging)을 순서대로 실행하고, 각 단계 결과를 보기 좋게 출력한다.
+Logging 단계까지 포함되어 있어 .env에 PostgreSQL 접속 정보(PGHOST 등)가 설정돼
+있으면 agent_runs / agent_steps / action_log 테이블에 실제로 INSERT된다.
 
 시나리오:
   1. 좀비 리소스 (EC2, cost_inefficiency)  → risk_level=LOW  → 실제 boto3 Stop 실행됨
@@ -46,6 +48,7 @@ from pipeline.classification_agent import classification_node
 from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
 from pipeline.QA_agent import qa_node
+from pipeline.logging_agent import logging_node
 
 
 # ── 공통 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -126,10 +129,9 @@ def run_scenario(
     expected_anomaly_type: str,
 ) -> dict:
     """
-    한 시나리오를 Detection → Classification → Decision → Action → QA까지 실행하고
-    결과를 출력한다. (Logging Agent는 test_scenarios.py 자체 목적이 파이프라인
-    동작 확인이므로, DB 적재 확인은 별도로 pipeline/graph.py의 app.invoke()를
-    통해서도 확인 가능 — 여기서는 각 노드를 직접 호출해 단계별 결과를 세밀히 본다)
+    한 시나리오를 Detection → Classification → Decision → Action → QA → Logging까지
+    실행하고 결과를 출력한다. Logging 단계에서 PostgreSQL 접속에 성공하면
+    agent_runs / agent_steps / action_log 테이블에 실제로 INSERT된다.
     """
     _print_section(f"시나리오: {name}")
     print(description)
@@ -153,8 +155,10 @@ def run_scenario(
     if not state["anomaly_flag"]:
         # anomaly_flag=False면 node_contracts.md 규칙상 classification 이후 단계로
         # 가지 않고 바로 Logging으로 빠진다. 시나리오 실험 목적상 여기서 중단하고
-        # 실패 사유를 남긴 뒤 다음 시나리오로 넘어간다.
+        # 실패 사유를 남긴 뒤 다음 시나리오로 넘어간다. (그래도 Logging은 실행)
         _safe_assert(False, "anomaly_flag == True", failures)
+        state = logging_node(state)
+        _print_logging_result(state)
         elapsed = time.time() - start_time
         print(f"\n[총 실행 시간] {elapsed:.3f}초 (Detection에서 조기 종료)")
         _print_failures(failures)
@@ -212,12 +216,29 @@ def run_scenario(
 
     _safe_assert(state["qa_passed"] is True, "qa_passed == True", failures)
 
+    # 6) Logging (DB 접속 정보가 .env에 있으면 실제로 agent_runs/agent_steps/action_log에 INSERT됨)
+    state = logging_node(state)
+    _print_logging_result(state)
+
     elapsed = time.time() - start_time
     print(f"\n[총 실행 시간] {elapsed:.3f}초")
 
     _print_failures(failures)
 
     return {"state": state, "elapsed": elapsed, "failures": failures}
+
+
+def _print_logging_result(state: PipelineState) -> None:
+    """Logging 단계 결과 출력. logging_node가 DB 성공/실패 여부를 print로도
+    남기므로, 여기서는 log_entries 개수만 요약해서 보여준다."""
+    log_entries = state.get("log_entries", [])
+    print("\n[Logging 결과]")
+    print(f"  log_entries 개수 = {len(log_entries)}")
+    rollback_entries = [e for e in log_entries if e.startswith("[ROLLBACK]")]
+    if rollback_entries:
+        print("  롤백 관련 로그:")
+        for e in rollback_entries:
+            print(f"    {e}")
 
 
 def _print_failures(failures: list[str]) -> None:
