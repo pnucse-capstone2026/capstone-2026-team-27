@@ -205,9 +205,42 @@ score = 0.5 × saving_rate - 0.3 × impact_score + 0.2 × stability_score
 
 ---
 
-## 환경 설정
+## 시작하기 (브랜치 Pull 후 테스트하기)
 
-### 필수 환경변수
+다른 브랜치를 pull 받아서 로컬에서 테스트해볼 때 순서입니다.
+
+### 1. 저장소 clone (처음이라면)
+```bash
+git clone https://github.com/PNU-Detection/langgraph_study.git
+cd langgraph_study
+```
+
+### 2. 브랜치 받기
+```bash
+git fetch origin
+git checkout <브랜치명>   # 예: fix/decision-and-action-agent
+```
+
+### 3. 가상환경 생성 및 활성화
+```bash
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Mac/Linux
+source venv/bin/activate
+```
+
+### 4. 의존성 설치
+```bash
+pip install -r requirements.txt
+```
+
+### 5. `.env` 파일 생성
+`.env`는 `.gitignore`에 포함되어 git으로 공유되지 않으므로 직접 생성해야 합니다.
+(AWS 키 등 민감 정보이므로 파일 자체를 공유하지 말고 팀 채널로 값만 전달할 것)
+
 ```bash
 # LLM (Classification, Decision, QA Agent)
 GEMINI_API_KEY=your_gemini_api_key
@@ -217,6 +250,11 @@ AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_DEFAULT_REGION=ap-northeast-2
 
+# 테스트 대상 리소스 (playground/test_scenarios.py에서 사용)
+INSTANCE_ID=i-0abc123def456
+LAMBDA_FUNCTION_NAME=detection-test-lambda
+ASG_NAME=detection-test-asg
+
 # PostgreSQL (Logging Agent)
 PGHOST=localhost
 PGPORT=5432
@@ -225,10 +263,19 @@ PGUSER=postgres
 PGPASSWORD=your_password
 ```
 
-### 의존성 설치
+### 6. 시나리오 테스트 실행
 ```bash
-pip install langgraph langchain-google-genai boto3 psycopg2 scikit-learn numpy python-dotenv
+python playground/test_scenarios.py
 ```
+
+⚠️ **주의**
+- 시나리오 1(좀비 리소스)은 `INSTANCE_ID`로 지정한 EC2 인스턴스를 **실제로 Stop시켰다가
+  QA 실패 시 다시 Start**시킵니다. 실제 운영 중인 인스턴스가 아닌 테스트용 인스턴스로
+  실행하세요.
+- Gemini API 무료 티어는 하루 요청 20회 제한이 있어, 반복 실행 시 `429 RESOURCE_EXHAUSTED`
+  로 rate limit에 걸릴 수 있습니다.
+- DB 저장(Logging Agent)까지 확인하려면 로컬에 PostgreSQL이 실행 중이어야 하고,
+  `cloud_anomaly_agent` 데이터베이스가 미리 생성되어 있어야 합니다.
 
 ---
 
@@ -262,6 +309,9 @@ print(result)
 ## 테스트
 
 ```bash
+# 3가지 시나리오(좀비 리소스/Lambda 폭증/EDoS 의심) 전체 파이프라인 실행
+python playground/test_scenarios.py
+
 # QA Agent 테스트
 python playground/test_qa.py
 
