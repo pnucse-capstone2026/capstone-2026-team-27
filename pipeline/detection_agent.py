@@ -26,6 +26,7 @@ from typing import Optional
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
+import typing
 from schema.state import PipelineState
 
 # ── 보고서 3.3.1 기준 파라미터 ────────────────────────────────────────────────
@@ -51,6 +52,39 @@ Z_SCORE_TARGET_METRICS = {
     "number_of_requests",
 }
 
+# ── Isolation Forest 통합 모델용 스키마 (state.py에서 자동 추출) ──────────
+_raw_metrics_type = typing.get_type_hints(PipelineState)["raw_metrics"]
+_metric_typeddicts = typing.get_args(_raw_metrics_type)
+
+_RESOURCE_TYPEDDICTS: dict[str, type] = {
+    td.__name__.removesuffix("Metrics"): td
+    for td in _metric_typeddicts
+}
+
+RESOURCE_TYPES: list[str] = list(_RESOURCE_TYPEDDICTS.keys())
+
+_expected_resource_types = set(
+    typing.get_args(typing.get_type_hints(PipelineState)["resource_type"])
+)
+assert set(RESOURCE_TYPES) == _expected_resource_types, (
+    f"RESOURCE_TYPES 불일치: {RESOURCE_TYPES} vs {_expected_resource_types}"
+)
+
+RESOURCE_METRIC_KEYS: dict[str, list[str]] = {
+    rt: list(typing.get_type_hints(td).keys())
+    for rt, td in _RESOURCE_TYPEDDICTS.items()
+}
+
+_all_metrics_set = set()
+
+for keys in RESOURCE_METRIC_KEYS.values():   # 바깥 루프: 리소스별 지표 리스트를 하나씩 꺼냄
+    for metric in keys:                       # 안쪽 루프: 그 리스트 안의 지표 이름을 하나씩 꺼냄
+        _all_metrics_set.add(metric)          # set에 추가 (중복이면 자동 무시됨)
+
+ALL_METRICS: list[str] = sorted(_all_metrics_set)
+
+IFOREST_UNIFIED_MODEL_NAME = "unified"
+
 
 def _zscore_check(values: list[float]) -> tuple[float, bool]:
     """슬라이딩 윈도우 전체로 μ, σ를 구하고, 윈도우 내 각 시점 x에 대해
@@ -69,6 +103,24 @@ def _zscore_check(values: list[float]) -> tuple[float, bool]:
     is_triggered = max_abs_z > Z_SCORE_THRESHOLD
     return max_abs_z, is_triggered
 
+def build_unified_feature_matrix(
+    resource_type: str, metrics: dict[str, list[float]]
+) -> np.ndarray:
+    n = len(next(iter(metrics.values())))
+    cols: list[np.ndarray] = []
+
+    for m in ALL_METRICS:
+        if m in metrics:
+            cols.append(np.asarray(metrics[m], dtype=float))
+            cols.append(np.ones(n))
+        else:
+            cols.append(np.zeros(n))
+            cols.append(np.zeros(n))
+
+    for rt in RESOURCE_TYPES:
+        cols.append(np.full(n, 1.0 if rt == resource_type else 0.0))
+
+    return np.column_stack(cols)
 
 def _model_path(resource_type: str) -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
@@ -94,36 +146,33 @@ def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[s
     with open(_model_path(resource_type), "wb") as f:
         pickle.dump((model, feature_keys, time.time()), f)
 
-
 def _get_or_train_iforest(
     resource_type: str, metrics: dict[str, list[float]]
-) -> tuple[Optional[IsolationForest], list[str]]:
+) -> Optional[IsolationForest]:
     """24시간 캐시 모델이 있으면 재사용, 없거나 만료됐으면 재학습 후 캐시 저장.
 
     ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 현재 들어온 윈도우.
        AWS 연동 후엔 여기서 24시간치 누적 베이스라인 데이터를 가져오도록
        데이터 소스만 바꾸면 된다 (인터페이스는 그대로 유지).
     """
-    feature_keys = sorted(metrics.keys())  # CPU, 네트워크 입/출력, 비용, 호출 횟수 등 전부 포함
-
-    cached = _load_cached_model(resource_type)
+    cached = _load_cached_model(IFOREST_UNIFIED_MODEL_NAME)
     if cached is not None:
         model, cached_keys = cached
-        if cached_keys == feature_keys:
-            return model, feature_keys
+        if cached_keys == ALL_METRICS:
+            return model
 
-    lengths = {len(metrics[k]) for k in feature_keys}
-    if len(lengths) != 1 or min(lengths) < MIN_POINTS_FOR_IFOREST:
-        return None, feature_keys  # 데이터 부족 → 학습 보류
+    n = len(next(iter(metrics.values())))
+    if n < MIN_POINTS_FOR_IFOREST:
+        return None
 
-    X = np.column_stack([metrics[k] for k in feature_keys])
+    X = build_unified_feature_matrix(resource_type, metrics)
     model = IsolationForest(
         contamination=IFOREST_CONTAMINATION,
         random_state=IFOREST_RANDOM_STATE,
     )
     model.fit(X)
-    _save_model(resource_type, model, feature_keys)
-    return model, feature_keys
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, model, ALL_METRICS)
+    return model
 
 
 def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float:
@@ -131,11 +180,11 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
     하나의 다변량 feature 벡터로 구성해 Isolation Forest에 입력하고,
     최신 시점의 이상 점수를 0~1로 정규화해서 반환 (1에 가까울수록 이상).
     """
-    model, feature_keys = _get_or_train_iforest(resource_type, metrics)
+    model = _get_or_train_iforest(resource_type, metrics)
     if model is None:
         return 0.0
 
-    X = np.column_stack([metrics[k] for k in feature_keys])
+    X = build_unified_feature_matrix(resource_type, metrics)
     raw_scores = model.decision_function(X)  # 낮을수록 이상치
     latest_raw = raw_scores[-1]
 
@@ -176,3 +225,25 @@ def detection_node(state: PipelineState) -> PipelineState:
     state["triggered_metrics"] = triggered_metrics
 
     return state
+
+def benchmark_iforest_inference(
+    model: IsolationForest, X: np.ndarray, n_runs: int = 100, warmup: int = 10
+) -> dict[str, float]:
+    for _ in range(warmup):
+        model.decision_function(X)
+
+    times = []
+    for _ in range(n_runs):
+        t0 = time.perf_counter()
+        model.decision_function(X)
+        t1 = time.perf_counter()
+        times.append(t1 - t0)
+
+    times = np.asarray(times)
+    return {
+        "n_runs": n_runs,
+        "mean_sec": float(times.mean()),
+        "max_sec": float(times.max()),
+        "min_sec": float(times.min()),
+        "std_sec": float(times.std()),
+    }
