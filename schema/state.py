@@ -154,6 +154,7 @@ class PipelineState(TypedDict):
     anomaly_type: Optional[Literal["cost_inefficiency", "cost_spike", "risk_security"]]
     classification_reasoning: Optional[str]
     interim_action_taken:     Optional[str]
+    matched_rule_id: Optional[str]  # 매칭된 Rule Book 규칙 ID (예: "CLF-001")
 
     # ── Step 3: Decision Agent ────────────────────────────────────────────────
     candidate_actions:  list[CandidateAction]
@@ -175,6 +176,8 @@ class PipelineState(TypedDict):
     qa_passed:        Optional[bool]
     sla_check_result: Optional[SlaCheckResult]
     rollback_count:   int  # 기본값 0, 최대 2
+    qa_matched_rule_id: Optional[str]  # 매칭된 QA 규칙 ID (예: "QA-001")
+    whitelisted: bool  # 화이트리스트에 의해 스킵되었는지
 
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────
     log_entries: list[str]
