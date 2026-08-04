@@ -84,10 +84,14 @@ class AutoScalingSnapshot(TypedDict):
 class CandidateAction(TypedDict):
     action:          Literal["NoAction", "Stop", "Stop+Schedule", "Resize",
                              "Throttle", "Block", "ScaleDown"]
-    saving_rate:     float   # 비용 절감 효과  [0.0, 1.0]
+    saving_rate:     float   # 비용 절감 효과  [0.0, 1.0] (정규화된 비율)
     impact_score:    float   # 서비스 영향도   [0.0, 1.0]  낮을수록 좋음
     stability_score: float   # 시스템 안정성   [0.0, 1.0]
     score:           float   # 0.5×saving - 0.3×impact + 0.2×stability
+    estimated_saving_usd: float  # saving_rate 산출에 쓰인 절감 예상액(시간당 USD).
+                                  # 결정론적으로 계산 불가능해 LLM 추정치를 그대로
+                                  # saving_rate로 쓴 경우 0.0 (근거 없는 금액을
+                                  # 만들어내지 않기 위한 안전장치, decision_agent.py 참고)
 
 
 # ── SLA 검증 결과 단위 구조 (QA Agent가 생성) ────────────────────────────────

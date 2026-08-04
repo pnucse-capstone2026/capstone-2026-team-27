@@ -103,6 +103,19 @@
 
 - **점수 공식**: `Score = 0.5 × SavingRate - 0.3 × ImpactScore + 0.2 × StabilityScore`
 
+- **SavingRate 산정 방식 (2026-07 중간보고 시점 갱신)**: `raw_metrics["cost"]` 시계열로부터
+  결정론적으로 계산하는 것을 기본으로 한다 (LLM 추정은 cost 데이터가 없을 때만 예외적으로 사용).
+  - `Stop` → 현재 평균 비용의 100% 제거로 간주
+  - `Stop+Schedule` → 현재 평균 비용의 50% 제거로 간주 (듀티사이클 가정치)
+  - `Resize` → EC2 온디맨드 단가표에서 현재 비용과 가장 가까운 tier를 역추정하고, 한 단계
+    아래 tier와의 단가 차이로 계산
+  - `Throttle` / `ScaleDown` → cost 윈도우를 기준선/최근 급증 구간으로 나눠 초과분(급증분)을
+    절감 가능액으로 계산
+  - `Block` → 보안 조치이므로 saving_rate를 인위적으로 만들지 않고 0.0으로 고정
+  - `CandidateAction`에는 `estimated_saving_usd`(시간당 USD 절감 예상액) 필드가 함께
+    기록된다. LLM fallback으로 산정된 경우는 근거 금액이 없으므로 0.0.
+  - 상세 계산 로직/한계는 `pipeline/decision_agent.py` 파일 상단 주석 참고.
+
 - **`risk_level` 2단계 판단 룰**:
 
 ```
