@@ -23,12 +23,70 @@ QA Agent
 """
 
 import json
+import os
+from datetime import datetime
 from typing import Optional
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
 from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
+from pipeline.rule_engine import get_rule_engine
+
+# LLM 판단 로그 경로 (classification_agent.py와 동일)
+LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
+
+
+def _update_llm_log_with_qa_result(state: PipelineState) -> None:
+    """
+    LLM 판단 로그에 QA 결과를 추가.
+    trace_id로 해당 로그 엔트리를 찾아 qa_result 필드를 업데이트.
+
+    LLM 판단이 아닌 경우(matched_rule_id가 있는 경우)는 스킵.
+    """
+    trace_id = state.get("trace_id")
+    matched_rule_id = state.get("matched_rule_id")
+
+    # LLM 판단이 아니면 (Rule Book으로 분류됨) 로깅 스킵
+    if not trace_id or matched_rule_id is not None:
+        return
+
+    qa_result = {
+        "qa_passed": state.get("qa_passed"),
+        "rollback_count": state.get("rollback_count", 0),
+        "sla_check_result": state.get("sla_check_result"),
+        "qa_matched_rule_id": state.get("qa_matched_rule_id"),
+        "whitelisted": state.get("whitelisted", False),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+    if not os.path.exists(LLM_LOG_PATH):
+        return
+
+    try:
+        # 로그 파일 읽기 → trace_id 매칭 → qa_result 업데이트 → 다시 쓰기
+        updated_lines = []
+        found = False
+
+        with open(LLM_LOG_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("trace_id") == trace_id and entry.get("qa_result") is None:
+                        entry["qa_result"] = qa_result
+                        found = True
+                    updated_lines.append(json.dumps(entry, ensure_ascii=False))
+                except json.JSONDecodeError:
+                    updated_lines.append(line)
+
+        if found:
+            with open(LLM_LOG_PATH, "w", encoding="utf-8") as f:
+                f.write("\n".join(updated_lines) + "\n")
+
+    except Exception as e:
+        print(f"[QA_agent] LLM 로그 QA 결과 업데이트 실패: {e}")
+from utils.llm_utils import call_gemini
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -40,10 +98,13 @@ SLA_THRESHOLDS = {
     "availability_min": 99.0,          # 최소 가용성 (%)
 }
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
+# [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
+# GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
+# GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
+# .format()으로 렌더링해서 call_gemini(prompt: str)에 그대로 넘긴다.
 
-# LLM 프롬프트: 복잡한 SLA 판단이 필요한 경우
-prompt = ChatPromptTemplate.from_template("""
+# LLM 프롬프트: 복잡한 SLA 판단이 필요한 경우 (str.format()과 동일한 {{ }} 이스케이프 규칙)
+PROMPT_TEMPLATE = """
 당신은 AWS 클라우드 복구 액션의 품질을 검증하는 QA 전문가입니다.
 아래 정보를 바탕으로 SLA 준수 여부를 판단하고 JSON으로만 응답하세요.
 마크다운 코드블록, 설명 텍스트 없이 JSON만 출력하세요.
@@ -75,9 +136,7 @@ prompt = ChatPromptTemplate.from_template("""
   "reasoning": "판단 근거를 2문장 이내로",
   "rollback_recommended": true | false
 }}
-""")
-
-chain = prompt | llm
+"""
 
 
 def _metrics_summary(raw_metrics: dict) -> dict:
@@ -154,16 +213,51 @@ def _check_availability_sla(state: PipelineState) -> tuple[bool, str]:
         return False, f"액션 실패: {error_msg}"
 
 
-def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult, bool, str]]:
+def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult, bool, str, Optional[str]]]:
     """
-    Rule-based SLA 검증.
-    명확한 케이스는 규칙으로 처리하고 (SlaCheckResult, qa_passed, reasoning) 반환.
-    모호한 케이스는 None 반환 → LLM으로 넘어감.
+    Rule Book 기반 QA 규칙 매칭 + 기본 SLA 검증.
+    (SlaCheckResult, qa_passed, reasoning, rule_id) 반환.
     """
     action_executed = state.get("action_executed")
     action_result = state.get("action_result", {})
+    engine = get_rule_engine()
 
-    # NoAction인 경우 항상 통과
+    # 1. Rule Book에서 QA 규칙 매칭 시도
+    matched_rule = engine.match_qa_rules(state)
+    if matched_rule is not None:
+        result = matched_rule.get("result", {})
+        rule_id = matched_rule.get("rule_id")
+        reasoning = engine.format_reasoning(matched_rule, state)
+
+        # force_pass가 True이면 무조건 통과
+        if result.get("force_pass"):
+            return (
+                {
+                    "cpu_ok": True,
+                    "cost_ok": True,
+                    "availability_ok": True,
+                    "detail": f"Rule Book 규칙 적용: {reasoning}",
+                },
+                True,
+                f"[Rule:{rule_id}] {reasoning}",
+                rule_id,
+            )
+
+        # force_fail이 True이면 무조건 실패
+        if result.get("force_fail"):
+            return (
+                {
+                    "cpu_ok": False,
+                    "cost_ok": False,
+                    "availability_ok": False,
+                    "detail": f"Rule Book 규칙 적용: {reasoning}",
+                },
+                False,
+                f"[Rule:{rule_id}] {reasoning}",
+                rule_id,
+            )
+
+    # 2. 기본 규칙: NoAction인 경우 항상 통과
     if action_executed == "NoAction" or action_executed is None:
         return (
             {
@@ -174,9 +268,10 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
             },
             True,
             "[Rule] NoAction이므로 SLA 검증 통과",
+            None,
         )
 
-    # 액션 결과가 명확히 실패인 경우
+    # 3. 액션 결과가 명확히 실패인 경우
     if action_result.get("status") == "failed":
         error_msg = action_result.get("error", "알 수 없는 오류")
         return (
@@ -188,16 +283,16 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
             },
             False,
             f"[Rule] 액션 실행 실패로 인한 SLA 검증 실패: {error_msg}",
+            None,
         )
 
-    # 개별 SLA 체크
+    # 4. 개별 SLA 체크
     cpu_ok, cpu_detail = _check_cpu_sla(state)
     cost_ok, cost_detail = _check_cost_sla(state)
     avail_ok, avail_detail = _check_availability_sla(state)
 
     all_ok = cpu_ok and cost_ok and avail_ok
 
-    # 모든 검증이 명확하게 통과/실패인 경우
     detail_parts = []
     if not cpu_ok:
         detail_parts.append(cpu_detail)
@@ -217,6 +312,7 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
         },
         all_ok,
         f"[Rule] CPU: {cpu_detail}, Cost: {cost_detail}, Availability: {avail_detail}",
+        None,
     )
 
 
@@ -241,30 +337,31 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
     """LLM을 사용한 복잡한 SLA 검증."""
     summary = _metrics_summary(state.get("raw_metrics", {}))
 
+    rendered_prompt = PROMPT_TEMPLATE.format(
+        resource_type=state.get("resource_type", "Unknown"),
+        action_executed=state.get("action_executed", "None"),
+        action_result=json.dumps(state.get("action_result", {}), ensure_ascii=False),
+        pre_action_snapshot=json.dumps(state.get("pre_action_snapshot", {}), ensure_ascii=False),
+        metrics_summary=json.dumps(summary, ensure_ascii=False),
+        anomaly_type=state.get("anomaly_type", "Unknown"),
+    )
+
     for attempt in range(3):
         try:
-            response = chain.invoke({
-                "resource_type": state.get("resource_type", "Unknown"),
-                "action_executed": state.get("action_executed", "None"),
-                "action_result": json.dumps(state.get("action_result", {}), ensure_ascii=False),
-                "pre_action_snapshot": json.dumps(state.get("pre_action_snapshot", {}), ensure_ascii=False),
-                "metrics_summary": json.dumps(summary, ensure_ascii=False),
-                "anomaly_type": state.get("anomaly_type", "Unknown"),
-            })
-            parsed = _parse_llm_response(response.content)
-
-            sla_result: SlaCheckResult = {
-                "cpu_ok": parsed.get("cpu_ok", True),
-                "cost_ok": parsed.get("cost_ok", True),
-                "availability_ok": parsed.get("availability_ok", True),
-                "detail": parsed.get("reasoning", ""),
-            }
-
-            qa_passed = parsed.get("overall_pass", True)
-            reasoning = f"[LLM] {parsed.get('reasoning', '')}"
-
-            return sla_result, qa_passed, reasoning
-
+            raw_text = call_gemini(rendered_prompt, temperature=0.1)
+        except RuntimeError as e:
+            # GEMINI_KEY_1/2/3 전부 소진/미설정 - 재시도해도 결과가 같으므로
+            # 즉시 포기하고 안전하게 통과 처리 (보수적)
+            return (
+                {
+                    "cpu_ok": True,
+                    "cost_ok": True,
+                    "availability_ok": True,
+                    "detail": f"Gemini 키 사용 불가로 인한 기본 통과: {e}",
+                },
+                True,
+                f"[LLM] Gemini 키 사용 불가, 기본 통과 처리: {e}",
+            )
         except Exception as e:
             if attempt == 2:
                 # 3회 재시도 초과 시 안전하게 통과 처리 (보수적)
@@ -278,6 +375,21 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
                     True,
                     f"[LLM] 호출 실패 (3회 재시도 초과), 기본 통과 처리: {e}",
                 )
+            continue
+
+        parsed = _parse_llm_response(raw_text)
+
+        sla_result: SlaCheckResult = {
+            "cpu_ok": parsed.get("cpu_ok", True),
+            "cost_ok": parsed.get("cost_ok", True),
+            "availability_ok": parsed.get("availability_ok", True),
+            "detail": parsed.get("reasoning", ""),
+        }
+
+        qa_passed = parsed.get("overall_pass", True)
+        reasoning = f"[LLM] {parsed.get('reasoning', '')}"
+
+        return sla_result, qa_passed, reasoning
 
     return (
         {"cpu_ok": True, "cost_ok": True, "availability_ok": True, "detail": ""},
@@ -341,6 +453,11 @@ def qa_node(state: PipelineState) -> PipelineState:
     """
     QA Agent 메인 노드 함수.
 
+    처리 순서:
+    1. 화이트리스트 체크 - 해당되면 검증 스킵
+    2. Rule Book 기반 QA 규칙 매칭
+    3. 기본 SLA 검증 또는 LLM 검증
+
     SLA 검증 수행 후:
     - 통과: qa_passed=True
     - 실패 + rollback_count < 2:
@@ -348,20 +465,48 @@ def qa_node(state: PipelineState) -> PipelineState:
         (graph.py의 qa_router가 이 결과를 보고 action으로 재시도시킴)
     - 실패 + rollback_count >= 2: qa_passed=False, 롤백은 실행하되 재시도는 하지 않음 (관리자 알림)
     """
-    # Rule-based 검증 시도
+    engine = get_rule_engine()
+    resource_id = state.get("resource_id", "")
+    resource_type = state.get("resource_type", "")
+    log_entries = state.get("log_entries", [])
+
+    # 1. 화이트리스트 체크
+    is_whitelisted, whitelist_entry = engine.is_whitelisted(resource_id, resource_type)
+    state["whitelisted"] = is_whitelisted
+
+    if is_whitelisted:
+        reason = whitelist_entry.get("reason", "화이트리스트 등록됨") if whitelist_entry else "화이트리스트 등록됨"
+        entry_id = whitelist_entry.get("entry_id", "N/A") if whitelist_entry else "N/A"
+
+        sla_result: SlaCheckResult = {
+            "cpu_ok": True,
+            "cost_ok": True,
+            "availability_ok": True,
+            "detail": f"화이트리스트 적용 ({entry_id}): {reason}",
+        }
+        state["sla_check_result"] = sla_result
+        state["qa_passed"] = True
+        state["qa_matched_rule_id"] = None
+
+        log_entries.append(f"[QA] 화이트리스트 적용 - {entry_id}: {reason}")
+        log_entries.append(f"[QA] qa_passed=True (화이트리스트), rollback_count={state.get('rollback_count', 0)}")
+        state["log_entries"] = log_entries
+        return state
+
+    # 2. Rule Book 기반 검증 시도
     rule_result = _apply_rule_based_qa(state)
 
     if rule_result is not None:
-        sla_result, qa_passed, reasoning = rule_result
+        sla_result, qa_passed, reasoning, rule_id = rule_result
+        state["qa_matched_rule_id"] = rule_id
     else:
         # LLM 검증 (모호한 케이스)
         sla_result, qa_passed, reasoning = _call_llm_qa(state)
+        state["qa_matched_rule_id"] = None
 
     # State 업데이트
     state["sla_check_result"] = sla_result
     state["qa_passed"] = qa_passed
-
-    log_entries = state.get("log_entries", [])
 
     # 검증 실패 시: 실행 실패든 SLA 위반이든 구분 없이 항상 즉시 롤백 (A안)
     if not qa_passed:
@@ -378,8 +523,11 @@ def qa_node(state: PipelineState) -> PipelineState:
     # 로그 엔트리 추가
     log_entries.append(f"[QA] {reasoning}")
     log_entries.append(f"[QA] SLA 결과: cpu_ok={sla_result['cpu_ok']}, cost_ok={sla_result['cost_ok']}, availability_ok={sla_result['availability_ok']}")
-    log_entries.append(f"[QA] qa_passed={qa_passed}, rollback_count={state['rollback_count']}")
+    log_entries.append(f"[QA] qa_passed={qa_passed}, rollback_count={state.get('rollback_count', 0)}")
     state["log_entries"] = log_entries
+
+    # LLM 판단 로그에 QA 결과 추가 (규칙 승격 분석용)
+    _update_llm_log_with_qa_result(state)
 
     return state
 

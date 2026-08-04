@@ -127,6 +127,17 @@ langgraph_study/
 score = 0.5 × saving_rate - 0.3 × impact_score + 0.2 × stability_score
 ```
 
+**saving_rate 산정 방식:** `raw_metrics["cost"]` 시계열에서 결정론적으로 계산하는 것이
+기본이다 (LLM 추정은 cost 데이터가 부족할 때만 예외적으로 사용).
+- `Stop`: 평균 비용의 100% 제거로 간주
+- `Stop+Schedule`: 평균 비용의 50% 제거로 간주 (듀티사이클 가정)
+- `Resize`: EC2 온디맨드 단가표에서 현재 비용과 가장 가까운 tier를 역추정 후, 한 단계
+  낮은 tier와의 단가 차이로 계산
+- `Throttle` / `ScaleDown`: cost 윈도우의 기준선 대비 최근 급증분을 절감 가능액으로 계산
+- `Block`: 보안 조치이므로 saving_rate=0.0으로 고정
+
+각 후보 액션에는 `estimated_saving_usd`(시간당 USD 절감 예상액)도 함께 기록된다.
+
 **위험도 결정:**
 - 기본값: `cost_inefficiency`→LOW, `cost_spike`→MED, `risk_security`→HIGH
 - 액션별 상향: `Stop+Schedule`, `Resize`→최소 MED, `Block`→최소 HIGH
