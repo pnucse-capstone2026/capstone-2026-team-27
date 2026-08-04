@@ -4,12 +4,16 @@ Classification Agent
 탐지된 이상 신호를 받아서 anomaly_type을 분류하고 임시 조치를 수행
 
 처리 전략
-1) Rule-based : 명확한 케이스는 규칙으로 즉시 분류 
+1) Rule-based : 명확한 케이스는 규칙으로 즉시 분류
 2) LLM : 규칙으로 판단 불가한 모호한 케이스는 LLM에 위임
+        → LLM 판단은 schema/logs/llm_classification_log.jsonl에 기록
 """
 
 import json
+import os
 import re
+import uuid
+from datetime import datetime
 from typing import Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -19,6 +23,9 @@ from pipeline.rule_engine import get_rule_engine
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# LLM 판단 로그 경로
+LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
 
@@ -108,6 +115,53 @@ def _parse_llm_response(text: str) -> dict:
         }
  
  
+def _log_llm_judgment(state: PipelineState, anomaly_type: Optional[str],
+                      reasoning: str, interim_action: Optional[str]) -> None:
+    """
+    LLM 판단 결과를 JSONL 파일에 기록.
+    QA 결과(qa_passed, rollback_count)는 이후 QA Agent에서 trace_id로 연결하여 추가.
+    """
+    trace_id = state.get("trace_id")
+    if not trace_id:
+        return  # trace_id 없으면 로깅 스킵
+
+    metrics_summary = _metrics_summary(state.get("raw_metrics", {}))
+
+    log_entry = {
+        # 추적 정보
+        "trace_id": trace_id,
+        "logged_at": datetime.utcnow().isoformat() + "Z",
+
+        # 입력 (LLM 판단에 사용된 컨텍스트)
+        "input": {
+            "resource_id": state.get("resource_id"),
+            "resource_type": state.get("resource_type"),
+            "triggered_metrics": state.get("triggered_metrics", []),
+            "metrics_summary": metrics_summary,  # latest + mean per metric
+        },
+
+        # LLM 출력
+        "output": {
+            "anomaly_type": anomaly_type,
+            "interim_action": interim_action,
+            "reasoning": reasoning,
+        },
+
+        # 분류 결과 (Rule Book 매칭 안 됨)
+        "matched_rule_id": None,
+
+        # QA 결과 (나중에 QA Agent가 채움)
+        "qa_result": None,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(LLM_LOG_PATH), exist_ok=True)
+        with open(LLM_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[classification_agent] LLM 로그 기록 실패: {e}")
+
+
 def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
     """LLM 호출 후 (anomaly_type, reasoning, interim_action) 반환."""
     summary = _metrics_summary(state["raw_metrics"])
@@ -149,6 +203,10 @@ def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
  
 # 메인 노드 함수
 def classification_node(state: PipelineState) -> PipelineState:
+    # trace_id 생성 (없으면)
+    if not state.get("trace_id"):
+        state["trace_id"] = str(uuid.uuid4())
+
     # Rule Book 기반 규칙 매칭
     rule_result = _apply_rules(state)
 
@@ -161,6 +219,9 @@ def classification_node(state: PipelineState) -> PipelineState:
         anomaly_type, reasoning, interim_action = _call_llm(state)
         prefix = ""
         state["matched_rule_id"] = None
+
+        # LLM 판단 로깅 (규칙 승격 분석용)
+        _log_llm_judgment(state, anomaly_type, reasoning, interim_action)
 
     state["anomaly_type"]             = anomaly_type
     state["classification_reasoning"] = f"{prefix}{reasoning}"

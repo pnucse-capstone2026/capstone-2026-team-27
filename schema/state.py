@@ -139,6 +139,7 @@ def resolve_risk_level(anomaly_type: str, selected_action: str) -> Literal["LOW"
 class PipelineState(TypedDict):
 
     # ── Step 0: 수집된 원본 데이터 ───────────────────────────────────────────
+    trace_id:      Optional[str]  # 파이프라인 실행 추적용 UUID (LLM 로그 ↔ QA 결과 연결)
     resource_id:   str
     resource_type: Literal["EC2", "Lambda", "S3", "RDS", "AutoScaling"]
     raw_metrics:   EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics

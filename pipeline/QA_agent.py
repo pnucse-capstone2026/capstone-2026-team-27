@@ -23,6 +23,8 @@ QA Agent
 """
 
 import json
+import os
+from datetime import datetime
 from typing import Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -30,6 +32,62 @@ from langchain_core.prompts import ChatPromptTemplate
 from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
 from pipeline.rule_engine import get_rule_engine
+
+# LLM 판단 로그 경로 (classification_agent.py와 동일)
+LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
+
+
+def _update_llm_log_with_qa_result(state: PipelineState) -> None:
+    """
+    LLM 판단 로그에 QA 결과를 추가.
+    trace_id로 해당 로그 엔트리를 찾아 qa_result 필드를 업데이트.
+
+    LLM 판단이 아닌 경우(matched_rule_id가 있는 경우)는 스킵.
+    """
+    trace_id = state.get("trace_id")
+    matched_rule_id = state.get("matched_rule_id")
+
+    # LLM 판단이 아니면 (Rule Book으로 분류됨) 로깅 스킵
+    if not trace_id or matched_rule_id is not None:
+        return
+
+    qa_result = {
+        "qa_passed": state.get("qa_passed"),
+        "rollback_count": state.get("rollback_count", 0),
+        "sla_check_result": state.get("sla_check_result"),
+        "qa_matched_rule_id": state.get("qa_matched_rule_id"),
+        "whitelisted": state.get("whitelisted", False),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+    if not os.path.exists(LLM_LOG_PATH):
+        return
+
+    try:
+        # 로그 파일 읽기 → trace_id 매칭 → qa_result 업데이트 → 다시 쓰기
+        updated_lines = []
+        found = False
+
+        with open(LLM_LOG_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("trace_id") == trace_id and entry.get("qa_result") is None:
+                        entry["qa_result"] = qa_result
+                        found = True
+                    updated_lines.append(json.dumps(entry, ensure_ascii=False))
+                except json.JSONDecodeError:
+                    updated_lines.append(line)
+
+        if found:
+            with open(LLM_LOG_PATH, "w", encoding="utf-8") as f:
+                f.write("\n".join(updated_lines) + "\n")
+
+    except Exception as e:
+        print(f"[QA_agent] LLM 로그 QA 결과 업데이트 실패: {e}")
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -451,6 +509,9 @@ def qa_node(state: PipelineState) -> PipelineState:
     log_entries.append(f"[QA] SLA 결과: cpu_ok={sla_result['cpu_ok']}, cost_ok={sla_result['cost_ok']}, availability_ok={sla_result['availability_ok']}")
     log_entries.append(f"[QA] qa_passed={qa_passed}, rollback_count={state.get('rollback_count', 0)}")
     state["log_entries"] = log_entries
+
+    # LLM 판단 로그에 QA 결과 추가 (규칙 승격 분석용)
+    _update_llm_log_with_qa_result(state)
 
     return state
 

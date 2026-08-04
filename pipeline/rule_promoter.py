@@ -1,0 +1,286 @@
+"""
+Rule Promoter
+-------------
+LLM 판단 로그를 분석하여 반복적으로 검증된 패턴을 Rule Book에 자동 승격하는 스크립트.
+
+사용법:
+    python -m pipeline.rule_promoter [--min-count N] [--dry-run]
+
+승격 조건:
+    1. 같은 조건(resource_type + triggered_metrics 조합)에서
+    2. LLM이 N번 이상 동일한 anomaly_type으로 판단
+    3. 그 판단들이 qa_passed=True로 검증됨
+
+승격 시:
+    - rule_id: CLF-0XX 형식으로 자동 채번
+    - author: "auto-promoted"
+    - rationale: "N건의 LLM 판단 로그 기반 자동 승격, 승격일 YYYY-MM-DD"
+"""
+
+import argparse
+import json
+import os
+from collections import defaultdict
+from datetime import datetime
+from typing import Optional
+
+# 설정
+MIN_PROMOTION_COUNT = 3  # 최소 반복 횟수 (나중에 조정 가능)
+
+# 파일 경로
+SCRIPT_DIR = os.path.dirname(__file__)
+LLM_LOG_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "logs", "llm_classification_log.jsonl")
+CLASSIFICATION_RULES_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "rules", "classification_rules.json")
+
+
+def load_llm_logs() -> list[dict]:
+    """LLM 판단 로그 로드."""
+    if not os.path.exists(LLM_LOG_PATH):
+        print(f"[rule_promoter] 로그 파일 없음: {LLM_LOG_PATH}")
+        return []
+
+    logs = []
+    with open(LLM_LOG_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                logs.append(entry)
+            except json.JSONDecodeError:
+                continue
+    return logs
+
+
+def load_existing_rules() -> list[dict]:
+    """기존 Classification 규칙 로드."""
+    if not os.path.exists(CLASSIFICATION_RULES_PATH):
+        return []
+
+    with open(CLASSIFICATION_RULES_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_rules(rules: list[dict]) -> None:
+    """Classification 규칙 저장."""
+    with open(CLASSIFICATION_RULES_PATH, "w", encoding="utf-8") as f:
+        json.dump(rules, f, ensure_ascii=False, indent=2)
+
+
+def get_next_rule_id(existing_rules: list[dict]) -> str:
+    """다음 규칙 ID 생성 (CLF-006, CLF-007, ...)."""
+    max_num = 0
+    for rule in existing_rules:
+        rule_id = rule.get("rule_id", "")
+        if rule_id.startswith("CLF-"):
+            try:
+                num = int(rule_id.replace("CLF-", ""))
+                max_num = max(max_num, num)
+            except ValueError:
+                continue
+    return f"CLF-{max_num + 1:03d}"
+
+
+def normalize_metrics(metrics: list[str]) -> tuple[str, ...]:
+    """triggered_metrics를 정렬된 튜플로 정규화 (해시 가능하게)."""
+    return tuple(sorted(metrics))
+
+
+def find_promotion_candidates(logs: list[dict], min_count: int) -> list[dict]:
+    """
+    승격 후보 찾기.
+
+    그룹핑 키: (resource_type, sorted(triggered_metrics), anomaly_type)
+    조건: qa_passed=True인 항목만 카운트, min_count 이상이면 후보
+    """
+    # 그룹별 카운트 및 샘플 저장
+    groups: dict[tuple, list[dict]] = defaultdict(list)
+
+    for entry in logs:
+        qa_result = entry.get("qa_result")
+        if qa_result is None:
+            continue  # QA 결과 없음
+
+        if not qa_result.get("qa_passed"):
+            continue  # QA 실패
+
+        input_data = entry.get("input", {})
+        output_data = entry.get("output", {})
+
+        resource_type = input_data.get("resource_type")
+        triggered_metrics = input_data.get("triggered_metrics", [])
+        anomaly_type = output_data.get("anomaly_type")
+
+        if not resource_type or not triggered_metrics or not anomaly_type:
+            continue
+
+        key = (resource_type, normalize_metrics(triggered_metrics), anomaly_type)
+        groups[key].append(entry)
+
+    # 후보 추출
+    candidates = []
+    for (resource_type, metrics_tuple, anomaly_type), entries in groups.items():
+        if len(entries) >= min_count:
+            # 대표 샘플에서 reasoning 추출
+            sample_reasoning = entries[0].get("output", {}).get("reasoning", "")
+            sample_interim_action = entries[0].get("output", {}).get("interim_action")
+
+            candidates.append({
+                "resource_type": resource_type,
+                "triggered_metrics": list(metrics_tuple),
+                "anomaly_type": anomaly_type,
+                "count": len(entries),
+                "sample_reasoning": sample_reasoning,
+                "sample_interim_action": sample_interim_action,
+                "entries": entries,  # 디버깅/분석용
+            })
+
+    # 카운트 내림차순 정렬
+    candidates.sort(key=lambda x: x["count"], reverse=True)
+    return candidates
+
+
+def is_already_covered(candidate: dict, existing_rules: list[dict]) -> bool:
+    """이미 기존 규칙으로 커버되는지 확인."""
+    resource_type = candidate["resource_type"]
+    triggered_metrics = set(candidate["triggered_metrics"])
+
+    for rule in existing_rules:
+        rule_types = rule.get("resource_types", [])
+        conditions = rule.get("conditions", {})
+
+        # 리소스 타입 매칭
+        if "*" not in rule_types and resource_type not in rule_types:
+            continue
+
+        # triggered_metrics 조건 매칭
+        rule_metrics = conditions.get("triggered_metrics")
+        if rule_metrics:
+            if set(rule_metrics) == triggered_metrics:
+                return True
+
+    return False
+
+
+def create_rule_from_candidate(candidate: dict, rule_id: str) -> dict:
+    """후보에서 Rule Book 규칙 생성."""
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return {
+        "rule_id": rule_id,
+        "rule_type": "classification",
+        "description": f"{candidate['resource_type']} {'+'.join(candidate['triggered_metrics'])} -> {candidate['anomaly_type']}",
+        "resource_types": [candidate["resource_type"]],
+        "conditions": {
+            "triggered_metrics": candidate["triggered_metrics"]
+        },
+        "result": {
+            "anomaly_type": candidate["anomaly_type"],
+            "interim_action": candidate["sample_interim_action"],
+            "reasoning_template": candidate["sample_reasoning"].replace("[LLM] ", "")
+        },
+        "priority": 100,  # 자동 승격 규칙은 낮은 우선순위
+        "enabled": True,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "author": "auto-promoted",
+        "rationale": f"{candidate['count']}건의 LLM 판단 로그 기반 자동 승격, 승격일 {today}"
+    }
+
+
+def display_candidate(candidate: dict, index: int) -> None:
+    """후보 정보 출력."""
+    print(f"\n{'='*60}")
+    print(f"후보 #{index + 1}")
+    print(f"{'='*60}")
+    print(f"  리소스 타입      : {candidate['resource_type']}")
+    print(f"  트리거 메트릭    : {candidate['triggered_metrics']}")
+    print(f"  이상 유형        : {candidate['anomaly_type']}")
+    print(f"  검증된 판단 횟수 : {candidate['count']}회")
+    print(f"  샘플 reasoning   : {candidate['sample_reasoning'][:80]}...")
+    print(f"  샘플 interim_action: {candidate['sample_interim_action']}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="LLM 판단 로그 기반 규칙 자동 승격")
+    parser.add_argument("--min-count", type=int, default=MIN_PROMOTION_COUNT,
+                        help=f"최소 반복 횟수 (기본값: {MIN_PROMOTION_COUNT})")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="실제 저장 없이 후보만 출력")
+    args = parser.parse_args()
+
+    print(f"\n[rule_promoter] LLM 판단 로그 분석 시작 (min_count={args.min_count})")
+    print(f"[rule_promoter] 로그 파일: {LLM_LOG_PATH}")
+    print(f"[rule_promoter] 규칙 파일: {CLASSIFICATION_RULES_PATH}")
+
+    # 로그 로드
+    logs = load_llm_logs()
+    if not logs:
+        print("\n[rule_promoter] 분석할 로그가 없습니다.")
+        return
+
+    print(f"\n[rule_promoter] 총 {len(logs)}개 로그 로드됨")
+
+    # 기존 규칙 로드
+    existing_rules = load_existing_rules()
+    print(f"[rule_promoter] 기존 규칙 {len(existing_rules)}개 로드됨")
+
+    # 승격 후보 찾기
+    candidates = find_promotion_candidates(logs, args.min_count)
+
+    if not candidates:
+        print(f"\n[rule_promoter] 승격 조건을 만족하는 후보가 없습니다.")
+        print(f"  (조건: qa_passed=True이고 동일 패턴 {args.min_count}회 이상)")
+        return
+
+    # 이미 커버되는 후보 필터링
+    new_candidates = []
+    for candidate in candidates:
+        if is_already_covered(candidate, existing_rules):
+            print(f"\n[skip] 이미 규칙 존재: {candidate['resource_type']} + {candidate['triggered_metrics']}")
+        else:
+            new_candidates.append(candidate)
+
+    if not new_candidates:
+        print(f"\n[rule_promoter] 새로 승격할 후보가 없습니다. (모두 기존 규칙으로 커버됨)")
+        return
+
+    print(f"\n[rule_promoter] 승격 후보 {len(new_candidates)}개 발견")
+
+    # 각 후보에 대해 승인 요청
+    promoted_count = 0
+    for i, candidate in enumerate(new_candidates):
+        display_candidate(candidate, i)
+
+        if args.dry_run:
+            print("\n  [dry-run] 실제 저장하지 않음")
+            continue
+
+        # 사용자 승인
+        while True:
+            response = input("\n  이 패턴을 규칙으로 승격하시겠습니까? (y/n): ").strip().lower()
+            if response in ("y", "n"):
+                break
+            print("  'y' 또는 'n'으로 입력해주세요.")
+
+        if response == "y":
+            rule_id = get_next_rule_id(existing_rules)
+            new_rule = create_rule_from_candidate(candidate, rule_id)
+            existing_rules.append(new_rule)
+            save_rules(existing_rules)
+            promoted_count += 1
+            print(f"  [승격 완료] {rule_id} 추가됨")
+        else:
+            print("  [스킵]")
+
+    print(f"\n{'='*60}")
+    print(f"[rule_promoter] 완료: {promoted_count}개 규칙 승격됨")
+    print(f"{'='*60}")
+
+
+if __name__ == "__main__":
+    main()
