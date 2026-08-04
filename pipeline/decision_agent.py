@@ -56,7 +56,6 @@ node_contracts.md Step 3 기준.
 from __future__ import annotations
 
 import json
-import os
 import logging
 
 from schema.state import (
@@ -65,6 +64,7 @@ from schema.state import (
     ALLOWED_ACTIONS,
     resolve_risk_level,
 )
+from utils.llm_utils import call_gemini
 
 logger = logging.getLogger(__name__)
 
@@ -190,27 +190,9 @@ def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def _get_llm():
-    """
-    입력: 없음 (환경변수 GEMINI_API_KEY 사용)
-    출력: LangChain Gemini 클라이언트, 미설정/미설치 시 None
-    (호출부에서 None이면 룰 기반으로 fallback)
-    """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.warning("GEMINI_API_KEY 미설정 — 룰 기반으로만 동작합니다.")
-        return None
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-    except ImportError:
-        logger.warning("langchain_google_genai 미설치 — 룰 기반으로만 동작합니다.")
-        return None
-
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=api_key,
-        temperature=0.1,  # temperature 고정으로 일관성 확보
-    )
+# [REMOVED] _get_llm() — GEMINI_API_KEY 하나로 ChatGoogleGenerativeAI 클라이언트를
+# 직접 만들던 함수. utils/llm_utils.call_gemini()가 GEMINI_KEY_1/2/3 순환과
+# "키가 하나도 없음"까지 전부 RuntimeError로 처리해주므로 더 이상 필요 없음.
 
 
 # ── saving_rate 결정론적 계산 (cost 시계열 기반) ─────────────────────────────
@@ -425,28 +407,37 @@ def _parse_llm_json(raw_text: str) -> dict | None:
         return None
 
 
-def _invoke_llm_with_retry(llm, prompt: str, action: str) -> dict | None:
+def _invoke_llm_with_retry(prompt: str, action: str) -> dict | None:
     """
-    입력: llm 클라이언트, prompt 문자열, action(로그 식별용)
+    입력: prompt 문자열, action(로그 식별용)
     출력: 파싱된 JSON dict, 모든 재시도(MAX_LLM_RETRIES+1회) 실패 시 None
-    """
-    from langchain_core.messages import HumanMessage
 
+    [ADDED] 직접 ChatGoogleGenerativeAI를 만들어 호출하는 대신
+    utils/llm_utils.call_gemini()를 쓴다 — GEMINI_KEY_1/2/3 중 429가 아닌 한
+    자동으로 다음 키로 순환해준다. call_gemini()가 RuntimeError를 던지는 건
+    "키가 하나도 없음" 또는 "등록된 키를 전부 소진함" 둘 중 하나이므로,
+    재시도해도 결과가 달라지지 않아 즉시 포기하고 룰 기반 fallback으로 넘긴다.
+    """
     for attempt in range(MAX_LLM_RETRIES + 1):
         try:
-            response = llm.invoke([HumanMessage(content=prompt)])
-            parsed = _parse_llm_json(response.content)
-            if parsed is None:
-                logger.warning(
-                    "LLM 응답 JSON 파싱 실패 (action=%s, attempt=%d): %r",
-                    action, attempt, response.content,
-                )
-                continue
-            return parsed
+            raw_text = call_gemini(prompt, temperature=0.1)
+        except RuntimeError as exc:
+            logger.warning("Gemini 키 사용 불가 (action=%s): %s", action, exc)
+            return None
         except Exception as exc:  # noqa: BLE001 - LLM 호출은 광범위하게 방어
             logger.warning(
                 "LLM 호출 실패 (action=%s, attempt=%d): %s", action, attempt, exc
             )
+            continue
+
+        parsed = _parse_llm_json(raw_text)
+        if parsed is None:
+            logger.warning(
+                "LLM 응답 JSON 파싱 실패 (action=%s, attempt=%d): %r",
+                action, attempt, raw_text,
+            )
+            continue
+        return parsed
 
     logger.error("LLM 응답을 끝내 파싱하지 못함 (action=%s)", action)
     return None
@@ -462,13 +453,8 @@ def _estimate_saving_rate_with_llm(
     (estimated_saving_usd는 이 경로에서는 근거 있는 금액을 만들 수 없으므로
      호출부에서 항상 0.0으로 둔다)
     """
-    llm = _get_llm()
-    if llm is None:
-        saving, _, _ = RULE_BASED_SCORE_TABLE.get(action, (0.0, 0.0, 1.0))
-        return saving
-
     prompt = _build_saving_rate_only_prompt(action, anomaly_type, resource_type, raw_metrics)
-    parsed = _invoke_llm_with_retry(llm, prompt, action)
+    parsed = _invoke_llm_with_retry(prompt, action)
     if parsed is None:
         saving, _, _ = RULE_BASED_SCORE_TABLE.get(action, (0.0, 0.0, 1.0))
         return saving
@@ -494,14 +480,10 @@ def _select_action_with_llm(
     LLM이 boto3 스펙을 보고 직접 액션 1개를 추천.
     실패 시 RULE_BASED_SCORE_TABLE에서 가장 높은 saving_rate 액션으로 fallback.
     """
-    llm = _get_llm()
-    if llm is None:
-        return _rule_based_fallback_action(allowed_actions), "LLM 미설정 - 룰 기반 선택"
-
     prompt = _build_action_selection_prompt(
         allowed_actions, anomaly_type, resource_type, raw_metrics
     )
-    parsed = _invoke_llm_with_retry(llm, prompt, "action_selection")
+    parsed = _invoke_llm_with_retry(prompt, "action_selection")
 
     if parsed is None:
         return _rule_based_fallback_action(allowed_actions), "LLM 실패 - 룰 기반 선택"
