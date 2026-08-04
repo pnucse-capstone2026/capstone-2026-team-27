@@ -25,10 +25,9 @@ QA Agent
 import json
 from typing import Optional
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
 from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
+from utils.llm_utils import call_gemini
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -40,10 +39,13 @@ SLA_THRESHOLDS = {
     "availability_min": 99.0,          # 최소 가용성 (%)
 }
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
+# [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
+# GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
+# GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
+# .format()으로 렌더링해서 call_gemini(prompt: str)에 그대로 넘긴다.
 
-# LLM 프롬프트: 복잡한 SLA 판단이 필요한 경우
-prompt = ChatPromptTemplate.from_template("""
+# LLM 프롬프트: 복잡한 SLA 판단이 필요한 경우 (str.format()과 동일한 {{ }} 이스케이프 규칙)
+PROMPT_TEMPLATE = """
 당신은 AWS 클라우드 복구 액션의 품질을 검증하는 QA 전문가입니다.
 아래 정보를 바탕으로 SLA 준수 여부를 판단하고 JSON으로만 응답하세요.
 마크다운 코드블록, 설명 텍스트 없이 JSON만 출력하세요.
@@ -75,9 +77,7 @@ prompt = ChatPromptTemplate.from_template("""
   "reasoning": "판단 근거를 2문장 이내로",
   "rollback_recommended": true | false
 }}
-""")
-
-chain = prompt | llm
+"""
 
 
 def _metrics_summary(raw_metrics: dict) -> dict:
@@ -241,30 +241,31 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
     """LLM을 사용한 복잡한 SLA 검증."""
     summary = _metrics_summary(state.get("raw_metrics", {}))
 
+    rendered_prompt = PROMPT_TEMPLATE.format(
+        resource_type=state.get("resource_type", "Unknown"),
+        action_executed=state.get("action_executed", "None"),
+        action_result=json.dumps(state.get("action_result", {}), ensure_ascii=False),
+        pre_action_snapshot=json.dumps(state.get("pre_action_snapshot", {}), ensure_ascii=False),
+        metrics_summary=json.dumps(summary, ensure_ascii=False),
+        anomaly_type=state.get("anomaly_type", "Unknown"),
+    )
+
     for attempt in range(3):
         try:
-            response = chain.invoke({
-                "resource_type": state.get("resource_type", "Unknown"),
-                "action_executed": state.get("action_executed", "None"),
-                "action_result": json.dumps(state.get("action_result", {}), ensure_ascii=False),
-                "pre_action_snapshot": json.dumps(state.get("pre_action_snapshot", {}), ensure_ascii=False),
-                "metrics_summary": json.dumps(summary, ensure_ascii=False),
-                "anomaly_type": state.get("anomaly_type", "Unknown"),
-            })
-            parsed = _parse_llm_response(response.content)
-
-            sla_result: SlaCheckResult = {
-                "cpu_ok": parsed.get("cpu_ok", True),
-                "cost_ok": parsed.get("cost_ok", True),
-                "availability_ok": parsed.get("availability_ok", True),
-                "detail": parsed.get("reasoning", ""),
-            }
-
-            qa_passed = parsed.get("overall_pass", True)
-            reasoning = f"[LLM] {parsed.get('reasoning', '')}"
-
-            return sla_result, qa_passed, reasoning
-
+            raw_text = call_gemini(rendered_prompt, temperature=0.1)
+        except RuntimeError as e:
+            # GEMINI_KEY_1/2/3 전부 소진/미설정 - 재시도해도 결과가 같으므로
+            # 즉시 포기하고 안전하게 통과 처리 (보수적)
+            return (
+                {
+                    "cpu_ok": True,
+                    "cost_ok": True,
+                    "availability_ok": True,
+                    "detail": f"Gemini 키 사용 불가로 인한 기본 통과: {e}",
+                },
+                True,
+                f"[LLM] Gemini 키 사용 불가, 기본 통과 처리: {e}",
+            )
         except Exception as e:
             if attempt == 2:
                 # 3회 재시도 초과 시 안전하게 통과 처리 (보수적)
@@ -278,6 +279,21 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
                     True,
                     f"[LLM] 호출 실패 (3회 재시도 초과), 기본 통과 처리: {e}",
                 )
+            continue
+
+        parsed = _parse_llm_response(raw_text)
+
+        sla_result: SlaCheckResult = {
+            "cpu_ok": parsed.get("cpu_ok", True),
+            "cost_ok": parsed.get("cost_ok", True),
+            "availability_ok": parsed.get("availability_ok", True),
+            "detail": parsed.get("reasoning", ""),
+        }
+
+        qa_passed = parsed.get("overall_pass", True)
+        reasoning = f"[LLM] {parsed.get('reasoning', '')}"
+
+        return sla_result, qa_passed, reasoning
 
     return (
         {"cpu_ok": True, "cost_ok": True, "availability_ok": True, "detail": ""},

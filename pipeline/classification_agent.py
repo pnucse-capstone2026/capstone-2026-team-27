@@ -12,28 +12,30 @@ import json
 import re
 from typing import Optional
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
 from schema.state import PipelineState, ALLOWED_ACTIONS
+from utils.llm_utils import call_gemini
 
 from dotenv import load_dotenv
 load_dotenv()
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
+# [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
+# GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
+# GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
+# .format()으로 렌더링해서 call_gemini(prompt: str)에 그대로 넘긴다.
 
-# 프롬프트 
-prompt = ChatPromptTemplate.from_template("""
+# 프롬프트 (str.format()과 동일한 {{ }} 이스케이프 규칙 사용)
+PROMPT_TEMPLATE = """
 당신은 AWS 클라우드 비용 이상 징후를 분류하는 전문가입니다.
 아래 정보를 바탕으로 이상 유형을 분류하고 JSON으로만 응답하세요.
 마크다운 코드블록, 설명 텍스트 없이 JSON만 출력하세요.
- 
+
 ## 입력 정보
 - 리소스 타입: {resource_type}
 - 이상이 감지된 지표: {triggered_metrics}
 - Z-score: {anomaly_score_zscore}
 - Isolation Forest 점수: {anomaly_score_iforest}
 - 최근 지표 요약: {metrics_summary}
- 
+
 ## 분류 기준
 - cost_inefficiency: 낭비형. 좀비 리소스, 오버프로비저닝. 긴급도 낮음.
 - cost_spike: 급증형. 트래픽 폭증, Lambda 호출 폭증. 긴급도 높음.
@@ -43,17 +45,15 @@ prompt = ChatPromptTemplate.from_template("""
 - risk_security는 비정상 접근, 알 수 없는 IP, EDoS 등 명확한 보안 근거가 있을 때만 사용
 - 보안 근거 없이 cpu + network 동시 급증만으로는 반드시 cost_spike로 분류
 - 애매한 경우 cost_spike > cost_inefficiency 순으로 보수적으로 판단
- 
+
 ## 응답 형식 (JSON만, 다른 텍스트 금지)
 {{
   "anomaly_type": "cost_inefficiency" | "cost_spike" | "risk_security",
   "reasoning": "판단 근거를 2문장 이내로",
   "interim_action": "즉시 취할 임시조치를 10단어 이내로 (없으면 null)"
 }}
-""")
- 
-chain = prompt | llm
- 
+"""
+
 # 1) Rule-based
 def _metrics_summary(raw_metrics: dict) -> dict:
     """각 지표의 최근값(마지막)과 평균을 요약."""
@@ -141,31 +141,21 @@ def _parse_llm_response(text: str) -> dict:
 def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
     """LLM 호출 후 (anomaly_type, reasoning, interim_action) 반환."""
     summary = _metrics_summary(state["raw_metrics"])
- 
+
+    rendered_prompt = PROMPT_TEMPLATE.format(
+        resource_type=state["resource_type"],
+        triggered_metrics=state["triggered_metrics"],
+        anomaly_score_zscore=state["anomaly_score_zscore"],
+        anomaly_score_iforest=state["anomaly_score_iforest"],
+        metrics_summary=json.dumps(summary, ensure_ascii=False),
+    )
+
     for attempt in range(3):  # 최대 3회 재시도
         try:
-            response = chain.invoke({
-                "resource_type":           state["resource_type"],
-                "triggered_metrics":       state["triggered_metrics"],
-                "anomaly_score_zscore":    state["anomaly_score_zscore"],
-                "anomaly_score_iforest":   state["anomaly_score_iforest"],
-                "metrics_summary":         json.dumps(summary, ensure_ascii=False),
-            })
-            parsed = _parse_llm_response(response.content)
- 
-            anomaly_type = parsed.get("anomaly_type")
- 
-            # 유효하지 않은 anomaly_type이면 재시도
-            valid_types = {"cost_inefficiency", "cost_spike", "risk_security"}
-            if anomaly_type not in valid_types:
-                continue
- 
-            return (
-                anomaly_type,
-                f"[LLM] {parsed.get('reasoning', '')}",
-                parsed.get("interim_action"),
-            )
- 
+            raw_text = call_gemini(rendered_prompt, temperature=0.1)
+        except RuntimeError as e:
+            # GEMINI_KEY_1/2/3 전부 소진/미설정 - 재시도해도 결과가 같으므로 즉시 포기
+            return (None, f"Gemini 키 사용 불가: {e}", None)
         except Exception as e:
             if attempt == 2:
                 return (
@@ -173,7 +163,23 @@ def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
                     f"LLM 호출 실패 (3회 재시도 초과): {e}",
                     None,
                 )
- 
+            continue
+
+        parsed = _parse_llm_response(raw_text)
+
+        anomaly_type = parsed.get("anomaly_type")
+
+        # 유효하지 않은 anomaly_type이면 재시도
+        valid_types = {"cost_inefficiency", "cost_spike", "risk_security"}
+        if anomaly_type not in valid_types:
+            continue
+
+        return (
+            anomaly_type,
+            f"[LLM] {parsed.get('reasoning', '')}",
+            parsed.get("interim_action"),
+        )
+
     return (None, "LLM 응답에서 유효한 anomaly_type 추출 실패", None)
  
  
