@@ -4,20 +4,29 @@ Classification Agent
 탐지된 이상 신호를 받아서 anomaly_type을 분류하고 임시 조치를 수행
 
 처리 전략
-1) Rule-based : 명확한 케이스는 규칙으로 즉시 분류 
+1) Rule-based : 명확한 케이스는 규칙으로 즉시 분류
 2) LLM : 규칙으로 판단 불가한 모호한 케이스는 LLM에 위임
+        → LLM 판단은 schema/logs/llm_classification_log.jsonl에 기록
 """
 
 import json
+import os
 import re
+import uuid
+from datetime import datetime
 from typing import Optional
 
 from schema.state import PipelineState, ALLOWED_ACTIONS
+from pipeline.rule_engine import get_rule_engine
 from utils.llm_utils import call_gemini
 
 from dotenv import load_dotenv
 load_dotenv()
 
+# LLM 판단 로그 경로
+LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
+
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
 # [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
 # GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
 # GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
@@ -67,56 +76,25 @@ def _metrics_summary(raw_metrics: dict) -> dict:
     return summary
  
  
-def _apply_rules(state: PipelineState) -> Optional[tuple[str, str, Optional[str]]]:
+def _apply_rules(state: PipelineState) -> Optional[tuple[str, str, Optional[str], Optional[str]]]:
     """
-    Rule-based 선처리.
-    명확하게 분류 가능한 케이스만 처리하고 (anomaly_type, reasoning, interim_action) 반환.
-    모호하면 None 반환 → LLM으로 넘어감.
+    Rule Book 기반 규칙 매칭.
+    매칭되는 규칙이 있으면 (anomaly_type, reasoning, interim_action, rule_id) 반환.
+    매칭되는 규칙이 없으면 None 반환 → LLM으로 넘어감.
     """
-    resource_type     = state["resource_type"]
-    triggered_metrics = state["triggered_metrics"]
-    raw_metrics       = state["raw_metrics"]
-    summary           = _metrics_summary(raw_metrics)
- 
-    # AutoScaling: 인스턴스 수 급증 -> EDoS 의심 
-    if resource_type == "AutoScaling":
-        desired = summary.get("group_desired_capacity", {})
-        if desired.get("latest", 0) > desired.get("mean", 0) * 2:
-            return (
-                "risk_security",
-                "AutoScaling 인스턴스 수가 평균 대비 2배 이상 급증 → EDoS 의심",
-                "AutoScaling 최대 인스턴스 수 임시 제한",
-            )
- 
-    # Lambda: 호출 횟수 + 에러 동시 급증 -> 무한루프 또는 호출 폭증 
-    if resource_type == "Lambda":
-        if "invocation_count" in triggered_metrics and "error_count" in triggered_metrics:
-            return (
-                "cost_spike",
-                "Lambda 호출 횟수와 에러 수 동시 급증 → 무한루프 또는 호출 폭증",
-                "Lambda 동시성 임시 제한 적용",
-            )
- 
-    # S3: 다운로드 급증 단독 -> 데이터 유출 의심 
-    if resource_type == "S3":
-        if triggered_metrics == ["bytes_downloaded"]:
-            return (
-                "risk_security",
-                "S3 bytes_downloaded 단독 급증 → 비정상 데이터 유출 의심",
-                "S3 퍼블릭 접근 임시 차단",
-            )
- 
-    # EC2/RDS: cost만 단독 이상 -> 좀비 리소스 또는 오버프로비저닝 
-    if resource_type in ("EC2", "RDS"):
-        if triggered_metrics == ["cost"]:
-            return (
-                "cost_inefficiency",
-                "비용 지표만 단독 이상, 성능 지표 정상 → 좀비 리소스 또는 오버프로비저닝",
-                None,
-            )
- 
-    # 규칙으로 판단 불가 -> LLM으로
-    return None
+    engine = get_rule_engine()
+    matched_rule = engine.match_classification_rules(state)
+
+    if matched_rule is None:
+        return None
+
+    result = matched_rule.get("result", {})
+    anomaly_type = result.get("anomaly_type")
+    interim_action = result.get("interim_action")
+    reasoning = engine.format_reasoning(matched_rule, state)
+    rule_id = matched_rule.get("rule_id")
+
+    return (anomaly_type, reasoning, interim_action, rule_id)
 
 
 # 2) LLM 호출 + 응답 파싱 
@@ -138,6 +116,53 @@ def _parse_llm_response(text: str) -> dict:
         }
  
  
+def _log_llm_judgment(state: PipelineState, anomaly_type: Optional[str],
+                      reasoning: str, interim_action: Optional[str]) -> None:
+    """
+    LLM 판단 결과를 JSONL 파일에 기록.
+    QA 결과(qa_passed, rollback_count)는 이후 QA Agent에서 trace_id로 연결하여 추가.
+    """
+    trace_id = state.get("trace_id")
+    if not trace_id:
+        return  # trace_id 없으면 로깅 스킵
+
+    metrics_summary = _metrics_summary(state.get("raw_metrics", {}))
+
+    log_entry = {
+        # 추적 정보
+        "trace_id": trace_id,
+        "logged_at": datetime.utcnow().isoformat() + "Z",
+
+        # 입력 (LLM 판단에 사용된 컨텍스트)
+        "input": {
+            "resource_id": state.get("resource_id"),
+            "resource_type": state.get("resource_type"),
+            "triggered_metrics": state.get("triggered_metrics", []),
+            "metrics_summary": metrics_summary,  # latest + mean per metric
+        },
+
+        # LLM 출력
+        "output": {
+            "anomaly_type": anomaly_type,
+            "interim_action": interim_action,
+            "reasoning": reasoning,
+        },
+
+        # 분류 결과 (Rule Book 매칭 안 됨)
+        "matched_rule_id": None,
+
+        # QA 결과 (나중에 QA Agent가 채움)
+        "qa_result": None,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(LLM_LOG_PATH), exist_ok=True)
+        with open(LLM_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[classification_agent] LLM 로그 기록 실패: {e}")
+
+
 def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
     """LLM 호출 후 (anomaly_type, reasoning, interim_action) 반환."""
     summary = _metrics_summary(state["raw_metrics"])
@@ -183,22 +208,31 @@ def _call_llm(state: PipelineState) -> tuple[Optional[str], str, Optional[str]]:
     return (None, "LLM 응답에서 유효한 anomaly_type 추출 실패", None)
  
  
-# 메인 노드 함수 
+# 메인 노드 함수
 def classification_node(state: PipelineState) -> PipelineState:
-    # Rule-based 선처리
+    # trace_id 생성 (없으면)
+    if not state.get("trace_id"):
+        state["trace_id"] = str(uuid.uuid4())
+
+    # Rule Book 기반 규칙 매칭
     rule_result = _apply_rules(state)
- 
+
     if rule_result is not None:
-        anomaly_type, reasoning, interim_action = rule_result
-        prefix = "[Rule] "
+        anomaly_type, reasoning, interim_action, rule_id = rule_result
+        prefix = f"[Rule:{rule_id}] "
+        state["matched_rule_id"] = rule_id
     else:
         # 모호한 케이스 -> LLM 위임
         anomaly_type, reasoning, interim_action = _call_llm(state)
         prefix = ""
- 
+        state["matched_rule_id"] = None
+
+        # LLM 판단 로깅 (규칙 승격 분석용)
+        _log_llm_judgment(state, anomaly_type, reasoning, interim_action)
+
     state["anomaly_type"]             = anomaly_type
     state["classification_reasoning"] = f"{prefix}{reasoning}"
     state["interim_action_taken"]     = interim_action
- 
+
     return state
  

@@ -1,0 +1,127 @@
+[
+  {
+    "rule_id": "CLF-001",
+    "rule_type": "classification",
+    "description": "AutoScaling EDoS 의심",
+    "resource_types": [
+      "AutoScaling"
+    ],
+    "conditions": {
+      "metric_thresholds": {
+        "group_desired_capacity": {
+          "op": ">",
+          "ref": "mean",
+          "factor": 2.0
+        }
+      }
+    },
+    "result": {
+      "anomaly_type": "risk_security",
+      "interim_action": "AutoScaling 최대 인스턴스 수 임시 제한",
+      "reasoning_template": "AutoScaling 인스턴스 수가 평균 대비 {factor}배 이상 급증 -> EDoS 의심"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "AutoScaling 그룹의 desired capacity가 평균 대비 2배 이상 급증하면 EDoS(Economic Denial of Service) 공격 가능성"
+  },
+  {
+    "rule_id": "CLF-002",
+    "rule_type": "classification",
+    "description": "Lambda 호출+에러 동시 급증",
+    "resource_types": [
+      "Lambda"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "invocation_count",
+        "error_count"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_spike",
+      "interim_action": "Lambda 동시성 임시 제한 적용",
+      "reasoning_template": "Lambda 호출 횟수와 에러 수 동시 급증 -> 무한루프 또는 호출 폭증"
+    },
+    "priority": 20,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "Lambda 호출과 에러가 동시에 급증하면 코드 버그로 인한 무한루프 또는 외부 트래픽 폭증 가능성"
+  },
+  {
+    "rule_id": "CLF-003",
+    "rule_type": "classification",
+    "description": "S3 데이터 유출 의심",
+    "resource_types": [
+      "S3"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "bytes_downloaded"
+      ]
+    },
+    "result": {
+      "anomaly_type": "risk_security",
+      "interim_action": "S3 퍼블릭 접근 임시 차단",
+      "reasoning_template": "S3 bytes_downloaded 단독 급증 -> 비정상 데이터 유출 의심"
+    },
+    "priority": 15,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "S3 다운로드만 급증하면 데이터 유출 시도 가능성"
+  },
+  {
+    "rule_id": "CLF-004",
+    "rule_type": "classification",
+    "description": "EC2 비용 단독 이상 (좀비 리소스)",
+    "resource_types": [
+      "EC2"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "cost"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_inefficiency",
+      "interim_action": null,
+      "reasoning_template": "비용 지표만 단독 이상, 성능 지표 정상 -> 좀비 리소스 또는 오버프로비저닝"
+    },
+    "priority": 50,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "EC2에서 비용만 이상하고 CPU/네트워크 정상이면 사용되지 않는 좀비 인스턴스"
+  },
+  {
+    "rule_id": "CLF-005",
+    "rule_type": "classification",
+    "description": "RDS 비용 단독 이상 (오버프로비저닝)",
+    "resource_types": [
+      "RDS"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "cost"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_inefficiency",
+      "interim_action": null,
+      "reasoning_template": "비용 지표만 단독 이상, 성능 지표 정상 -> 오버프로비저닝된 RDS 인스턴스"
+    },
+    "priority": 50,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "RDS에서 비용만 이상하고 CPU/연결수 정상이면 오버프로비저닝"
+  }
+]

@@ -143,6 +143,7 @@ def resolve_risk_level(anomaly_type: str, selected_action: str) -> Literal["LOW"
 class PipelineState(TypedDict):
 
     # ── Step 0: 수집된 원본 데이터 ───────────────────────────────────────────
+    trace_id:      Optional[str]  # 파이프라인 실행 추적용 UUID (LLM 로그 ↔ QA 결과 연결)
     resource_id:   str
     resource_type: Literal["EC2", "Lambda", "S3", "RDS", "AutoScaling"]
     raw_metrics:   EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
@@ -158,6 +159,7 @@ class PipelineState(TypedDict):
     anomaly_type: Optional[Literal["cost_inefficiency", "cost_spike", "risk_security"]]
     classification_reasoning: Optional[str]
     interim_action_taken:     Optional[str]
+    matched_rule_id: Optional[str]  # 매칭된 Rule Book 규칙 ID (예: "CLF-001")
 
     # ── Step 3: Decision Agent ────────────────────────────────────────────────
     candidate_actions:  list[CandidateAction]
@@ -179,6 +181,8 @@ class PipelineState(TypedDict):
     qa_passed:        Optional[bool]
     sla_check_result: Optional[SlaCheckResult]
     rollback_count:   int  # 기본값 0, 최대 2
+    qa_matched_rule_id: Optional[str]  # 매칭된 QA 규칙 ID (예: "QA-001")
+    whitelisted: bool  # 화이트리스트에 의해 스킵되었는지
 
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────
     log_entries: list[str]

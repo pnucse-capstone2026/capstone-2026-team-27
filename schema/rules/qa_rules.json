@@ -1,0 +1,107 @@
+[
+  {
+    "rule_id": "QA-001",
+    "rule_type": "qa",
+    "description": "NoAction은 항상 통과",
+    "resource_types": ["*"],
+    "conditions": {
+      "action_executed": ["NoAction", null]
+    },
+    "result": {
+      "force_pass": true,
+      "reasoning_template": "NoAction이므로 SLA 검증 스킵"
+    },
+    "priority": 1,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "액션이 실행되지 않았으므로 SLA 검증이 불필요"
+  },
+  {
+    "rule_id": "QA-002",
+    "rule_type": "qa",
+    "description": "야간 시간대 비용 증가 허용",
+    "resource_types": ["*"],
+    "conditions": {
+      "time_window": {
+        "start_hour": 2,
+        "end_hour": 6,
+        "timezone": "Asia/Seoul",
+        "days": ["*"]
+      }
+    },
+    "result": {
+      "force_pass": true,
+      "reasoning_template": "야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "priority": 5,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "새벽 시간대는 배치 작업으로 인한 일시적 비용 증가가 정상"
+  },
+  {
+    "rule_id": "QA-003",
+    "rule_type": "qa",
+    "description": "주말 비용 절감 액션 허용",
+    "resource_types": ["EC2", "RDS"],
+    "conditions": {
+      "time_window": {
+        "start_hour": 0,
+        "end_hour": 23,
+        "timezone": "Asia/Seoul",
+        "days": ["SAT", "SUN"]
+      }
+    },
+    "result": {
+      "force_pass": true,
+      "reasoning_template": "주말 시간대 비용 절감 액션 허용 (서비스 영향 최소화 기간)"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "주말은 트래픽이 적어 비용 절감 액션의 영향이 적음"
+  },
+  {
+    "rule_id": "QA-004",
+    "rule_type": "qa",
+    "description": "Lambda Throttle 액션 SLA 완화",
+    "resource_types": ["Lambda"],
+    "conditions": {
+      "action_executed": ["Throttle"]
+    },
+    "result": {
+      "force_pass": false,
+      "reasoning_template": "Lambda Throttle 액션 - 동시성 제한으로 인한 일시적 지연 허용"
+    },
+    "priority": 15,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "Throttle은 의도적인 제한이므로 일부 SLA 위반 허용"
+  },
+  {
+    "rule_id": "QA-005",
+    "rule_type": "qa",
+    "description": "보안 위험 Block 액션 강제 통과",
+    "resource_types": ["*"],
+    "conditions": {
+      "action_executed": ["Block"]
+    },
+    "result": {
+      "force_pass": true,
+      "reasoning_template": "보안 위험 대응 Block 액션 - SLA보다 보안 우선"
+    },
+    "priority": 3,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "보안 위협 차단은 SLA 위반보다 우선시됨"
+  }
+]
