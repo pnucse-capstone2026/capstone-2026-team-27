@@ -1,0 +1,319 @@
+{
+  "id": null,
+  "uid": "detection-dashboard",
+  "title": "Cloud Anomaly Detection & Auto-Remediation",
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "전체 실행 수",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "이상 탐지 수",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs WHERE anomaly_flag = true;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "액션 성공 수",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM action_log WHERE success = true;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "롤백 발생 수",
+      "description": "action_log에는 rolled_back 컬럼이 없어 action_result JSONB에서 꺼내서 집계",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM action_log WHERE (action_result->>'rolled_back')::boolean = true;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "시간대별 탐지 추이",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "time_series",
+          "rawSql": "SELECT\n    DATE_TRUNC('hour', finished_at) AS \"time\",\n    COUNT(*) AS \"탐지 건수\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at)\nGROUP BY DATE_TRUNC('hour', finished_at)\nORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "이상 유형 분포",
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    anomaly_type AS \"이상 유형\",\n    COUNT(*) AS \"건수\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at)\nGROUP BY anomaly_type;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "cost_inefficiency": { "text": "cost_inefficiency", "color": "blue", "index": 0 },
+                "cost_spike": { "text": "cost_spike", "color": "orange", "index": 1 },
+                "risk_security": { "text": "risk_security", "color": "red", "index": 2 }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "pie",
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "액션 실행 이력",
+      "gridPos": { "x": 8, "y": 12, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    ar.resource_type   AS \"리소스\",\n    ar.resource_id     AS \"ID\",\n    ar.anomaly_type    AS \"이상유형\",\n    al.action_name     AS \"액션\",\n    al.risk_level      AS \"위험도\",\n    al.success         AS \"성공\",\n    al.executed_at     AS \"실행시각\"\nFROM action_log al\nJOIN agent_runs ar ON al.run_id = ar.run_id\nWHERE $__timeFilter(al.executed_at)\nORDER BY al.executed_at DESC\nLIMIT 50;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "위험도" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "LOW": { "text": "LOW", "color": "blue", "index": 0 },
+                      "MED": { "text": "MED", "color": "orange", "index": 1 },
+                      "HIGH": { "text": "HIGH", "color": "red", "index": 2 }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Rule Book win_rate",
+      "description": "schema/rules/classification_rules.json, qa_rules.json의 규칙별 성능. rule_stats 테이블이 채워지기 전까지는 빈 패널로 보임 (자기진화 루프 구현 후에 값이 쌓임)",
+      "gridPos": { "x": 0, "y": 20, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    rule_id      AS \"규칙 ID\",\n    rule_type    AS \"타입\",\n    total_runs   AS \"실행 횟수\",\n    total_wins   AS \"성공 횟수\",\n    ROUND(win_rate::numeric * 100, 1) AS \"성공률(%)\"\nFROM rule_stats\nORDER BY win_rate DESC;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "green", "value": 70 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "실행 횟수" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "viz": true, "legend": true, "tooltip": false } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "성공 횟수" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "viz": true, "legend": true, "tooltip": false } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "타입" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "viz": true, "legend": true, "tooltip": false } }]
+          }
+        ]
+      },
+      "options": {
+        "xField": "규칙 ID",
+        "orientation": "auto",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "시나리오별 비용 절감액",
+      "description": "estimated_saving_usd는 action_result가 아니라 decision 단계의 candidate_actions(agent_steps.output)에만 존재해서, 원안의 action_result->>'estimated_saving_usd' 대신 agent_steps를 펼쳐서(jsonb_array_elements) selected_action과 일치하는 후보를 골라 집계하도록 고침",
+      "gridPos": { "x": 8, "y": 20, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    ar.anomaly_type    AS \"시나리오\",\n    ar.selected_action  AS \"액션\",\n    ROUND(\n        AVG((elem->>'estimated_saving_usd')::float)::numeric, 4\n    ) AS \"평균 절감액(USD/hr)\"\nFROM agent_runs ar\nJOIN agent_steps s   ON s.run_id = ar.run_id AND s.step_name = 'decision'\nJOIN action_log al   ON al.run_id = ar.run_id\nCROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\nWHERE elem->>'action' = ar.selected_action\n  AND al.success = true\n  AND $__timeFilter(al.executed_at)\nGROUP BY ar.anomaly_type, ar.selected_action\nORDER BY 3 DESC;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "xField": "시나리오",
+        "orientation": "auto",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 10,
+      "type": "gauge",
+      "title": "파이프라인 QA 통과율",
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    ROUND(\n        COUNT(*) FILTER (WHERE qa_passed = true)::numeric\n        / NULLIF(COUNT(*), 0) * 100, 1\n    ) AS \"value\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at);",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 70 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      }
+    }
+  ]
+}
