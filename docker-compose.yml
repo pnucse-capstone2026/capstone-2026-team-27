@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGDATABASE}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+    ports:
+      - "${PGPORT:-5983}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.4.0 
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # postgres 컨테이너는 이 compose 네트워크 안에서 서비스명(postgres)으로
+      # 접근한다 - 파이썬 파이프라인이 쓰는 .env의 PGHOST(=localhost, 호스트 기준)와는
+      # 다른 값이라 별도 PG_* 이름으로 분리했다.
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DATABASE=${PGDATABASE}
+      - PG_USER=${PGUSER}
+      - PG_PASSWORD=${PGPASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  grafana_data:

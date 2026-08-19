@@ -118,6 +118,18 @@ CREATE TABLE IF NOT EXISTS action_log (
     success              BOOLEAN,
     executed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Grafana "Rule Book win_rate" 패널이 참조하는 테이블. 자기진화 루프가 아직
+-- 구현 전이라 이 시점엔 항상 빈 테이블이지만, 존재는 해야 패널이 에러 없이
+-- "No data"로 표시된다.
+CREATE TABLE IF NOT EXISTS rule_stats (
+    rule_id     TEXT PRIMARY KEY,
+    rule_type   TEXT NOT NULL,
+    total_runs  INTEGER NOT NULL DEFAULT 0,
+    total_wins  INTEGER NOT NULL DEFAULT 0,
+    win_rate    DOUBLE PRECISION NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 def _ensure_tables(conn) -> None:
