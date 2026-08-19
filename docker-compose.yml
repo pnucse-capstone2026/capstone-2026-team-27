@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${PGUSER}
       POSTGRES_PASSWORD: ${PGPASSWORD}
     ports:
-      - "${PGPORT:-5432}:5432"
+      - "${PGPORT:-5983}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +17,7 @@ services:
       retries: 10
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0 
     restart: unless-stopped
     ports:
       - "3000:3000"

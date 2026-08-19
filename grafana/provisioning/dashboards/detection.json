@@ -161,6 +161,7 @@
         "overrides": []
       },
       "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
         "pieType": "pie",
         "displayLabels": ["name", "percent"],
         "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
