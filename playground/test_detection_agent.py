@@ -149,13 +149,18 @@ def test_multiple_resource_types_share_cache():
     result = detection_node(lambda_state)
     print("Lambda 결과:", result["anomaly_flag"], result["anomaly_score_iforest"])
 
-    # 캐시 파일이 여전히 하나뿐인지 (iforest_EC2.pkl 같은 게 안 생겼는지)
-    files = os.listdir(IFOREST_MODEL_DIR)
+    # 캐시 파일이 리소스 타입별로 따로(iforest_EC2.pkl 등) 안 생기고, 통합 모델
+    # 파일 + 학습 버퍼(어떤 리소스 타입을 학습에 반영했는지 추적용) 2개만 있어야 함
+    files = sorted(os.listdir(IFOREST_MODEL_DIR))
     print("현재 모델 캐시 파일들:", files)
-    assert files == [f"iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl"], (
+    expected = sorted([
+        f"iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl",
+        "iforest_unified_train_buffer.pkl",
+    ])
+    assert files == expected, (
         f"통합 모델이 아니라 리소스별 파일이 따로 생김: {files}"
     )
-    print("✅ 통합 캐시 재사용 확인")
+    print("✅ 통합 캐시 재사용 확인 (리소스 타입별 파일 없음)")
 
 test_multiple_resource_types_share_cache()
 

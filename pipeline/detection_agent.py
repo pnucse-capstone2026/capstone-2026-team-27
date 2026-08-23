@@ -21,7 +21,8 @@ from __future__ import annotations
 import os
 import pickle
 import time
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Iterator, Optional
 
 import numpy as np
 from sklearn.ensemble import IsolationForest
@@ -146,32 +147,83 @@ def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[s
     with open(_model_path(resource_type), "wb") as f:
         pickle.dump((model, feature_keys, time.time()), f)
 
+
+# ── 통합 모델 학습 버퍼 ────────────────────────────────────────────────────────
+# 통합 모델은 리소스 타입에 무관하게 같은 feature 스키마(ALL_METRICS)를 쓰기 때문에,
+# "캐시된 feature_keys가 지금 feature_keys와 같은가"만으로는 재학습 여부를 절대
+# 판단할 수 없었다 (항상 같아서 처음 학습된 이후로 영원히 재학습이 안 됨 — 버그).
+# 대신 "지금까지 실제로 학습 데이터에 반영된 리소스 타입 집합"을 별도로 추적해서,
+# 처음 보는 리소스 타입이 들어올 때마다 그 데이터를 누적 버퍼에 추가하고 재학습한다.
+# (24시간 안에 최대 RESOURCE_TYPES 개수만큼만 재학습되므로 비용 부담 적음)
+
+def _buffer_path() -> str:
+    os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
+    return os.path.join(IFOREST_MODEL_DIR, "iforest_unified_train_buffer.pkl")
+
+
+def _load_training_buffer() -> tuple[set[str], Optional[np.ndarray]]:
+    path = _buffer_path()
+    if not os.path.exists(path):
+        return set(), None
+    try:
+        with open(path, "rb") as f:
+            seen_types, buffer = pickle.load(f)
+        return seen_types, buffer
+    except Exception:
+        return set(), None
+
+
+def _save_training_buffer(seen_types: set[str], buffer: np.ndarray) -> None:
+    with open(_buffer_path(), "wb") as f:
+        pickle.dump((seen_types, buffer), f)
+
+
+def _fit_and_cache_unified(buffer: np.ndarray) -> IsolationForest:
+    model = IsolationForest(
+        contamination=IFOREST_CONTAMINATION,
+        random_state=IFOREST_RANDOM_STATE,
+    )
+    model.fit(buffer)
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, model, ALL_METRICS)
+    return model
+
+
 def _get_or_train_iforest(
     resource_type: str, metrics: dict[str, list[float]]
 ) -> Optional[IsolationForest]:
     """24시간 캐시 모델이 있으면 재사용, 없거나 만료됐으면 재학습 후 캐시 저장.
 
-    ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 현재 들어온 윈도우.
-       AWS 연동 후엔 여기서 24시간치 누적 베이스라인 데이터를 가져오도록
-       데이터 소스만 바꾸면 된다 (인터페이스는 그대로 유지).
+    ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 리소스
+       타입들의 윈도우를 모은 누적 버퍼. AWS 연동 후엔 여기서 24시간치 누적
+       CloudWatch 데이터를 가져오도록 데이터 소스만 바꾸면 된다 (인터페이스는 그대로 유지).
     """
     cached = _load_cached_model(IFOREST_UNIFIED_MODEL_NAME)
+    n = len(next(iter(metrics.values())))
+
     if cached is not None:
         model, cached_keys = cached
         if cached_keys == ALL_METRICS:
+            seen_types, buffer = _load_training_buffer()
+            if resource_type in seen_types:
+                return model  # 이 리소스 타입 데이터는 이미 학습에 반영됨
+
+            if n < MIN_POINTS_FOR_IFOREST:
+                return model  # 새 타입이지만 데이터 부족 → 기존 모델 유지
+
+            X_new = build_unified_feature_matrix(resource_type, metrics)
+            buffer = X_new if buffer is None else np.vstack([buffer, X_new])
+            seen_types = seen_types | {resource_type}
+
+            model = _fit_and_cache_unified(buffer)
+            _save_training_buffer(seen_types, buffer)
             return model
 
-    n = len(next(iter(metrics.values())))
     if n < MIN_POINTS_FOR_IFOREST:
         return None
 
     X = build_unified_feature_matrix(resource_type, metrics)
-    model = IsolationForest(
-        contamination=IFOREST_CONTAMINATION,
-        random_state=IFOREST_RANDOM_STATE,
-    )
-    model.fit(X)
-    _save_model(IFOREST_UNIFIED_MODEL_NAME, model, ALL_METRICS)
+    model = _fit_and_cache_unified(X)
+    _save_training_buffer({resource_type}, X)
     return model
 
 
@@ -225,6 +277,67 @@ def detection_node(state: PipelineState) -> PipelineState:
     state["triggered_metrics"] = triggered_metrics
 
     return state
+
+
+# ── Phase 0: 여러 리소스 순차 스캔 디스패처 ───────────────────────────────────
+# 여러 리소스에서 동시에 이상이 감지될 수 있는 상황에서, 한꺼번에 모아 배치로
+# 넘기지 않고 하나씩 순차적으로 detection_node를 돌려서 발견 즉시 넘긴다
+# (병렬 fan-out이 아니라 의도적인 순차 처리).
+
+def _build_initial_state(resource: dict) -> PipelineState:
+    """resource: {resource_id, resource_type, raw_metrics, timestamp(optional)}
+    나머지 PipelineState 필드는 파이프라인 시작 전 기본값으로 채운다.
+    """
+    return {
+        "trace_id":      None,
+        "resource_id":   resource["resource_id"],
+        "resource_type": resource["resource_type"],
+        "raw_metrics":   resource["raw_metrics"],
+        "timestamp":     resource.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+
+        "anomaly_flag":          False,
+        "anomaly_score_zscore":  None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics":     [],
+
+        "anomaly_type":             None,
+        "classification_reasoning": None,
+        "interim_action_taken":     None,
+        "matched_rule_id":          None,
+
+        "candidate_actions":   [],
+        "selected_action":     None,
+        "risk_level":          None,
+        "requires_approval":   False,
+        "decision_reasoning":  None,
+        "target_instance_type": None,
+
+        "pre_action_snapshot": None,
+        "action_executed":     None,
+        "action_result":       None,
+
+        "qa_passed":         None,
+        "sla_check_result":  None,
+        "rollback_count":    0,
+        "qa_matched_rule_id": None,
+        "whitelisted":       False,
+
+        "log_entries": [],
+    }
+
+
+def scan_resources_sequential(resource_list: list[dict]) -> Iterator[PipelineState]:
+    """
+    resource_list: [{resource_id, resource_type, raw_metrics, timestamp}, ...]
+    리소스를 하나씩 순서대로 detection_node에 넣고, anomaly_flag=True인 것만
+    발견 즉시 yield한다. 전체를 모았다가 한 번에 넘기지 않는다.
+    """
+    for resource in resource_list:
+        state = _build_initial_state(resource)
+        result = detection_node(state)
+        if result["anomaly_flag"]:
+            yield result
+
 
 def benchmark_iforest_inference(
     model: IsolationForest, X: np.ndarray, n_runs: int = 100, warmup: int = 10
