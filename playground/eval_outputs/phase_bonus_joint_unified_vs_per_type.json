@@ -1,0 +1,411 @@
+{
+  "config": {
+    "k_points": 8,
+    "multiplier": 2.0
+  },
+  "n_generated": 280,
+  "n_zscore_leaked": 0,
+  "n_zscore_blind_total": 280,
+  "unified_catch_rate": 0.8821,
+  "per_type_catch_rate": 0.825,
+  "agreement_rate": 0.8857,
+  "by_resource_type": {
+    "EC2": {
+      "total": 60,
+      "unified_caught": 47,
+      "per_type_caught": 44,
+      "unified_rate": 0.7833,
+      "per_type_rate": 0.7333
+    },
+    "Lambda": {
+      "total": 60,
+      "unified_caught": 56,
+      "per_type_caught": 54,
+      "unified_rate": 0.9333,
+      "per_type_rate": 0.9
+    },
+    "S3": {
+      "total": 30,
+      "unified_caught": 30,
+      "per_type_caught": 23,
+      "unified_rate": 1.0,
+      "per_type_rate": 0.7667
+    },
+    "RDS": {
+      "total": 100,
+      "unified_caught": 84,
+      "per_type_caught": 80,
+      "unified_rate": 0.84,
+      "per_type_rate": 0.8
+    },
+    "AutoScaling": {
+      "total": 30,
+      "unified_caught": 30,
+      "per_type_caught": 30,
+      "unified_rate": 1.0,
+      "per_type_rate": 1.0
+    }
+  },
+  "disagreement_examples": [
+    {
+      "sample_id": "EC2_joint_cpu_utilization+cost_005",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "cost"
+      ],
+      "unified_score": 0.7585,
+      "unified_caught": true,
+      "per_type_score": 0.5704,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "EC2_joint_cpu_utilization+cost_008",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "cost"
+      ],
+      "unified_score": 0.7364,
+      "unified_caught": true,
+      "per_type_score": 0.5461,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "EC2_joint_network_out+cost_009",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "network_out",
+        "cost"
+      ],
+      "unified_score": 0.6129,
+      "unified_caught": true,
+      "per_type_score": 0.5755,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+error_count_000",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "error_count"
+      ],
+      "unified_score": 0.5486,
+      "unified_caught": false,
+      "per_type_score": 0.6395,
+      "per_type_caught": true
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+duration_avg_000",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "duration_avg"
+      ],
+      "unified_score": 0.6721,
+      "unified_caught": true,
+      "per_type_score": 0.5935,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+duration_avg_002",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "duration_avg"
+      ],
+      "unified_score": 0.6164,
+      "unified_caught": true,
+      "per_type_score": 0.5739,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+duration_avg_005",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "duration_avg"
+      ],
+      "unified_score": 0.6912,
+      "unified_caught": true,
+      "per_type_score": 0.4991,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+cost_006",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "cost"
+      ],
+      "unified_score": 0.6336,
+      "unified_caught": true,
+      "per_type_score": 0.5086,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_invocation_count+cost_009",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "invocation_count",
+        "cost"
+      ],
+      "unified_score": 0.742,
+      "unified_caught": true,
+      "per_type_score": 0.5403,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "Lambda_joint_error_count+cost_002",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "error_count",
+        "cost"
+      ],
+      "unified_score": 0.5659,
+      "unified_caught": false,
+      "per_type_score": 0.773,
+      "per_type_caught": true
+    },
+    {
+      "sample_id": "Lambda_joint_error_count+cost_005",
+      "resource_type": "Lambda",
+      "injected_metrics": [
+        "error_count",
+        "cost"
+      ],
+      "unified_score": 0.5235,
+      "unified_caught": false,
+      "per_type_score": 0.7058,
+      "per_type_caught": true
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+bytes_downloaded_000",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "bytes_downloaded"
+      ],
+      "unified_score": 0.7023,
+      "unified_caught": true,
+      "per_type_score": 0.5867,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+bytes_downloaded_001",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "bytes_downloaded"
+      ],
+      "unified_score": 0.6699,
+      "unified_caught": true,
+      "per_type_score": 0.5655,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+bytes_downloaded_004",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "bytes_downloaded"
+      ],
+      "unified_score": 0.6841,
+      "unified_caught": true,
+      "per_type_score": 0.579,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+cost_003",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "cost"
+      ],
+      "unified_score": 0.6804,
+      "unified_caught": true,
+      "per_type_score": 0.5532,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+cost_005",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "cost"
+      ],
+      "unified_score": 0.6803,
+      "unified_caught": true,
+      "per_type_score": 0.5962,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+cost_007",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "cost"
+      ],
+      "unified_score": 0.6075,
+      "unified_caught": true,
+      "per_type_score": 0.5094,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "S3_joint_number_of_requests+cost_008",
+      "resource_type": "S3",
+      "injected_metrics": [
+        "number_of_requests",
+        "cost"
+      ],
+      "unified_score": 0.6429,
+      "unified_caught": true,
+      "per_type_score": 0.4943,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+database_connections_002",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "database_connections"
+      ],
+      "unified_score": 0.823,
+      "unified_caught": true,
+      "per_type_score": 0.5827,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+read_iops_000",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "read_iops"
+      ],
+      "unified_score": 0.7053,
+      "unified_caught": true,
+      "per_type_score": 0.5855,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+read_iops_004",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "read_iops"
+      ],
+      "unified_score": 0.5553,
+      "unified_caught": false,
+      "per_type_score": 0.6793,
+      "per_type_caught": true
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+read_iops_006",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "read_iops"
+      ],
+      "unified_score": 0.4995,
+      "unified_caught": false,
+      "per_type_score": 0.6197,
+      "per_type_caught": true
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+write_iops_001",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "write_iops"
+      ],
+      "unified_score": 0.6112,
+      "unified_caught": true,
+      "per_type_score": 0.4728,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+write_iops_005",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "write_iops"
+      ],
+      "unified_score": 0.8079,
+      "unified_caught": true,
+      "per_type_score": 0.5493,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_cpu_utilization+cost_009",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "cpu_utilization",
+        "cost"
+      ],
+      "unified_score": 0.618,
+      "unified_caught": true,
+      "per_type_score": 0.582,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_database_connections+read_iops_006",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "database_connections",
+        "read_iops"
+      ],
+      "unified_score": 0.707,
+      "unified_caught": true,
+      "per_type_score": 0.5564,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_database_connections+write_iops_004",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "database_connections",
+        "write_iops"
+      ],
+      "unified_score": 0.7044,
+      "unified_caught": true,
+      "per_type_score": 0.5825,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_database_connections+write_iops_006",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "database_connections",
+        "write_iops"
+      ],
+      "unified_score": 0.646,
+      "unified_caught": true,
+      "per_type_score": 0.588,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_database_connections+cost_001",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "database_connections",
+        "cost"
+      ],
+      "unified_score": 0.663,
+      "unified_caught": true,
+      "per_type_score": 0.5687,
+      "per_type_caught": false
+    },
+    {
+      "sample_id": "RDS_joint_read_iops+write_iops_002",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "read_iops",
+        "write_iops"
+      ],
+      "unified_score": 0.5097,
+      "unified_caught": false,
+      "per_type_score": 0.6119,
+      "per_type_caught": true
+    }
+  ]
+}

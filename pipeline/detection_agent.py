@@ -18,6 +18,7 @@ pipeline/detection_agent.py (박소영)
 
 from __future__ import annotations
 
+import logging
 import os
 import pickle
 import time
@@ -30,15 +31,27 @@ from sklearn.ensemble import IsolationForest
 import typing
 from schema.state import PipelineState
 
+logger = logging.getLogger(__name__)
+
 # ── 보고서 3.3.1 기준 파라미터 ────────────────────────────────────────────────
-Z_SCORE_THRESHOLD = 3.0                      # k = 3.0
+# τ=0.6, k=3.0 → Phase 5 파라미터 튜닝(playground/tune_detection_parameters.py)에서
+# 합성 평가 데이터셋(435개) 기준 정확도가 76.78%에 머물러 80% 목표에 미달했던 것을,
+# "학습 버퍼를 리소스 타입당 다수 윈도우로 확장"(아래 학습 버퍼 섹션 참고)하면서
+# 재튜닝해 0.5 / 2.75로 변경 — 정확도 80.46%, 결합(다변량) 이상 탐지율 99.29% 확인.
+Z_SCORE_THRESHOLD = 2.75                     # k = 2.75 (기존 3.0)
 Z_SCORE_EPSILON = 1e-9                       # ε (분모 0 방지)
-IFOREST_THRESHOLD = 0.6                      # τ = 0.6
-IFOREST_CONTAMINATION = 0.1
+IFOREST_THRESHOLD = 0.5                      # τ = 0.5 (기존 0.6)
+IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
 IFOREST_RANDOM_STATE = 42
-IFOREST_RETRAIN_INTERVAL_SEC = 24 * 60 * 60  # 24시간 재학습 주기
+IFOREST_RETRAIN_INTERVAL_SEC = 24 * 60 * 60  # 24시간 주기로 학습 버퍼 전체 리셋 (concept drift 대응)
 IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
 MIN_POINTS_FOR_IFOREST = 5
+
+# ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
+MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
+RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
+BUFFER_SCORE_MARGIN = 0.7          # 버퍼링 기준 = 탐지 임계값의 70% (탐지보다 보수적)
+BUFFER_ZSCORE_MARGIN = 0.7
 
 # Z-score는 "비용, 네트워크 입력, 호출 횟수" 지표에만 적용 (보고서 3.3.1).
 # 리소스마다 필드명이 달라 의미 단위로 매핑한다.
@@ -151,31 +164,38 @@ def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[s
 # ── 통합 모델 학습 버퍼 ────────────────────────────────────────────────────────
 # 통합 모델은 리소스 타입에 무관하게 같은 feature 스키마(ALL_METRICS)를 쓰기 때문에,
 # "캐시된 feature_keys가 지금 feature_keys와 같은가"만으로는 재학습 여부를 절대
-# 판단할 수 없었다 (항상 같아서 처음 학습된 이후로 영원히 재학습이 안 됨 — 버그).
-# 대신 "지금까지 실제로 학습 데이터에 반영된 리소스 타입 집합"을 별도로 추적해서,
-# 처음 보는 리소스 타입이 들어올 때마다 그 데이터를 누적 버퍼에 추가하고 재학습한다.
-# (24시간 안에 최대 RESOURCE_TYPES 개수만큼만 재학습되므로 비용 부담 적음)
+# 판단할 수 없었다 (항상 같아서 처음 학습된 이후로 영원히 재학습이 안 됨 — 버그, 이미 수정).
+#
+# 그 수정만으로는(리소스 타입당 대표 윈도우 딱 1개) 학습 데이터가 너무 빈약해서
+# 정상 샘플의 32.7%가 오탐되는 문제가 있었다 (playground/tune_detection_parameters.py).
+# 리소스 타입당 정상 윈도우를 다수(최대 MAX_WINDOWS_PER_TYPE개) 누적해서 학습하면
+# 정확도가 크게 개선됨을 확인했는데(76.78% → 80.46%), 실서비스에는 "이게 정상인지"
+# 알려주는 정답 라벨이 없다. 그래서 "지금 모델이 이상이라고 판단하지 않은(그것도
+# 탐지 임계값보다 더 보수적인 기준으로) 윈도우"를 잠정적 정상으로 간주해 버퍼에
+# 쌓는 자기참조(self-referential) 방식을 쓴다 — 실제 정확도는
+# playground/validate_self_referential_buffer.py로 라벨 없이도 검증함.
 
 def _buffer_path() -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
     return os.path.join(IFOREST_MODEL_DIR, "iforest_unified_train_buffer.pkl")
 
 
-def _load_training_buffer() -> tuple[set[str], Optional[np.ndarray]]:
+def _load_training_buffer() -> tuple[dict[str, list[np.ndarray]], int]:
+    """반환: (리소스 타입별 학습 윈도우 리스트, 마지막 재학습 이후 새로 쌓인 개수)."""
     path = _buffer_path()
     if not os.path.exists(path):
-        return set(), None
+        return {}, 0
     try:
         with open(path, "rb") as f:
-            seen_types, buffer = pickle.load(f)
-        return seen_types, buffer
+            buffer_by_type, pending_count = pickle.load(f)
+        return buffer_by_type, pending_count
     except Exception:
-        return set(), None
+        return {}, 0
 
 
-def _save_training_buffer(seen_types: set[str], buffer: np.ndarray) -> None:
+def _save_training_buffer(buffer_by_type: dict[str, list[np.ndarray]], pending_count: int) -> None:
     with open(_buffer_path(), "wb") as f:
-        pickle.dump((seen_types, buffer), f)
+        pickle.dump((buffer_by_type, pending_count), f)
 
 
 def _fit_and_cache_unified(buffer: np.ndarray) -> IsolationForest:
@@ -188,14 +208,39 @@ def _fit_and_cache_unified(buffer: np.ndarray) -> IsolationForest:
     return model
 
 
+def _zscore_max(metrics: dict[str, list[float]]) -> float:
+    """Z-score 대상 지표들 중 |Z|의 최댓값. detection_node의 트리거 판단과 별개로,
+    학습 버퍼링 여부를 결정할 때도 재사용한다."""
+    z_max = 0.0
+    for metric_name, values in metrics.items():
+        if metric_name not in Z_SCORE_TARGET_METRICS:
+            continue
+        z, _is_triggered = _zscore_check(values)
+        z_max = max(z_max, z)
+    return z_max
+
+
+def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
+    X = build_unified_feature_matrix(resource_type, metrics)
+    raw_scores = model.decision_function(X)  # 낮을수록 이상치
+    latest_raw = raw_scores[-1]
+
+    s_min, s_max = raw_scores.min(), raw_scores.max()
+    if s_max == s_min:
+        return 0.0
+
+    normalized = (s_max - latest_raw) / (s_max - s_min)
+    return float(np.clip(normalized, 0.0, 1.0))
+
+
 def _get_or_train_iforest(
     resource_type: str, metrics: dict[str, list[float]]
 ) -> Optional[IsolationForest]:
     """24시간 캐시 모델이 있으면 재사용, 없거나 만료됐으면 재학습 후 캐시 저장.
 
-    ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 리소스
-       타입들의 윈도우를 모은 누적 버퍼. AWS 연동 후엔 여기서 24시간치 누적
-       CloudWatch 데이터를 가져오도록 데이터 소스만 바꾸면 된다 (인터페이스는 그대로 유지).
+    ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 윈도우 중
+       모델이 잠정적으로 정상이라고 판단한 것들을 리소스 타입별로 모은 누적 버퍼.
+       AWS 연동 후엔 이 버퍼링 정책을 유지하면서 데이터 소스만 확장하면 된다.
     """
     cached = _load_cached_model(IFOREST_UNIFIED_MODEL_NAME)
     n = len(next(iter(metrics.values())))
@@ -203,19 +248,44 @@ def _get_or_train_iforest(
     if cached is not None:
         model, cached_keys = cached
         if cached_keys == ALL_METRICS:
-            seen_types, buffer = _load_training_buffer()
-            if resource_type in seen_types:
-                return model  # 이 리소스 타입 데이터는 이미 학습에 반영됨
+            buffer_by_type, pending_count = _load_training_buffer()
 
-            if n < MIN_POINTS_FOR_IFOREST:
-                return model  # 새 타입이지만 데이터 부족 → 기존 모델 유지
+            if n >= MIN_POINTS_FOR_IFOREST:
+                provisional_score = _score_with_model(model, resource_type, metrics)
+                z_max = _zscore_max(metrics)
+                believed_normal = (
+                    provisional_score < IFOREST_THRESHOLD * BUFFER_SCORE_MARGIN
+                    and z_max < Z_SCORE_THRESHOLD * BUFFER_ZSCORE_MARGIN
+                )
 
-            X_new = build_unified_feature_matrix(resource_type, metrics)
-            buffer = X_new if buffer is None else np.vstack([buffer, X_new])
-            seen_types = seen_types | {resource_type}
+                if believed_normal:
+                    bucket = buffer_by_type.setdefault(resource_type, [])
+                    bucket.append(build_unified_feature_matrix(resource_type, metrics))
+                    if len(bucket) > MAX_WINDOWS_PER_TYPE:
+                        del bucket[: len(bucket) - MAX_WINDOWS_PER_TYPE]  # FIFO — 오래된 것부터 제거
+                    pending_count += 1
+                    logger.info(
+                        "[iforest_buffer] 채택 resource_type=%s score=%.4f z_max=%.4f "
+                        "버퍼크기=%d pending=%d",
+                        resource_type, provisional_score, z_max, len(bucket), pending_count,
+                    )
+                else:
+                    logger.info(
+                        "[iforest_buffer] 제외(경계/이상 의심) resource_type=%s score=%.4f z_max=%.4f",
+                        resource_type, provisional_score, z_max,
+                    )
 
-            model = _fit_and_cache_unified(buffer)
-            _save_training_buffer(seen_types, buffer)
+                _save_training_buffer(buffer_by_type, pending_count)
+
+                if pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS and buffer_by_type:
+                    combined = np.vstack([np.vstack(v) for v in buffer_by_type.values() if v])
+                    model = _fit_and_cache_unified(combined)
+                    _save_training_buffer(buffer_by_type, 0)
+                    logger.info(
+                        "[iforest_buffer] 재학습 완료 총 윈도우=%d (타입별=%s)",
+                        combined.shape[0], {k: len(v) for k, v in buffer_by_type.items()},
+                    )
+
             return model
 
     if n < MIN_POINTS_FOR_IFOREST:
@@ -223,7 +293,7 @@ def _get_or_train_iforest(
 
     X = build_unified_feature_matrix(resource_type, metrics)
     model = _fit_and_cache_unified(X)
-    _save_training_buffer({resource_type}, X)
+    _save_training_buffer({resource_type: [X]}, 0)
     return model
 
 
@@ -235,17 +305,69 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
     model = _get_or_train_iforest(resource_type, metrics)
     if model is None:
         return 0.0
+    return _score_with_model(model, resource_type, metrics)
+
+
+# ── Phase 3: SHAP 해석가능성 (평가/설명 전용 — detection_node 프로덕션 경로엔 안 쓰임) ──
+# IsolationForest는 비지도 모델이라 "왜 이상이라고 판단했는지"를 스스로 설명 못 한다.
+# SHAP(TreeExplainer)로 각 피처가 최종 이상 점수에 얼마나/어느 방향으로 기여했는지를
+# 사후적으로 계산해서, "이 케이스에서 어떤 지표가 결정적이었는지" 보고서용으로 뽑는다.
+
+def _unified_feature_names() -> list[str]:
+    """build_unified_feature_matrix가 만드는 컬럼 순서와 1:1로 대응하는 이름 목록."""
+    names: list[str] = []
+    for m in ALL_METRICS:
+        names.append(f"{m}_value")
+        names.append(f"{m}_mask")
+    for rt in RESOURCE_TYPES:
+        names.append(f"onehot_{rt}")
+    return names
+
+
+def explain_iforest(
+    resource_type: str, metrics: dict[str, list[float]], model: Optional[IsolationForest] = None
+) -> dict[str, float]:
+    """윈도우의 마지막 시점(=_iforest_score가 실제로 이상 여부를 판단하는 시점)에 대한
+    피처별 SHAP 기여도를 전부(값/마스크/원-핫 컬럼 포함) 반환한다.
+    model을 안 넘기면 캐시된(또는 새로 학습된) 통합 모델을 그대로 사용한다.
+    """
+    import shap  # 평가 전용 함수라 지연 import — 프로덕션 detection_node 경로엔 의존성 안 걸리게 함
+
+    if model is None:
+        model = _get_or_train_iforest(resource_type, metrics)
+    if model is None:
+        return {}
 
     X = build_unified_feature_matrix(resource_type, metrics)
-    raw_scores = model.decision_function(X)  # 낮을수록 이상치
-    latest_raw = raw_scores[-1]
+    feature_names = _unified_feature_names()
 
-    s_min, s_max = raw_scores.min(), raw_scores.max()
-    if s_max == s_min:
-        return 0.0
+    explainer = shap.TreeExplainer(model)
+    shap_values = np.asarray(explainer.shap_values(X))
 
-    normalized = (s_max - latest_raw) / (s_max - s_min)
-    return float(np.clip(normalized, 0.0, 1.0))
+    last_point_shap = shap_values[-1]
+    return dict(zip(feature_names, (float(v) for v in last_point_shap)))
+
+
+def explain_iforest_top_features(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    model: Optional[IsolationForest] = None,
+    top_n: Optional[int] = None,
+) -> dict[str, float]:
+    """explain_iforest() 결과에서 실제 지표값 컬럼(_value)만 추려,
+    기여도 절댓값이 큰 순서로 정렬해서 반환. mask/onehot 컬럼은 구조적 신호일 뿐
+    "어떤 지표가 이상 판단에 컸는가"라는 질문과는 무관해서 제외한다.
+    """
+    raw = explain_iforest(resource_type, metrics, model=model)
+    value_only = {
+        name.removesuffix("_value"): value
+        for name, value in raw.items()
+        if name.endswith("_value")
+    }
+    ordered = dict(sorted(value_only.items(), key=lambda kv: abs(kv[1]), reverse=True))
+    if top_n is not None:
+        ordered = dict(list(ordered.items())[:top_n])
+    return ordered
 
 
 def detection_node(state: PipelineState) -> PipelineState:
