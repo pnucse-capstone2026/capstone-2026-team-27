@@ -1,0 +1,26 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	detection(detection)
+	classification(classification)
+	decision(decision)
+	action(action)
+	qa(qa)
+	logging(logging)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> detection;
+	action --> qa;
+	classification --> decision;
+	decision --> action;
+	detection -.-> classification;
+	detection -.-> logging;
+	qa -.-> action;
+	qa -.-> logging;
+	logging --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
