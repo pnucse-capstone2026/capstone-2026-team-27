@@ -119,16 +119,17 @@ CREATE TABLE IF NOT EXISTS action_log (
     executed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Grafana "Rule Book win_rate" 패널이 참조하는 테이블. 자기진화 루프가 아직
--- 구현 전이라 이 시점엔 항상 빈 테이블이지만, 존재는 해야 패널이 에러 없이
--- "No data"로 표시된다.
+-- Grafana "Rule Book win_rate" 패널이 참조하는 테이블.
+-- 자기진화 루프에서 규칙별 성능을 추적하고, 저성능 규칙 자동 개선에 활용.
 CREATE TABLE IF NOT EXISTS rule_stats (
-    rule_id     TEXT PRIMARY KEY,
-    rule_type   TEXT NOT NULL,
-    total_runs  INTEGER NOT NULL DEFAULT 0,
-    total_wins  INTEGER NOT NULL DEFAULT 0,
-    win_rate    DOUBLE PRECISION NOT NULL DEFAULT 0,
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    rule_id                   TEXT PRIMARY KEY,
+    rule_type                 TEXT NOT NULL,
+    total_runs                INTEGER NOT NULL DEFAULT 0,
+    total_wins                INTEGER NOT NULL DEFAULT 0,
+    win_rate                  DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_evolution_run_count  INTEGER DEFAULT 0,      -- 마지막 진화 시점의 total_runs
+    last_evolution_at         TIMESTAMPTZ,            -- 마지막 진화 실행 시각
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 """
 
@@ -312,6 +313,44 @@ def logging_node(state: PipelineState) -> PipelineState:
             _insert_action(conn, run_id, action_record)
             conn.commit()
             print(f"[logging_node] DB 저장 성공 (run_id={run_id})")
+
+            # ── 규칙 통계 기록 및 자가진화 트리거 ──────────────────────────
+            # 규칙 실행 결과를 rule_stats에 기록하고, n건 누적 시 자가진화 실행
+            try:
+                from pipeline.rule_stats_logger import record_rule_stats
+                stats_result = record_rule_stats(state, conn)
+                conn.commit()
+
+                print(
+                    f"[logging_node] rule_stats 기록: "
+                    f"rule_id={stats_result['rule_id']}, "
+                    f"is_win={stats_result['is_win']}, "
+                    f"win_rate={stats_result['current_win_rate']:.1%}, "
+                    f"runs={stats_result['total_runs']}"
+                )
+
+                # 진화 트리거 조건 충족 시 자가진화 실행
+                if stats_result.get("trigger_evolution"):
+                    print(f"[logging_node] 자가진화 트리거 발동 (rule_id={stats_result['rule_id']})")
+                    try:
+                        from pipeline.rule_evolution_engine import trigger_evolution
+                        evolution_result = trigger_evolution(stats_result["rule_id"], conn)
+                        conn.commit()
+                        print(f"[logging_node] 자가진화 완료: {evolution_result}")
+                    except ImportError:
+                        # rule_evolution_engine.py가 아직 없는 경우 (개발 중)
+                        print("[logging_node] rule_evolution_engine 모듈 미구현 - 진화 스킵")
+                    except Exception as evo_e:
+                        conn.rollback()
+                        print(f"[logging_node] 자가진화 실패: {evo_e!r}")
+
+            except ImportError:
+                # rule_stats_logger.py가 없는 경우 (개발 중)
+                print("[logging_node] rule_stats_logger 모듈 미구현 - 통계 기록 스킵")
+            except Exception as stats_e:
+                conn.rollback()
+                print(f"[logging_node] rule_stats 기록 실패: {stats_e!r}")
+
         except Exception as e:
             conn.rollback()
             print(f"[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: {e!r}")

@@ -51,6 +51,7 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
 
     qa_result = {
         "qa_passed": state.get("qa_passed"),
+        "action_executed": state.get("action_executed"),  # QA rule 승격 시 그룹핑 키로 사용
         "rollback_count": state.get("rollback_count", 0),
         "sla_check_result": state.get("sla_check_result"),
         "qa_matched_rule_id": state.get("qa_matched_rule_id"),
