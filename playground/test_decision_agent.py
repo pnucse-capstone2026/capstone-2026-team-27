@@ -21,6 +21,7 @@ load_dotenv()
 #     },
 # }
 state = {
+    "trace_id": "playground-decision-test",
     "resource_id": "i-0testdummy",
     "resource_type": "EC2",
     "anomaly_type": "cost_inefficiency",
@@ -54,6 +55,7 @@ print("Selected Action :", result["selected_action"])
 print("Risk Level      :", result["risk_level"])
 print("Requires Approval :", result["requires_approval"])
 print("Reason          :", result["decision_reasoning"])
+print("Pseudo Code     :", result["decision_pseudo_code"])
 print("\nCandidate Actions")
 for c in result["candidate_actions"]:
     print(
