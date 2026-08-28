@@ -61,9 +61,25 @@ def normal_values(n: int = 30, base: float = 50.0, noise: float = 2.0) -> list[f
 
 def spike_at_end(n: int = 30, base: float = 50.0, noise: float = 2.0,
                  spike: float = 200.0) -> list[float]:
-    """마지막 포인트에만 스파이크."""
+    """마지막 포인트에만 스파이크.
+
+    ⚠️ detection_node의 알림 판단은 이제 지속성 체크(최근 PERSISTENCE_WINDOW_POINTS개가
+    전부 임계값을 넘어야 트리거, pipeline/detection_agent.py의 _zscore_check_persistent
+    참고)라서, 이 헬퍼로 만든 "마지막 1개만 튄" 데이터는 트리거 여부 검증(anomaly_flag,
+    triggered_metrics)에는 더 이상 못 쓴다 — 의도적으로 순간 노이즈로 걸러지는 케이스라서.
+    트리거 검증에는 spike_sustained를 쓴다. 이 헬퍼는 "튀어도 안 잡혀야 하는" 케이스나
+    캐시/필드타입 검증처럼 트리거 여부와 무관한 테스트에서만 사용.
+    """
     random.seed(42)
     return [base + random.uniform(-noise, noise) for _ in range(n - 1)] + [spike]
+
+
+def spike_sustained(n: int = 30, base: float = 50.0, noise: float = 2.0,
+                    spike: float = 200.0, k: int = 3) -> list[float]:
+    """최근 k개 포인트가 지속적으로 스파이크 (지속성 체크를 통과해야 하는 트리거 검증용).
+    k는 PERSISTENCE_WINDOW_POINTS 기본값(3)과 맞춤."""
+    random.seed(42)
+    return [base + random.uniform(-noise, noise) for _ in range(n - k)] + [spike] * k
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -109,7 +125,7 @@ class TestDetectionAgent:
             "cpu_utilization": normal_values(30, 50, 2),
             "network_in":      normal_values(30, 1000, 50),
             "network_out":     normal_values(30, 800, 50),
-            "cost":            spike_at_end(30, 2.0, 0.1, spike=20.0),
+            "cost":            spike_sustained(30, 2.0, 0.1, spike=20.0),
         }
         state = make_state("EC2", metrics)
         result = detection_node(state)
@@ -140,7 +156,7 @@ class TestDetectionAgent:
 
         metrics = {
             "cpu_utilization": normal_values(30, 50, 2),
-            "network_in":      spike_at_end(30, 1000, 50, spike=50000.0),
+            "network_in":      spike_sustained(30, 1000, 50, spike=50000.0),
             "network_out":     normal_values(30, 800, 50),
             "cost":            normal_values(30, 2.0, 0.1),
         }
@@ -156,7 +172,7 @@ class TestDetectionAgent:
         from pipeline.detection_agent import detection_node
 
         metrics = {
-            "invocation_count": spike_at_end(30, 100, 5, spike=5000.0),
+            "invocation_count": spike_sustained(30, 100, 5, spike=5000.0),
             "error_count":      normal_values(30, 1, 0.5),
             "duration_avg":     normal_values(30, 200, 10),
             "cost":             normal_values(30, 1.0, 0.05),
@@ -173,7 +189,7 @@ class TestDetectionAgent:
         from pipeline.detection_agent import detection_node
 
         metrics = {
-            "number_of_requests": spike_at_end(30, 500, 20, spike=20000.0),
+            "number_of_requests": spike_sustained(30, 500, 20, spike=20000.0),
             "bytes_downloaded":   normal_values(30, 1000, 50),
             "cost":               normal_values(30, 0.5, 0.05),
         }
@@ -237,7 +253,15 @@ class TestDetectionAgent:
 
     # ── 10. 캐시 재사용: 같은 resource_type 두 번 호출 시 모델 파일 mtime 불변 ──
     def test_iforest_model_cache_reused(self, tmp_path, monkeypatch):
-        """두 번째 호출에서 모델 파일을 재학습하지 않고 캐시 재사용."""
+        """두 번째 호출에서 모델 파일을 재학습하지 않고 캐시 재사용.
+
+        ⚠️ 이 테스트는 이 세션의 지속성 체크 변경과 무관한 기존(pre-existing) 버그를
+        고친 것 — 리소스 타입별 모델(iforest_EC2.pkl 등)이 아니라 통합 모델
+        (iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl) 하나만 쓰도록 리팩토링된 지 오래인데
+        (커밋 5423848 "refactor(detection-agent): unify isolation forest model"),
+        이 테스트만 옛날 경로(_model_path("EC2"))를 그대로 참조하고 있었음 — 지속성 체크
+        도입 이전 코드에서도 동일하게 실패함을 git stash로 확인.
+        """
         import time
         import pipeline.detection_agent as da
         monkeypatch.setattr(da, "IFOREST_MODEL_DIR", str(tmp_path / "models"))
@@ -249,7 +273,7 @@ class TestDetectionAgent:
             "cost":            normal_values(30, 2.0, 0.1),
         }
         da.detection_node(make_state("EC2", metrics))
-        path = da._model_path("EC2")
+        path = da._model_path(da.IFOREST_UNIFIED_MODEL_NAME)
         mtime1 = os.path.getmtime(path)
 
         time.sleep(0.5)

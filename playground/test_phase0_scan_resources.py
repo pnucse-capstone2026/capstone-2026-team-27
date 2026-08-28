@@ -57,27 +57,32 @@ def _normal_ec2(resource_id: str) -> dict:
 
 
 def _spike_ec2(resource_id: str) -> dict:
+    # detection_node의 알림 판단은 지속성 체크(최근 PERSISTENCE_WINDOW_POINTS=3개가
+    # 전부 임계값을 넘어야 트리거)라서, 마지막 1개만 튀우면 더 이상 안 잡힌다 —
+    # 최근 3개를 전부 스파이크시켜야 함 (pipeline/detection_agent.py의
+    # _zscore_check_persistent 참고).
     return {
         "resource_id": resource_id,
         "resource_type": "EC2",
         "raw_metrics": {
-            "cpu_utilization": [50.0] * 29 + [95.0],
-            "network_in":      [1000.0] * 29 + [50000.0],
+            "cpu_utilization": [50.0] * 27 + [95.0] * 3,
+            "network_in":      [1000.0] * 27 + [50000.0] * 3,
             "network_out":     [800.0] * 30,
-            "cost":            [2.0] * 29 + [20.0],
+            "cost":            [2.0] * 27 + [20.0] * 3,
         },
     }
 
 
 def _spike_lambda(resource_id: str) -> dict:
+    # EC2와 동일한 이유로 최근 3개를 전부 스파이크시킴.
     return {
         "resource_id": resource_id,
         "resource_type": "Lambda",
         "raw_metrics": {
-            "invocation_count": [100.0] * 29 + [50000.0],
+            "invocation_count": [100.0] * 27 + [50000.0] * 3,
             "error_count":      [1.0] * 30,
             "duration_avg":     [200.0] * 30,
-            "cost":             [0.1] * 29 + [20.0],
+            "cost":             [0.1] * 27 + [20.0] * 3,
         },
     }
 

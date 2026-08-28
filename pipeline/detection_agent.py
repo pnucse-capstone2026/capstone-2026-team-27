@@ -8,12 +8,12 @@ pipeline/detection_agent.py (박소영)
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
   지금은 state["raw_metrics"]로 전달되는 윈도우 데이터를 그대로 사용한다.
-- Isolation Forest의 "24시간 주기 재학습"은 실제로는 24시간치 누적 CloudWatch 데이터로
-  배치 학습하는 구조가 맞다. 지금은 그 데이터가 없으므로, 모델을 리소스 타입별로
-  파일(pickle)에 캐싱해두고 "캐시가 없거나 24시간 지났으면 재학습" 만 흉내내며,
-  재학습 시 학습 데이터는 그 순간 들어온 윈도우를 임시로 사용한다.
-  AWS 연동 후에는 `_get_or_train_iforest`의 학습 데이터 소스만
-  (현재 윈도우 → 24시간 누적 CloudWatch 데이터)로 교체하면 된다.
+- Isolation Forest 모델은 리소스 타입별로 파일(pickle)에 캐싱해두고, "모델이 확신하는
+  정상 윈도우"만 골라 학습 버퍼에 누적하며 5개 쌓일 때마다 재학습한다 (자기참조 학습,
+  아래 학습 버퍼 섹션 참고). 타입당 최대 MAX_WINDOWS_PER_TYPE개만 유지하고 오래된
+  것부터 자동으로 교체(FIFO)하는 방식으로 concept drift에 대응한다 — 예전엔 24시간마다
+  버퍼 전체를 통째로 리셋하는 방식이었는데, 리셋될 때마다 콜드 스타트(창 1개 학습)로
+  되돌아가 정확도가 급락하는 문제가 있어 제거했다.
 """
 
 from __future__ import annotations
@@ -43,9 +43,15 @@ Z_SCORE_EPSILON = 1e-9                       # ε (분모 0 방지)
 IFOREST_THRESHOLD = 0.5                      # τ = 0.5 (기존 0.6)
 IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
 IFOREST_RANDOM_STATE = 42
-IFOREST_RETRAIN_INTERVAL_SEC = 24 * 60 * 60  # 24시간 주기로 학습 버퍼 전체 리셋 (concept drift 대응)
 IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
 MIN_POINTS_FOR_IFOREST = 5
+
+# 알림 판단(지속성 체크)용: 최근 이만큼의 연속 시점이 전부 임계값을 넘어야 트리거.
+# period_seconds=300초(5분) 기준 3개 = 15분 — 순간적인 노이즈 튐 한 번에는 반응하지 않되,
+# 너무 오래 기다리지도 않는 절충값으로 임의 설정. period_seconds를 바꾸면 실제 지속 시간도
+# 같이 바뀐다는 점 감안. (참고: Nagios류 모니터링의 기본 재확인 횟수 3회, Prometheus 흔한
+# `for: 15m` 관례와 유사한 수준)
+PERSISTENCE_WINDOW_POINTS = 3
 
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
@@ -103,6 +109,11 @@ IFOREST_UNIFIED_MODEL_NAME = "unified"
 def _zscore_check(values: list[float]) -> tuple[float, bool]:
     """슬라이딩 윈도우 전체로 μ, σ를 구하고, 윈도우 내 각 시점 x에 대해
     Z = (x - μ) / (σ + ε) 를 산출. 윈도우 내 |Z|의 최댓값이 k(=3.0)을 넘으면 트리거.
+
+    ⚠️ detection_node의 알림 판단에는 안 쓰임(_zscore_check_persistent 사용) — 이 함수는
+    학습 버퍼 채택 여부(_zscore_max) 판단 전용. 버퍼에는 윈도우 전체(30개 행)가 그대로
+    들어가므로, 마지막 값은 정상이어도 윈도우 중간에 스파이크가 섞여 있으면 그 윈도우를
+    "정상"으로 학습에 반영하면 안 되기 때문에 window-max를 유지한다.
     """
     arr = np.asarray(values, dtype=float)
     if arr.size < 2:
@@ -116,6 +127,38 @@ def _zscore_check(values: list[float]) -> tuple[float, bool]:
 
     is_triggered = max_abs_z > Z_SCORE_THRESHOLD
     return max_abs_z, is_triggered
+
+
+def _zscore_check_persistent(
+    values: list[float], k: int = PERSISTENCE_WINDOW_POINTS
+) -> tuple[float, bool]:
+    """윈도우 전체로 μ, σ를 구하되, 트리거 판단은 최근 k개 시점이 "전부" 임계값을
+    넘어야 한다(지속성 체크): Z_i = (x_i - μ) / (σ + ε), i는 최근 k개 시점.
+    보고용 점수는 그중 가장 최근(마지막) 시점의 |Z|를 반환한다. k=1이면 마지막
+    시점 하나만 보는 것과 동일.
+
+    detection_node의 알림 판단 전용. 두 가지 극단을 피하려고 만들었다:
+    - window-max(_zscore_check) 그대로 쓰면, 스파이크가 지나가고 값이 정상으로
+      돌아와도 그 스파이크가 윈도우에서 밀려날 때까지(최대 2.5시간, n_points=30 ×
+      period_seconds=300초) 계속 이상으로 잡힘.
+    - 마지막 1개 시점만 보면(k=1), 반대로 순간적인 노이즈 튐 한 번에도 바로
+      반응해서 알림이 튀는(flapping) 문제가 있음.
+    최근 PERSISTENCE_WINDOW_POINTS(기본 3)개, 즉 15분(period_seconds=300초 기준)
+    동안 연속으로 임계값을 넘었을 때만 트리거하도록 절충했다.
+    """
+    arr = np.asarray(values, dtype=float)
+    if arr.size < 2:
+        return 0.0, False
+
+    mu = arr.mean()
+    sigma = arr.std()
+
+    z_scores_abs = np.abs((arr - mu) / (sigma + Z_SCORE_EPSILON))
+    k_eff = min(k, arr.size)
+    recent = z_scores_abs[-k_eff:]
+
+    is_triggered = bool(np.all(recent > Z_SCORE_THRESHOLD))
+    return float(recent[-1]), is_triggered
 
 def build_unified_feature_matrix(
     resource_type: str, metrics: dict[str, list[float]]
@@ -142,17 +185,22 @@ def _model_path(resource_type: str) -> str:
 
 
 def _load_cached_model(resource_type: str) -> Optional[tuple[IsolationForest, list[str]]]:
-    """캐시된 (model, feature_keys) 로드. 캐시가 없거나 24시간 지났으면 None."""
+    """캐시된 (model, feature_keys) 로드. 캐시가 없으면 None.
+
+    ⚠️ 예전엔 "24시간 지나면 캐시 전체 무효화"가 있었는데 제거함 — 그 방식은 리셋될
+    때마다 학습 버퍼가 통째로 비워져서 콜드 스타트(창 1개로만 학습) 상태로 되돌아가고,
+    그때마다 정확도가 급락하는 문제가 있었다 (Phase 5에서 확인한 "창 1개 학습 = 정상
+    32.7% 오탐" 문제가 재발). 대신 MAX_WINDOWS_PER_TYPE 기반 FIFO(오래된 윈도우부터
+    자동 교체)가 이미 concept drift를 점진적으로, 급락 없이 처리해주고 있어서 이걸로 충분.
+    """
     path = _model_path(resource_type)
     if not os.path.exists(path):
         return None
     try:
         with open(path, "rb") as f:
-            model, feature_keys, trained_at = pickle.load(f)
+            model, feature_keys, _trained_at = pickle.load(f)
     except Exception:
         return None
-    if time.time() - trained_at > IFOREST_RETRAIN_INTERVAL_SEC:
-        return None  # 재학습 주기 도달 → 캐시 무효화
     return model, feature_keys
 
 
@@ -220,23 +268,31 @@ def _zscore_max(metrics: dict[str, list[float]]) -> float:
     return z_max
 
 
-def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
+def _normalized_scores(
+    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]
+) -> np.ndarray:
+    """윈도우 전체에 대해 IsolationForest decision_function을 창 내부 min-max로
+    0~1 정규화한 배열을 반환 (1에 가까울수록 이상). _score_with_model과
+    _iforest_score_and_trigger가 공유하는 정규화 로직."""
     X = build_unified_feature_matrix(resource_type, metrics)
     raw_scores = model.decision_function(X)  # 낮을수록 이상치
-    latest_raw = raw_scores[-1]
 
     s_min, s_max = raw_scores.min(), raw_scores.max()
     if s_max == s_min:
-        return 0.0
+        return np.zeros_like(raw_scores)
 
-    normalized = (s_max - latest_raw) / (s_max - s_min)
-    return float(np.clip(normalized, 0.0, 1.0))
+    return np.clip((s_max - raw_scores) / (s_max - s_min), 0.0, 1.0)
+
+
+def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
+    return float(_normalized_scores(model, resource_type, metrics)[-1])
 
 
 def _get_or_train_iforest(
     resource_type: str, metrics: dict[str, list[float]]
 ) -> Optional[IsolationForest]:
-    """24시간 캐시 모델이 있으면 재사용, 없거나 만료됐으면 재학습 후 캐시 저장.
+    """캐시된 모델이 있으면 재사용, 없으면(콜드 스타트) 학습 후 캐시 저장.
+    새로운 리소스 타입이 처음 보이거나 버퍼에 새 윈도우가 쌓이면 그때그때 재학습.
 
     ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 윈도우 중
        모델이 잠정적으로 정상이라고 판단한 것들을 리소스 타입별로 모은 누적 버퍼.
@@ -301,11 +357,38 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
     """CPU, 네트워크 입출력, 비용, 호출 횟수 등 해당 리소스의 모든 지표를
     하나의 다변량 feature 벡터로 구성해 Isolation Forest에 입력하고,
     최신 시점의 이상 점수를 0~1로 정규화해서 반환 (1에 가까울수록 이상).
+
+    ⚠️ detection_node에서는 안 쓰임(_iforest_score_and_trigger 사용) — 이 함수는
+    playground 평가/검증 스크립트 전용으로 남겨둠(각 스크립트가 "호출 1번 = 모델
+    로드+버퍼 갱신 1번"을 전제로 하고 있어서 시그니처를 그대로 유지).
     """
     model = _get_or_train_iforest(resource_type, metrics)
     if model is None:
         return 0.0
     return _score_with_model(model, resource_type, metrics)
+
+
+def _iforest_score_and_trigger(
+    resource_type: str, metrics: dict[str, list[float]], k: int = PERSISTENCE_WINDOW_POINTS
+) -> tuple[float, bool]:
+    """detection_node 전용: 최신 시점의 이상 점수(리포팅용)와, 최근 k개 시점이
+    "전부" 임계값을 넘었는지(트리거 판단, 지속성 체크)를 함께 반환한다.
+
+    ⚠️ _iforest_score를 두 번(점수용 1번 + 트리거용 1번) 부르지 않는 이유:
+    _get_or_train_iforest는 호출할 때마다 학습 버퍼를 갱신하는 부수효과가 있어서,
+    같은 요청 안에서 두 번 부르면 같은 윈도우가 버퍼에 중복 반영되거나 재학습
+    카운트가 두 배로 올라가는 버그가 생긴다. 모델을 한 번만 불러와 재사용한다.
+    """
+    model = _get_or_train_iforest(resource_type, metrics)
+    if model is None:
+        return 0.0, False
+
+    normalized = _normalized_scores(model, resource_type, metrics)
+    latest_score = float(normalized[-1])
+
+    k_eff = min(k, len(normalized))
+    is_triggered = bool(np.all(normalized[-k_eff:] > IFOREST_THRESHOLD))
+    return latest_score, is_triggered
 
 
 # ── Phase 3: SHAP 해석가능성 (평가/설명 전용 — detection_node 프로덕션 경로엔 안 쓰임) ──
@@ -374,21 +457,22 @@ def detection_node(state: PipelineState) -> PipelineState:
     metrics = state["raw_metrics"]
     resource_type = state["resource_type"]
 
-    # ── 1) Z-score 탐지 (비용 / 네트워크 입력 / 호출 횟수 지표만 대상) ──────────
+    # ── 1) Z-score 탐지 (비용 / 네트워크 입력 / 호출 횟수 지표만 대상, 최근 몇 시점 지속 기준) ──
+    # window-max도 마지막 1개 시점도 아니고 "최근 PERSISTENCE_WINDOW_POINTS개 연속"인
+    # 이유: _zscore_check_persistent 문서 참고.
     triggered_metrics: list[str] = []
     max_abs_z = 0.0
 
     for metric_name in metrics:
         if metric_name not in Z_SCORE_TARGET_METRICS:
             continue
-        z, is_triggered = _zscore_check(metrics[metric_name])
+        z, is_triggered = _zscore_check_persistent(metrics[metric_name])
         if is_triggered:
             triggered_metrics.append(metric_name)
         max_abs_z = max(max_abs_z, z)
 
-    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량) ────────────
-    iforest_score = _iforest_score(resource_type, metrics)
-    iforest_triggered = iforest_score > IFOREST_THRESHOLD
+    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량, 마찬가지로 지속성 체크) ──
+    iforest_score, iforest_triggered = _iforest_score_and_trigger(resource_type, metrics)
 
     # ── 3) OR 앙상블 결합 ─────────────────────────────────────────────────
     anomaly_flag = bool(triggered_metrics) or iforest_triggered

@@ -1,0 +1,342 @@
+{
+  "config": {
+    "n_normal_per_type": 20,
+    "n_sustained_per_metric": 10,
+    "n_blip_per_metric": 10,
+    "n_warmup_per_type": 30,
+    "spike_multiplier": 10.0,
+    "window_size": 30
+  },
+  "warmup_rejection_reasons": {
+    "thresholds": {
+      "score_limit (IFOREST_THRESHOLD*BUFFER_SCORE_MARGIN)": 0.35,
+      "zmax_limit (Z_SCORE_THRESHOLD*BUFFER_ZSCORE_MARGIN)": 1.925
+    },
+    "total": {
+      "n_seen": 149,
+      "n_accepted": 34,
+      "n_rejected": 115,
+      "rejected_score_only": 65,
+      "rejected_zmax_only": 19,
+      "rejected_both": 31
+    },
+    "by_resource_type": {
+      "EC2": {
+        "n_seen": 29,
+        "n_accepted": 11,
+        "n_rejected": 18,
+        "rejected_score_only": 7,
+        "rejected_zmax_only": 7,
+        "rejected_both": 4
+      },
+      "Lambda": {
+        "n_seen": 30,
+        "n_accepted": 7,
+        "n_rejected": 23,
+        "rejected_score_only": 10,
+        "rejected_zmax_only": 5,
+        "rejected_both": 8
+      },
+      "S3": {
+        "n_seen": 30,
+        "n_accepted": 6,
+        "n_rejected": 24,
+        "rejected_score_only": 9,
+        "rejected_zmax_only": 5,
+        "rejected_both": 10
+      },
+      "RDS": {
+        "n_seen": 30,
+        "n_accepted": 6,
+        "n_rejected": 24,
+        "rejected_score_only": 19,
+        "rejected_zmax_only": 2,
+        "rejected_both": 3
+      },
+      "AutoScaling": {
+        "n_seen": 30,
+        "n_accepted": 4,
+        "n_rejected": 26,
+        "rejected_score_only": 20,
+        "rejected_zmax_only": 0,
+        "rejected_both": 6
+      }
+    }
+  },
+  "scenarios": {
+    "콜드스타트 / 원래 순서": {
+      "label": "콜드스타트 / 원래 순서",
+      "confusion": {
+        "n": 480,
+        "tp": 165,
+        "fp": 74,
+        "tn": 216,
+        "fn": 25,
+        "accuracy": 0.7937,
+        "precision": 0.6904,
+        "recall": 0.8684,
+        "f1": 0.7692
+      },
+      "by_pattern": {
+        "normal": {
+          "n": 100,
+          "n_triggered": 24,
+          "trigger_rate": 0.24
+        },
+        "sustained": {
+          "n": 190,
+          "n_triggered": 165,
+          "trigger_rate": 0.8684
+        },
+        "blip": {
+          "n": 190,
+          "n_triggered": 50,
+          "trigger_rate": 0.2632
+        }
+      },
+      "by_resource_type_sustained": {
+        "EC2": {
+          "n": 40,
+          "n_caught": 34,
+          "rate": 0.85
+        },
+        "Lambda": {
+          "n": 40,
+          "n_caught": 29,
+          "rate": 0.725
+        },
+        "S3": {
+          "n": 30,
+          "n_caught": 30,
+          "rate": 1.0
+        },
+        "RDS": {
+          "n": 50,
+          "n_caught": 47,
+          "rate": 0.94
+        },
+        "AutoScaling": {
+          "n": 30,
+          "n_caught": 25,
+          "rate": 0.8333
+        }
+      },
+      "detector_breakdown": {
+        "n_sustained_caught": 165,
+        "caught_by_zscore": 80,
+        "caught_by_iforest_only": 85
+      },
+      "warmup_buffer_stats": null
+    },
+    "콜드스타트 / 무작위 순서": {
+      "label": "콜드스타트 / 무작위 순서",
+      "confusion": {
+        "n": 480,
+        "tp": 171,
+        "fp": 32,
+        "tn": 258,
+        "fn": 19,
+        "accuracy": 0.8938,
+        "precision": 0.8424,
+        "recall": 0.9,
+        "f1": 0.8702
+      },
+      "by_pattern": {
+        "normal": {
+          "n": 100,
+          "n_triggered": 11,
+          "trigger_rate": 0.11
+        },
+        "sustained": {
+          "n": 190,
+          "n_triggered": 171,
+          "trigger_rate": 0.9
+        },
+        "blip": {
+          "n": 190,
+          "n_triggered": 21,
+          "trigger_rate": 0.1105
+        }
+      },
+      "by_resource_type_sustained": {
+        "EC2": {
+          "n": 40,
+          "n_caught": 39,
+          "rate": 0.975
+        },
+        "Lambda": {
+          "n": 40,
+          "n_caught": 33,
+          "rate": 0.825
+        },
+        "S3": {
+          "n": 30,
+          "n_caught": 28,
+          "rate": 0.9333
+        },
+        "RDS": {
+          "n": 50,
+          "n_caught": 42,
+          "rate": 0.84
+        },
+        "AutoScaling": {
+          "n": 30,
+          "n_caught": 29,
+          "rate": 0.9667
+        }
+      },
+      "detector_breakdown": {
+        "n_sustained_caught": 171,
+        "caught_by_zscore": 80,
+        "caught_by_iforest_only": 91
+      },
+      "warmup_buffer_stats": null
+    },
+    "웜업 후 / 원래 순서": {
+      "label": "웜업 후 / 원래 순서",
+      "confusion": {
+        "n": 480,
+        "tp": 156,
+        "fp": 49,
+        "tn": 241,
+        "fn": 34,
+        "accuracy": 0.8271,
+        "precision": 0.761,
+        "recall": 0.8211,
+        "f1": 0.7899
+      },
+      "by_pattern": {
+        "normal": {
+          "n": 100,
+          "n_triggered": 14,
+          "trigger_rate": 0.14
+        },
+        "sustained": {
+          "n": 190,
+          "n_triggered": 156,
+          "trigger_rate": 0.8211
+        },
+        "blip": {
+          "n": 190,
+          "n_triggered": 35,
+          "trigger_rate": 0.1842
+        }
+      },
+      "by_resource_type_sustained": {
+        "EC2": {
+          "n": 40,
+          "n_caught": 39,
+          "rate": 0.975
+        },
+        "Lambda": {
+          "n": 40,
+          "n_caught": 32,
+          "rate": 0.8
+        },
+        "S3": {
+          "n": 30,
+          "n_caught": 29,
+          "rate": 0.9667
+        },
+        "RDS": {
+          "n": 50,
+          "n_caught": 32,
+          "rate": 0.64
+        },
+        "AutoScaling": {
+          "n": 30,
+          "n_caught": 24,
+          "rate": 0.8
+        }
+      },
+      "detector_breakdown": {
+        "n_sustained_caught": 156,
+        "caught_by_zscore": 80,
+        "caught_by_iforest_only": 76
+      },
+      "warmup_buffer_stats": {
+        "pending_count": 4,
+        "buffer_size_by_type": {
+          "EC2": 12,
+          "Lambda": 7,
+          "S3": 6,
+          "RDS": 6,
+          "AutoScaling": 4
+        }
+      }
+    },
+    "웜업 후 / 무작위 순서": {
+      "label": "웜업 후 / 무작위 순서",
+      "confusion": {
+        "n": 480,
+        "tp": 163,
+        "fp": 36,
+        "tn": 254,
+        "fn": 27,
+        "accuracy": 0.8688,
+        "precision": 0.8191,
+        "recall": 0.8579,
+        "f1": 0.838
+      },
+      "by_pattern": {
+        "normal": {
+          "n": 100,
+          "n_triggered": 11,
+          "trigger_rate": 0.11
+        },
+        "sustained": {
+          "n": 190,
+          "n_triggered": 163,
+          "trigger_rate": 0.8579
+        },
+        "blip": {
+          "n": 190,
+          "n_triggered": 25,
+          "trigger_rate": 0.1316
+        }
+      },
+      "by_resource_type_sustained": {
+        "EC2": {
+          "n": 40,
+          "n_caught": 34,
+          "rate": 0.85
+        },
+        "Lambda": {
+          "n": 40,
+          "n_caught": 36,
+          "rate": 0.9
+        },
+        "S3": {
+          "n": 30,
+          "n_caught": 28,
+          "rate": 0.9333
+        },
+        "RDS": {
+          "n": 50,
+          "n_caught": 38,
+          "rate": 0.76
+        },
+        "AutoScaling": {
+          "n": 30,
+          "n_caught": 27,
+          "rate": 0.9
+        }
+      },
+      "detector_breakdown": {
+        "n_sustained_caught": 163,
+        "caught_by_zscore": 80,
+        "caught_by_iforest_only": 83
+      },
+      "warmup_buffer_stats": {
+        "pending_count": 4,
+        "buffer_size_by_type": {
+          "EC2": 12,
+          "Lambda": 7,
+          "S3": 6,
+          "RDS": 6,
+          "AutoScaling": 4
+        }
+      }
+    }
+  }
+}
