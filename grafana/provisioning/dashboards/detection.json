@@ -5,26 +5,56 @@
   "timezone": "browser",
   "editable": true,
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": { "from": "now-7d", "to": "now" },
   "panels": [
     {
-      "id": 1,
+      "id": 11,
       "type": "stat",
-      "title": "전체 실행 수",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "title": "탐지 미적용 시 예상 비용",
+      "description": "실제 지출 비용 + 비용 절감액 (역산). '이 시스템이 없었다면 나갔을 것으로 추정되는 비용'",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs;",
+          "rawSql": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n),\ntotal_saving AS (\n    SELECT COALESCE(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    ), 0) AS saving\n    FROM action_durations\n),\nactual_cost AS (\n    SELECT COALESCE(SUM((s.output->>'latest_cost')::float), 0) AS cost\n    FROM agent_steps s\n    JOIN agent_runs ar ON ar.run_id = s.run_id\n    WHERE s.step_name = 'detection'\n      AND s.output->>'latest_cost' IS NOT NULL\n      AND $__timeFilter(ar.finished_at)\n)\nSELECT ROUND((actual_cost.cost + total_saving.saving)::numeric, 2) AS \"value\"\nFROM actual_cost, total_saving;",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "실제 지출 비용",
+      "description": "detection 단계에 기록된 latest_cost 합산. 이 코드 수정 이후 새로 쌓이는 데이터부터 값이 나옴",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    COALESCE(ROUND(SUM((s.output->>'latest_cost')::float)::numeric, 2), 0) AS \"value\"\nFROM agent_steps s\nJOIN agent_runs ar ON ar.run_id = s.run_id\nWHERE s.step_name = 'detection'\n  AND s.output->>'latest_cost' IS NOT NULL\n  AND $__timeFilter(ar.finished_at);",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
           "color": { "mode": "fixed", "fixedColor": "blue" }
         },
         "overrides": []
@@ -36,22 +66,24 @@
       }
     },
     {
-      "id": 2,
+      "id": 13,
       "type": "stat",
-      "title": "이상 탐지 수",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "title": "비용 절감액",
+      "description": "성공한 조치별 시간당 절감액(estimated_saving_usd) × 지속시간(다음 조치 전까지, 없으면 지금까지)의 합",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs WHERE anomaly_flag = true;",
+          "rawSql": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n)\nSELECT\n    COALESCE(ROUND(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    )::numeric, 2), 0) AS \"value\"\nFROM action_durations;",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "orange" }
+          "unit": "currencyUSD",
+          "color": { "mode": "fixed", "fixedColor": "green" }
         },
         "overrides": []
       },
@@ -62,10 +94,35 @@
       }
     },
     {
+      "id": 9,
+      "type": "barchart",
+      "title": "시나리오별 비용 절감액",
+      "description": "최상단 '비용 절감액'과 동일한 방식(시간당 절감액 × 지속시간)을 이상 유형/조치별로 나눠서 집계 — 전부 더하면 최상단 총액과 일치함",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        ar.anomaly_type,\n        al.action_name,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n)\nSELECT\n    (anomaly_type || ' / ' || action_name) AS \"시나리오\",\n    ROUND(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    )::numeric, 2) AS \"절감액(USD)\"\nFROM action_durations\nGROUP BY anomaly_type, action_name\nORDER BY 2 DESC;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD" },
+        "overrides": []
+      },
+      "options": {
+        "xField": "시나리오",
+        "orientation": "auto",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
       "id": 3,
       "type": "stat",
-      "title": "액션 성공 수",
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "title": "자동 조치 성공 건수",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 4 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
@@ -88,11 +145,73 @@
       }
     },
     {
+      "id": 2,
+      "type": "stat",
+      "title": "이상 탐지 건수",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs WHERE anomaly_flag = true;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 10,
+      "type": "gauge",
+      "title": "조치 후 QA 통과율",
+      "gridPos": { "x": 0, "y": 18, "w": 8, "h": 6 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "table",
+          "rawSql": "SELECT\n    ROUND(\n        COUNT(*) FILTER (WHERE qa_passed = true)::numeric\n        / NULLIF(COUNT(*), 0) * 100, 1\n    ) AS \"value\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at);",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 70 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      }
+    },
+    {
       "id": 4,
       "type": "stat",
-      "title": "롤백 발생 수",
+      "title": "조치 실패로 인한 롤백 건수",
       "description": "action_log에는 rolled_back 컬럼이 없어 action_result JSONB에서 꺼내서 집계",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 8, "y": 18, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
@@ -115,27 +234,36 @@
       }
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "시간대별 탐지 추이",
-      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "id": 1,
+      "type": "stat",
+      "title": "전체 모니터링 실행 횟수",
+      "gridPos": { "x": 16, "y": 18, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
-          "format": "time_series",
-          "rawSql": "SELECT\n    DATE_TRUNC('hour', finished_at) AS \"time\",\n    COUNT(*) AS \"탐지 건수\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at)\nGROUP BY DATE_TRUNC('hour', finished_at)\nORDER BY 1;",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"value\" FROM agent_runs;",
           "refId": "A"
         }
       ],
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "options": {}
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
     },
     {
       "id": 6,
       "type": "piechart",
-      "title": "이상 유형 분포",
-      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "title": "이상 유형별 발생 분포",
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 8 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
@@ -170,8 +298,8 @@
     {
       "id": 7,
       "type": "table",
-      "title": "액션 실행 이력",
-      "gridPos": { "x": 8, "y": 12, "w": 16, "h": 8 },
+      "title": "자동 조치 실행 이력",
+      "gridPos": { "x": 8, "y": 24, "w": 16, "h": 8 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
@@ -211,11 +339,28 @@
       }
     },
     {
+      "id": 5,
+      "type": "timeseries",
+      "title": "시간대별 이상 탐지 추이",
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgresql" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgresql" },
+          "format": "time_series",
+          "rawSql": "SELECT\n    DATE_TRUNC('hour', finished_at) AS \"time\",\n    COUNT(*) AS \"탐지 건수\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at)\nGROUP BY DATE_TRUNC('hour', finished_at)\nORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
       "id": 8,
       "type": "barchart",
-      "title": "Rule Book win_rate",
-      "description": "schema/rules/classification_rules.json, qa_rules.json의 규칙별 성능. rule_stats 테이블이 채워지기 전까지는 빈 패널로 보임 (자기진화 루프 구현 후에 값이 쌓임)",
-      "gridPos": { "x": 0, "y": 20, "w": 8, "h": 8 },
+      "title": "탐지 규칙별 판단 정확도",
+      "description": "schema/rules/classification_rules.json, qa_rules.json의 규칙별 성능(=예전 'win_rate'). 내부 개발/튜닝용 지표라 메인 스토리(비용 절감)와는 성격이 달라 맨 아래로 분리. rule_stats 테이블이 채워지기 전까지는 빈 패널로 보임 (자기진화 루프 구현 후에 값이 쌓임)",
+      "gridPos": { "x": 0, "y": 40, "w": 24, "h": 8 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
@@ -256,64 +401,6 @@
         "xField": "규칙 ID",
         "orientation": "auto",
         "legend": { "displayMode": "list", "placement": "bottom" }
-      }
-    },
-    {
-      "id": 9,
-      "type": "barchart",
-      "title": "시나리오별 비용 절감액",
-      "description": "estimated_saving_usd는 action_result가 아니라 decision 단계의 candidate_actions(agent_steps.output)에만 존재해서, 원안의 action_result->>'estimated_saving_usd' 대신 agent_steps를 펼쳐서(jsonb_array_elements) selected_action과 일치하는 후보를 골라 집계하도록 고침",
-      "gridPos": { "x": 8, "y": 20, "w": 8, "h": 8 },
-      "datasource": { "type": "postgres", "uid": "postgresql" },
-      "targets": [
-        {
-          "datasource": { "type": "postgres", "uid": "postgresql" },
-          "format": "table",
-          "rawSql": "SELECT\n    ar.anomaly_type    AS \"시나리오\",\n    ar.selected_action  AS \"액션\",\n    ROUND(\n        AVG((elem->>'estimated_saving_usd')::float)::numeric, 4\n    ) AS \"평균 절감액(USD/hr)\"\nFROM agent_runs ar\nJOIN agent_steps s   ON s.run_id = ar.run_id AND s.step_name = 'decision'\nJOIN action_log al   ON al.run_id = ar.run_id\nCROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\nWHERE elem->>'action' = ar.selected_action\n  AND al.success = true\n  AND $__timeFilter(al.executed_at)\nGROUP BY ar.anomaly_type, ar.selected_action\nORDER BY 3 DESC;",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "options": {
-        "xField": "시나리오",
-        "orientation": "auto",
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      }
-    },
-    {
-      "id": 10,
-      "type": "gauge",
-      "title": "파이프라인 QA 통과율",
-      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 },
-      "datasource": { "type": "postgres", "uid": "postgresql" },
-      "targets": [
-        {
-          "datasource": { "type": "postgres", "uid": "postgresql" },
-          "format": "table",
-          "rawSql": "SELECT\n    ROUND(\n        COUNT(*) FILTER (WHERE qa_passed = true)::numeric\n        / NULLIF(COUNT(*), 0) * 100, 1\n    ) AS \"value\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at);",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "orange", "value": 70 },
-              { "color": "green", "value": 90 }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
       }
     }
   ]
