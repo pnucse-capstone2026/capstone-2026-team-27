@@ -13,6 +13,7 @@ botocore==1.43.3
 # ML
 numpy==2.2.6
 scikit-learn==1.7.2
+shap==0.52.0
 
 # DB
 psycopg2-binary==2.9.12

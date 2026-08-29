@@ -1,0 +1,442 @@
+{
+  "n_samples": 435,
+  "accuracy_iforest_only": {
+    "unified": {
+      "tp": 186,
+      "fp": 43,
+      "tn": 107,
+      "fn": 99,
+      "accuracy": 0.6736,
+      "precision": 0.8122,
+      "recall": 0.6526,
+      "f1": 0.7237
+    },
+    "per_type": {
+      "tp": 172,
+      "fp": 42,
+      "tn": 108,
+      "fn": 113,
+      "accuracy": 0.6437,
+      "precision": 0.8037,
+      "recall": 0.6035,
+      "f1": 0.6894
+    }
+  },
+  "accuracy_ensemble": {
+    "unified": {
+      "tp": 226,
+      "fp": 43,
+      "tn": 107,
+      "fn": 59,
+      "accuracy": 0.7655,
+      "precision": 0.8401,
+      "recall": 0.793,
+      "f1": 0.8159
+    },
+    "per_type": {
+      "tp": 219,
+      "fp": 42,
+      "tn": 108,
+      "fn": 66,
+      "accuracy": 0.7517,
+      "precision": 0.8391,
+      "recall": 0.7684,
+      "f1": 0.8022
+    }
+  },
+  "agreement": {
+    "iforest_only": 0.846,
+    "ensemble": 0.8897,
+    "n_disagreements": 48,
+    "disagreement_examples": [
+      {
+        "sample_id": "EC2_normal_014",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6688,
+        "iforest_score_per_type": 0.5203
+      },
+      {
+        "sample_id": "EC2_normal_021",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.8075,
+        "iforest_score_per_type": 0.5929
+      },
+      {
+        "sample_id": "EC2_normal_028",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5959,
+        "iforest_score_per_type": 0.6485
+      },
+      {
+        "sample_id": "EC2_spike_cpu_utilization_006",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.7213,
+        "iforest_score_per_type": 0.5436
+      },
+      {
+        "sample_id": "EC2_spike_cpu_utilization_008",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.7141,
+        "iforest_score_per_type": 0.5738
+      },
+      {
+        "sample_id": "EC2_spike_cpu_utilization_010",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.696,
+        "iforest_score_per_type": 0.4772
+      },
+      {
+        "sample_id": "EC2_spike_network_out_010",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4789,
+        "iforest_score_per_type": 0.617
+      },
+      {
+        "sample_id": "EC2_spike_network_out_014",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5924,
+        "iforest_score_per_type": 0.6762
+      },
+      {
+        "sample_id": "Lambda_normal_000",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5608,
+        "iforest_score_per_type": 0.7227
+      },
+      {
+        "sample_id": "Lambda_normal_008",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.8755,
+        "iforest_score_per_type": 0.5915
+      },
+      {
+        "sample_id": "Lambda_normal_016",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5183,
+        "iforest_score_per_type": 0.6993
+      },
+      {
+        "sample_id": "Lambda_normal_026",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.661,
+        "iforest_score_per_type": 0.4964
+      },
+      {
+        "sample_id": "Lambda_spike_error_count_004",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6124,
+        "iforest_score_per_type": 0.5553
+      },
+      {
+        "sample_id": "Lambda_spike_error_count_006",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.632,
+        "iforest_score_per_type": 0.5216
+      },
+      {
+        "sample_id": "Lambda_spike_error_count_009",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6549,
+        "iforest_score_per_type": 0.5864
+      },
+      {
+        "sample_id": "Lambda_spike_duration_avg_010",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.598,
+        "iforest_score_per_type": 0.642
+      },
+      {
+        "sample_id": "Lambda_spike_duration_avg_011",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4924,
+        "iforest_score_per_type": 0.6099
+      },
+      {
+        "sample_id": "Lambda_spike_duration_avg_013",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.582,
+        "iforest_score_per_type": 0.7989
+      },
+      {
+        "sample_id": "S3_normal_006",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5074,
+        "iforest_score_per_type": 0.6481
+      },
+      {
+        "sample_id": "S3_normal_026",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.751,
+        "iforest_score_per_type": 0.589
+      },
+      {
+        "sample_id": "S3_spike_bytes_downloaded_000",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6736,
+        "iforest_score_per_type": 0.5216
+      },
+      {
+        "sample_id": "S3_spike_bytes_downloaded_003",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6702,
+        "iforest_score_per_type": 0.5685
+      },
+      {
+        "sample_id": "S3_spike_bytes_downloaded_008",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6388,
+        "iforest_score_per_type": 0.5746
+      },
+      {
+        "sample_id": "RDS_spike_cpu_utilization_001",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6904,
+        "iforest_score_per_type": 0.581
+      },
+      {
+        "sample_id": "RDS_spike_cpu_utilization_004",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.3716,
+        "iforest_score_per_type": 0.6179
+      },
+      {
+        "sample_id": "RDS_spike_cpu_utilization_007",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.7724,
+        "iforest_score_per_type": 0.4242
+      },
+      {
+        "sample_id": "RDS_spike_cpu_utilization_014",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4873,
+        "iforest_score_per_type": 0.6263
+      },
+      {
+        "sample_id": "RDS_spike_database_connections_003",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6039,
+        "iforest_score_per_type": 0.5028
+      },
+      {
+        "sample_id": "RDS_spike_database_connections_010",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.8965,
+        "iforest_score_per_type": 0.5706
+      },
+      {
+        "sample_id": "RDS_spike_database_connections_012",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6064,
+        "iforest_score_per_type": 0.5614
+      },
+      {
+        "sample_id": "RDS_spike_database_connections_013",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.7202,
+        "iforest_score_per_type": 0.5297
+      },
+      {
+        "sample_id": "RDS_spike_database_connections_014",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.7001,
+        "iforest_score_per_type": 0.5802
+      },
+      {
+        "sample_id": "RDS_spike_read_iops_004",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4551,
+        "iforest_score_per_type": 0.7715
+      },
+      {
+        "sample_id": "RDS_spike_read_iops_006",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4394,
+        "iforest_score_per_type": 0.682
+      },
+      {
+        "sample_id": "RDS_spike_read_iops_007",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4773,
+        "iforest_score_per_type": 0.6296
+      },
+      {
+        "sample_id": "RDS_spike_write_iops_000",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5777,
+        "iforest_score_per_type": 0.641
+      },
+      {
+        "sample_id": "RDS_spike_write_iops_002",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6371,
+        "iforest_score_per_type": 0.5439
+      },
+      {
+        "sample_id": "RDS_spike_write_iops_005",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.726,
+        "iforest_score_per_type": 0.5296
+      },
+      {
+        "sample_id": "RDS_spike_write_iops_011",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5308,
+        "iforest_score_per_type": 0.6568
+      },
+      {
+        "sample_id": "AutoScaling_normal_000",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5662,
+        "iforest_score_per_type": 0.6566
+      },
+      {
+        "sample_id": "AutoScaling_normal_005",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6521,
+        "iforest_score_per_type": 0.536
+      },
+      {
+        "sample_id": "AutoScaling_normal_011",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6884,
+        "iforest_score_per_type": 0.5587
+      },
+      {
+        "sample_id": "AutoScaling_normal_015",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5916,
+        "iforest_score_per_type": 0.6529
+      },
+      {
+        "sample_id": "AutoScaling_normal_016",
+        "ground_truth": false,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6254,
+        "iforest_score_per_type": 0.4274
+      },
+      {
+        "sample_id": "AutoScaling_normal_019",
+        "ground_truth": false,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.5523,
+        "iforest_score_per_type": 0.6123
+      },
+      {
+        "sample_id": "AutoScaling_spike_group_desired_capacity_012",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6379,
+        "iforest_score_per_type": 0.5464
+      },
+      {
+        "sample_id": "AutoScaling_spike_group_in_service_instances_000",
+        "ground_truth": true,
+        "unified_pred": false,
+        "per_type_pred": true,
+        "iforest_score_unified": 0.4985,
+        "iforest_score_per_type": 0.6002
+      },
+      {
+        "sample_id": "AutoScaling_spike_group_in_service_instances_009",
+        "ground_truth": true,
+        "unified_pred": true,
+        "per_type_pred": false,
+        "iforest_score_unified": 0.6124,
+        "iforest_score_per_type": 0.5094
+      }
+    ]
+  },
+  "speed": {
+    "unified_avg_ms": 13.8679,
+    "per_type_avg_ms": 13.6816
+  }
+}

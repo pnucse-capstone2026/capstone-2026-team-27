@@ -170,6 +170,9 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
             "anomaly_score_zscore":  state.get("anomaly_score_zscore"),
             "anomaly_score_iforest": state.get("anomaly_score_iforest"),
             "triggered_metrics":     state.get("triggered_metrics"),
+            # Grafana "실제 지출 비용" 패널용 — raw_metrics 자체는 로그에 안 남기고
+            # 이 실행 시점의 최신 cost 값 하나만 남김 (전 리소스 타입 공통 필드)
+            "latest_cost":           (state.get("raw_metrics", {}).get("cost") or [None])[-1],
         }),
         ("classification", {
             "anomaly_type":   state.get("anomaly_type"),

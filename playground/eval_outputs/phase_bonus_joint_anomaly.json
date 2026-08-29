@@ -1,0 +1,121 @@
+{
+  "config": {
+    "k_points": 8,
+    "multiplier": 2.0,
+    "n_per_pair": 10
+  },
+  "n_generated": 280,
+  "n_zscore_leaked": 0,
+  "n_zscore_blind_total": 280,
+  "iforest_catch_rate": 0.9964,
+  "shap_top2_match_rate": 0.7071,
+  "by_resource_type": {
+    "EC2": {
+      "total": 60,
+      "iforest_caught": 60,
+      "rate": 1.0
+    },
+    "Lambda": {
+      "total": 60,
+      "iforest_caught": 60,
+      "rate": 1.0
+    },
+    "S3": {
+      "total": 30,
+      "iforest_caught": 30,
+      "rate": 1.0
+    },
+    "RDS": {
+      "total": 100,
+      "iforest_caught": 99,
+      "rate": 0.99
+    },
+    "AutoScaling": {
+      "total": 30,
+      "iforest_caught": 30,
+      "rate": 1.0
+    }
+  },
+  "examples_caught": [
+    {
+      "sample_id": "EC2_joint_cpu_utilization+network_in_000",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "network_in"
+      ],
+      "iforest_score": 0.7406,
+      "shap_top2": [
+        "cpu_utilization",
+        "network_in"
+      ]
+    },
+    {
+      "sample_id": "EC2_joint_cpu_utilization+network_in_001",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "network_in"
+      ],
+      "iforest_score": 0.758,
+      "shap_top2": [
+        "network_in",
+        "cpu_utilization"
+      ]
+    },
+    {
+      "sample_id": "EC2_joint_cpu_utilization+network_in_002",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "network_in"
+      ],
+      "iforest_score": 0.7941,
+      "shap_top2": [
+        "network_in",
+        "cpu_utilization"
+      ]
+    },
+    {
+      "sample_id": "EC2_joint_cpu_utilization+network_in_003",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "network_in"
+      ],
+      "iforest_score": 0.6638,
+      "shap_top2": [
+        "network_in",
+        "cpu_utilization"
+      ]
+    },
+    {
+      "sample_id": "EC2_joint_cpu_utilization+network_in_004",
+      "resource_type": "EC2",
+      "injected_metrics": [
+        "cpu_utilization",
+        "network_in"
+      ],
+      "iforest_score": 1.0,
+      "shap_top2": [
+        "cost",
+        "network_in"
+      ]
+    }
+  ],
+  "examples_missed": [
+    {
+      "sample_id": "RDS_joint_database_connections+write_iops_006",
+      "resource_type": "RDS",
+      "injected_metrics": [
+        "database_connections",
+        "write_iops"
+      ],
+      "iforest_score": 0.4855,
+      "shap_top2": [
+        "cost",
+        "write_iops"
+      ]
+    }
+  ]
+}

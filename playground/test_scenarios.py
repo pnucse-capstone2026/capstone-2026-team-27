@@ -265,9 +265,13 @@ def scenario_1_zombie_ec2() -> dict:
         # 네트워크 입력도 계속 낮음 (5MB 이하 → 낭비)
         "network_in":      [100.0] * 30,
         "network_out":     [80.0] * 30,
-        # cost는 마지막 3개 포인트에만 작은 스파이크를 줘서 Z-score가 트리거되게 함
+        # cost는 마지막 3개 포인트에 스파이크를 줘서 Z-score가 트리거되게 함
         # (CPU/network가 flat이라는 "좀비 리소스" 특징은 그대로 유지)
-        "cost":            [0.5] * 27 + [3.0, 3.2, 3.5],
+        # ⚠️ 원래 [3.0, 3.2, 3.5]는 지속성 체크(최근 3개가 전부 임계값 2.75를 넘어야
+        # 트리거) 중 첫 값의 z가 2.71로 근소하게 못 넘겨서 탐지가 안 됐다 — 임계값을
+        # 낮추는 대신(다른 리소스의 오탐 억제와 충돌) 스파이크 폭을 키워서 확실히
+        # 넘기도록 수정.
+        "cost":            [0.5] * 27 + [6.0, 6.2, 6.4],
     }
 
     return run_scenario(
@@ -319,10 +323,16 @@ def scenario_3_edos_suspicion() -> dict:
     resource_id = os.getenv("ASG_NAME", "detection-test-asg")
 
     raw_metrics = {
-        # 실행 중 인스턴스 수가 마지막 5개 포인트에서 급증
-        "group_in_service_instances": [2.0] * 25 + [20.0] * 5,
-        "group_desired_capacity":     [2.0] * 25 + [20.0] * 5,
-        "cost":                       [0.5] * 25 + [5.0] * 5,
+        # 실행 중 인스턴스 수가 마지막 3개 포인트에서 급증
+        # ⚠️ 원래는 마지막 5개 포인트를 스파이크로 줬는데, 자체 window(30개)로
+        # 평균/표준편차를 계산하는 z-score 특성상 스파이크가 window의 n개를 차지하면
+        # 아무리 크기를 키워도 최대 z가 sqrt((30-n)/n)로 수렴한다 — n=5면 상한이
+        # 2.236이라 임계값 2.75를 크기와 무관하게 절대 못 넘는 구조적 한계였다.
+        # 지속성 체크 창(k=3)과 맞춰 n=3으로 좁히면 상한이 3.0으로 올라가 트리거
+        # 가능해진다.
+        "group_in_service_instances": [2.0] * 27 + [20.0] * 3,
+        "group_desired_capacity":     [2.0] * 27 + [20.0] * 3,
+        "cost":                       [0.5] * 27 + [8.0, 8.5, 9.0],
     }
 
     return run_scenario(
