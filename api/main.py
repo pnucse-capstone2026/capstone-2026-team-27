@@ -1,0 +1,57 @@
+"""
+관리자 제어판 백엔드
+======================
+approvals.py는 실제 LangGraph checkpointer(Postgres)에 연결되어 있어,
+approval_gate에서 interrupt()로 멈춘 thread를 조회/재개한다 (api/graph_runtime.py).
+나머지 라우터(rules/whitelist/logs/settings)는 아직 api/store.py의 mock 데이터를 쓴다.
+실제 연동 지점은 각 api/routers/*.py 파일의 # TODO 주석 참고.
+
+실행 (프로젝트 루트에서, docker-compose postgres가 떠 있어야 함):
+    pip install -r api/requirements.txt
+    docker compose up -d postgres
+    python -m api.main
+"""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from api import graph_runtime
+from api.routers import approvals, failures, logs, recent, rules, settings, status, whitelist
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    graph_runtime.start() # Postgres 연결 + 승인 그래프 준비
+    try:
+        yield
+    finally:
+        graph_runtime.stop()
+
+
+app = FastAPI(title="Cloud Anomaly Agent - Admin API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(status.router)
+app.include_router(approvals.router)
+app.include_router(rules.router)
+app.include_router(whitelist.router)
+app.include_router(logs.router)
+app.include_router(failures.router)
+app.include_router(recent.router)
+app.include_router(settings.router)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
