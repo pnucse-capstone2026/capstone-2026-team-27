@@ -1,77 +1,184 @@
 {
-  "run_at": "2026-08-25T01:31:15.518430+00:00",
+  "run_at": "2026-08-29T10:11:48.959477+00:00",
   "detection_params": {
     "z_score_threshold": 2.75,
     "iforest_threshold": 0.5
   },
   "ec2_prior_natural_finding": {
     "note": "SSM 부하 테스트 전, 실환경에서 자연 발생한 network_in 스파이크를 별도로 이미 기록함 (부팅 직후 배경 트래픽 추정, anomaly_flag=True로 정확히 탐지됨)",
-    "resource_id": "i-01c2e2f11cc1e0710",
+    "resource_id": "i-027447f30ea1a35e4",
     "triggered_metric": "network_in",
     "z_max": 2.9128,
     "iforest_score": 0.4522
   },
   "scenarios": [
     {
-      "scenario": "ec2_cpu_stress",
+      "scenario": "rds_query_load",
       "before": {
         "n_points": 30,
-        "anomaly_flag": true,
-        "z_max": 4.8547,
-        "z_triggered": true,
-        "iforest_score": 0.0,
+        "anomaly_flag": false,
+        "z_max": 0.0,
+        "z_triggered": false,
+        "iforest_score": 0.2447,
         "iforest_triggered": false,
         "last_values": {
           "cpu_utilization": [
-            0.2316553604256415,
-            0.23002466877061253,
-            0.1916666666666666
+            5.495321361009781,
+            4.89,
+            4.343479803081287
           ],
-          "network_in": [
-            9414.0,
-            16670.0,
-            396.0
+          "database_connections": [
+            0.0,
+            0.0,
+            0.0
           ],
-          "network_out": [
-            7824.0,
-            12372.0,
-            536.0
+          "read_iops": [
+            0.3533377378683963,
+            0.280031355401829,
+            0.2767192325317663
+          ],
+          "write_iops": [
+            4.116645993648518,
+            4.128484192820232,
+            3.9347007927208866
           ]
         }
       },
       "after": {
         "n_points": 30,
         "anomaly_flag": true,
-        "z_max": 4.8409,
-        "z_triggered": true,
-        "iforest_score": 0.0,
-        "iforest_triggered": false,
+        "z_max": 0.0,
+        "z_triggered": false,
+        "iforest_score": 1.0,
+        "iforest_triggered": true,
         "last_values": {
           "cpu_utilization": [
-            0.23002466877061253,
-            67.70086979974754,
-            99.99833169283129
+            84.01393511723306,
+            83.67311913255428,
+            72.15620804006547
           ],
-          "network_in": [
-            16670.0,
-            12387.0,
-            363.0
+          "database_connections": [
+            12.0,
+            12.0,
+            9.6
           ],
-          "network_out": [
-            12372.0,
-            11042.0,
-            433.0
+          "read_iops": [
+            532.4889007322993,
+            522.3029816438568,
+            452.85697863478543
+          ],
+          "write_iops": [
+            533.0462791339571,
+            539.6534893648275,
+            464.15001688193325
           ]
         }
       }
     },
     {
+      "scenario": "s3_request_burst",
+      "before": {
+        "n_points": 30,
+        "anomaly_flag": false,
+        "z_max": 0.0,
+        "z_triggered": false,
+        "iforest_score": 0.0,
+        "iforest_triggered": false,
+        "last_values": {
+          "number_of_requests": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "bytes_downloaded": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "after": {
+        "n_points": 30,
+        "anomaly_flag": true,
+        "z_max": 5.1581,
+        "z_triggered": true,
+        "iforest_score": 0.0,
+        "iforest_triggered": false,
+        "last_values": {
+          "number_of_requests": [
+            65.0,
+            576.0,
+            160.0
+          ],
+          "bytes_downloaded": [
+            12800000.0,
+            115196524.0,
+            32000000.0
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "ec2_cpu_stress",
+      "before": {
+        "n_points": 30,
+        "anomaly_flag": false,
+        "z_max": 0.0,
+        "z_triggered": false,
+        "iforest_score": 0.1299,
+        "iforest_triggered": false,
+        "last_values": {
+          "cpu_utilization": [
+            0.25835410324069613,
+            0.24002551833146862,
+            0.2599374510932219
+          ],
+          "network_in": [
+            9342.0,
+            15956.0,
+            9546.0
+          ],
+          "network_out": [
+            7684.0,
+            11920.0,
+            7888.0
+          ]
+        }
+      },
+      "after": {
+        "n_points": 30,
+        "anomaly_flag": true,
+        "z_max": 0.0,
+        "z_triggered": false,
+        "iforest_score": 1.0,
+        "iforest_triggered": true,
+        "last_values": {
+          "cpu_utilization": [
+            0.24002551833146862,
+            0.2599374510932219,
+            85.12058061179792
+          ],
+          "network_in": [
+            15956.0,
+            9546.0,
+            26555.0
+          ],
+          "network_out": [
+            11920.0,
+            7888.0,
+            20343.0
+          ]
+        }
+      },
+      "run_at": "2026-08-29T10:55:36.332981+00:00"
+    },
+    {
       "scenario": "lambda_invocation_burst",
       "before": {
         "n_points": 30,
-        "anomaly_flag": true,
-        "z_max": 3.7417,
-        "z_triggered": true,
+        "anomaly_flag": false,
+        "z_max": 0.0,
+        "z_triggered": false,
         "iforest_score": 0.0,
         "iforest_triggered": false,
         "last_values": {
@@ -95,10 +202,10 @@
       "after": {
         "n_points": 30,
         "anomaly_flag": true,
-        "z_max": 3.0,
+        "z_max": 5.3852,
         "z_triggered": true,
-        "iforest_score": 0.0,
-        "iforest_triggered": false,
+        "iforest_score": 1.0,
+        "iforest_triggered": true,
         "last_values": {
           "invocation_count": [
             0.0,
@@ -113,10 +220,11 @@
           "duration_avg": [
             0.0,
             0.0,
-            1.3794999998999997
+            1.4412999999999996
           ]
         }
-      }
+      },
+      "run_at": "2026-08-29T10:58:53.275245+00:00"
     },
     {
       "scenario": "autoscaling_capacity_change",
@@ -142,15 +250,15 @@
       },
       "after": {
         "n_points": 30,
-        "anomaly_flag": true,
+        "anomaly_flag": false,
         "z_max": 0.0,
         "z_triggered": false,
-        "iforest_score": 1.0,
-        "iforest_triggered": true,
+        "iforest_score": 0.0,
+        "iforest_triggered": false,
         "last_values": {
           "group_desired_capacity": [
             1.0,
-            3.0,
+            2.6,
             3.0
           ],
           "group_in_service_instances": [
@@ -159,7 +267,9 @@
             3.0
           ]
         }
-      }
+      },
+      "run_at": "2026-08-29T11:08:57.278521+00:00"
     }
-  ]
+  ],
+  "last_run_at": "2026-08-29T10:50:27.920317+00:00"
 }

@@ -4,6 +4,8 @@ __pycache__/
 
 # 재학습 시 매번 바뀌는 Isolation Forest 모델 캐시 (소스 아님)
 models/*.pkl
+.validation_models_real_aws/
+.test_models_detection_agent/
 
 # Virtual Environment
 venv/

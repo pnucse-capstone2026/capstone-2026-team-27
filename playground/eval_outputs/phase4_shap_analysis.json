@@ -1,94 +1,39 @@
 {
   "n_total_anomaly_samples": 285,
-  "match_rate_overall": 0.8982,
+  "match_rate_overall": 0.9193,
   "match_rate_by_resource_type": {
-    "EC2": 0.8167,
+    "EC2": 0.9333,
     "Lambda": 0.9667,
-    "S3": 0.9333,
-    "RDS": 0.8667,
-    "AutoScaling": 0.9333
+    "S3": 0.7111,
+    "RDS": 0.9467,
+    "AutoScaling": 1.0
   },
   "match_rate_by_metric": {
-    "cpu_utilization": 0.5667,
+    "cpu_utilization": 0.9,
     "network_in": 0.7333,
-    "network_out": 0.7333,
+    "network_out": 1.0,
     "cost": 1.0,
-    "invocation_count": 1.0,
-    "error_count": 0.9333,
-    "duration_avg": 0.9333,
-    "number_of_requests": 0.9333,
-    "bytes_downloaded": 0.8667,
+    "invocation_count": 0.8667,
+    "error_count": 1.0,
+    "duration_avg": 1.0,
+    "number_of_requests": 0.5333,
+    "bytes_downloaded": 0.6,
     "database_connections": 1.0,
-    "read_iops": 1.0,
+    "read_iops": 0.9333,
     "write_iops": 1.0,
-    "group_desired_capacity": 0.8,
+    "group_desired_capacity": 1.0,
     "group_in_service_instances": 1.0
   },
   "mismatches": [
-    {
-      "sample_id": "EC2_spike_cpu_utilization_003",
-      "resource_type": "EC2",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.45637538268010247,
-        "cpu_utilization": -0.42714814012449737,
-        "network_in": -0.24072767018379154
-      }
-    },
-    {
-      "sample_id": "EC2_spike_cpu_utilization_004",
-      "resource_type": "EC2",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5327646725830111,
-        "cpu_utilization": -0.47126052751251774,
-        "network_in": -0.20511954609877536
-      }
-    },
-    {
-      "sample_id": "EC2_spike_cpu_utilization_007",
-      "resource_type": "EC2",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "network_in",
-      "shap_top3": {
-        "network_in": -0.49556108049120196,
-        "cpu_utilization": -0.44805911075887717,
-        "number_of_requests": -0.15908911002586326
-      }
-    },
-    {
-      "sample_id": "EC2_spike_network_in_002",
-      "resource_type": "EC2",
-      "injected_metric": "network_in",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5615697247430418,
-        "network_in": -0.4064179001166273,
-        "network_out": -0.3095860484340687
-      }
-    },
     {
       "sample_id": "EC2_spike_network_in_009",
       "resource_type": "EC2",
       "injected_metric": "network_in",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6447781363945643,
-        "network_in": -0.4459693455723709,
-        "cpu_utilization": -0.17799250573101602
-      }
-    },
-    {
-      "sample_id": "EC2_spike_network_in_010",
-      "resource_type": "EC2",
-      "injected_metric": "network_in",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5060182331541524,
-        "network_in": -0.4193042039796661,
-        "cpu_utilization": -0.3665208636740212
+        "cost": -0.5708785378790271,
+        "network_in": -0.5410936897699369,
+        "cpu_utilization": -0.11796920630814747
       }
     },
     {
@@ -97,75 +42,97 @@
       "injected_metric": "network_in",
       "shap_top1": "cpu_utilization",
       "shap_top3": {
-        "cpu_utilization": -0.5177454862360061,
-        "network_in": -0.45222159355959474,
-        "cost": -0.32911912818048217
+        "cpu_utilization": -0.5803936668712392,
+        "network_in": -0.5352566283409558,
+        "cost": -0.20988917515333777
       }
     },
     {
-      "sample_id": "EC2_spike_network_out_001",
+      "sample_id": "EC2_spike_network_in_012",
       "resource_type": "EC2",
-      "injected_metric": "network_out",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.7398492064516884,
-        "network_out": -0.4881382848113174,
-        "cpu_utilization": -0.253660049327537
-      }
-    },
-    {
-      "sample_id": "EC2_spike_network_out_008",
-      "resource_type": "EC2",
-      "injected_metric": "network_out",
+      "injected_metric": "network_in",
       "shap_top1": "cpu_utilization",
       "shap_top3": {
-        "cpu_utilization": -0.4460636646309508,
-        "network_out": -0.4418323872206257,
-        "cost": -0.43903636194734447
+        "cpu_utilization": -0.6312010681666381,
+        "network_in": -0.5109542823529339,
+        "network_out": -0.36196275018253155
       }
     },
     {
-      "sample_id": "EC2_spike_network_out_012",
+      "sample_id": "EC2_spike_network_in_013",
       "resource_type": "EC2",
-      "injected_metric": "network_out",
-      "shap_top1": "cost",
+      "injected_metric": "network_in",
+      "shap_top1": "cpu_utilization",
       "shap_top3": {
-        "cost": -0.46322579695703936,
-        "network_out": -0.45514187862921834,
-        "network_in": -0.20163371744617556
+        "cpu_utilization": -0.7095701750624176,
+        "network_in": -0.6208118542361816,
+        "cost": -0.17747867493782857
       }
     },
     {
-      "sample_id": "EC2_spike_network_out_013",
-      "resource_type": "EC2",
-      "injected_metric": "network_out",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5067287927558333,
-        "network_out": -0.4689108115538115,
-        "number_of_requests": -0.16375740339341474
-      }
-    },
-    {
-      "sample_id": "Lambda_spike_error_count_008",
+      "sample_id": "Lambda_spike_invocation_count_002",
       "resource_type": "Lambda",
-      "injected_metric": "error_count",
+      "injected_metric": "invocation_count",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6153255284383787,
-        "error_count": -0.5844207984938721,
-        "duration_avg": -0.27937210206164836
+        "cost": -0.48731393661344835,
+        "invocation_count": -0.4205216614741939,
+        "duration_avg": -0.2734965962322369
       }
     },
     {
-      "sample_id": "Lambda_spike_duration_avg_003",
+      "sample_id": "Lambda_spike_invocation_count_003",
       "resource_type": "Lambda",
-      "injected_metric": "duration_avg",
+      "injected_metric": "invocation_count",
+      "shap_top1": "duration_avg",
+      "shap_top3": {
+        "duration_avg": -0.5771217034118328,
+        "invocation_count": -0.41809046647461573,
+        "cost": -0.15182807010409233
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_000",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6473460829209852,
-        "duration_avg": -0.5902907550269793,
-        "invocation_count": -0.34932111490018736
+        "cost": -0.4383933078397579,
+        "number_of_requests": -0.4147841318783971,
+        "bytes_downloaded": -0.21719046414450371
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_001",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
+      "shap_top1": "bytes_downloaded",
+      "shap_top3": {
+        "bytes_downloaded": -0.4662906383361038,
+        "cost": -0.45579659526449623,
+        "number_of_requests": -0.43286896571795724
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_004",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
+      "shap_top1": "cost",
+      "shap_top3": {
+        "cost": -0.4692726034999552,
+        "number_of_requests": -0.4273667573231068,
+        "bytes_downloaded": -0.3523934826396554
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_006",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
+      "shap_top1": "cost",
+      "shap_top3": {
+        "cost": -0.4701248566339196,
+        "number_of_requests": -0.4223832922411949,
+        "invocation_count": -0.10687329066740661
       }
     },
     {
@@ -174,9 +141,31 @@
       "injected_metric": "number_of_requests",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.785035794591796,
-        "number_of_requests": -0.5426479726940588,
-        "bytes_downloaded": -0.12622568184228533
+        "cost": -0.8579011815257468,
+        "number_of_requests": -0.40772168402607145,
+        "bytes_downloaded": -0.25704355213584995
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_011",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
+      "shap_top1": "cost",
+      "shap_top3": {
+        "cost": -0.45281192377638413,
+        "number_of_requests": -0.38187479913809363,
+        "bytes_downloaded": -0.12445010366213598
+      }
+    },
+    {
+      "sample_id": "S3_spike_number_of_requests_014",
+      "resource_type": "S3",
+      "injected_metric": "number_of_requests",
+      "shap_top1": "cost",
+      "shap_top3": {
+        "cost": -0.5026754518792548,
+        "bytes_downloaded": -0.4190434296451519,
+        "number_of_requests": -0.38333132229873756
       }
     },
     {
@@ -185,75 +174,64 @@
       "injected_metric": "bytes_downloaded",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6497364660319336,
-        "bytes_downloaded": -0.5256579556133962,
-        "number_of_requests": -0.12788107570795446
+        "cost": -0.6482637958863511,
+        "bytes_downloaded": -0.4898409503296135,
+        "number_of_requests": -0.27346776810263557
+      }
+    },
+    {
+      "sample_id": "S3_spike_bytes_downloaded_006",
+      "resource_type": "S3",
+      "injected_metric": "bytes_downloaded",
+      "shap_top1": "cost",
+      "shap_top3": {
+        "cost": -0.5462586246451082,
+        "bytes_downloaded": -0.4864198489867687,
+        "invocation_count": -0.10006520035372302
       }
     },
     {
       "sample_id": "S3_spike_bytes_downloaded_007",
       "resource_type": "S3",
       "injected_metric": "bytes_downloaded",
-      "shap_top1": "number_of_requests",
+      "shap_top1": "cost",
       "shap_top3": {
-        "number_of_requests": -0.585789767542844,
-        "bytes_downloaded": -0.5766050437946187,
-        "cost": -0.15736864602626227
+        "cost": -0.5266511866623568,
+        "bytes_downloaded": -0.508768757345217,
+        "number_of_requests": -0.3949978227067732
       }
     },
     {
-      "sample_id": "RDS_spike_cpu_utilization_000",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
+      "sample_id": "S3_spike_bytes_downloaded_011",
+      "resource_type": "S3",
+      "injected_metric": "bytes_downloaded",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.50822366183708,
-        "cpu_utilization": -0.3647866045041269,
-        "read_iops": -0.3435680815717997
+        "cost": -0.5911923780943688,
+        "bytes_downloaded": -0.4739512711953469,
+        "number_of_requests": -0.224911055412786
       }
     },
     {
-      "sample_id": "RDS_spike_cpu_utilization_001",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
+      "sample_id": "S3_spike_bytes_downloaded_013",
+      "resource_type": "S3",
+      "injected_metric": "bytes_downloaded",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6130606177822661,
-        "cpu_utilization": -0.4475916164154265,
-        "number_of_requests": -0.14865998032765182
+        "cost": -0.5941265098952268,
+        "bytes_downloaded": -0.47772961221998683,
+        "number_of_requests": -0.2287614171184853
       }
     },
     {
-      "sample_id": "RDS_spike_cpu_utilization_003",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
+      "sample_id": "S3_spike_bytes_downloaded_014",
+      "resource_type": "S3",
+      "injected_metric": "bytes_downloaded",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.5309853885430724,
-        "cpu_utilization": -0.4191170515718015,
-        "read_iops": -0.20856912111906425
-      }
-    },
-    {
-      "sample_id": "RDS_spike_cpu_utilization_005",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.4232173964850179,
-        "cpu_utilization": -0.39072029802296193,
-        "number_of_requests": -0.14628965001885766
-      }
-    },
-    {
-      "sample_id": "RDS_spike_cpu_utilization_008",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.42608399223124893,
-        "cpu_utilization": -0.3778590272630584,
-        "database_connections": -0.37706932009613864
+        "cost": -0.7043023515665957,
+        "bytes_downloaded": -0.5214376745085397,
+        "number_of_requests": -0.25690246542701256
       }
     },
     {
@@ -262,9 +240,9 @@
       "injected_metric": "cpu_utilization",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.6700981333842192,
-        "cpu_utilization": -0.3849882701241086,
-        "number_of_requests": -0.14987553384950378
+        "cost": -0.5578665112831074,
+        "cpu_utilization": -0.5550263492562234,
+        "read_iops": 0.11446866370345876
       }
     },
     {
@@ -273,198 +251,154 @@
       "injected_metric": "cpu_utilization",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.7131499936772272,
-        "cpu_utilization": -0.3765298042432565,
-        "read_iops": -0.15675309612663557
-      }
-    },
-    {
-      "sample_id": "RDS_spike_cpu_utilization_011",
-      "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5370495195914321,
-        "cpu_utilization": -0.4406753701683475,
-        "database_connections": -0.18269897852936443
+        "cost": -0.6770190550340733,
+        "cpu_utilization": -0.5450656361870132,
+        "write_iops": 0.14684970618267482
       }
     },
     {
       "sample_id": "RDS_spike_cpu_utilization_012",
       "resource_type": "RDS",
       "injected_metric": "cpu_utilization",
-      "shap_top1": "cost",
+      "shap_top1": "read_iops",
       "shap_top3": {
-        "cost": -0.46348166581995753,
-        "cpu_utilization": -0.37345329439520175,
-        "database_connections": -0.36021028603527744
+        "read_iops": -0.5747557532766381,
+        "cpu_utilization": -0.5077126910092992,
+        "database_connections": -0.2298140525917256
       }
     },
     {
-      "sample_id": "RDS_spike_cpu_utilization_014",
+      "sample_id": "RDS_spike_read_iops_011",
       "resource_type": "RDS",
-      "injected_metric": "cpu_utilization",
+      "injected_metric": "read_iops",
       "shap_top1": "cost",
       "shap_top3": {
-        "cost": -0.5531445086125917,
-        "cpu_utilization": -0.4251305679451796,
-        "number_of_requests": -0.1468279868522246
-      }
-    },
-    {
-      "sample_id": "AutoScaling_spike_group_desired_capacity_002",
-      "resource_type": "AutoScaling",
-      "injected_metric": "group_desired_capacity",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5678671776974732,
-        "group_desired_capacity": -0.4956237523649891,
-        "group_in_service_instances": -0.42675578759384525
-      }
-    },
-    {
-      "sample_id": "AutoScaling_spike_group_desired_capacity_006",
-      "resource_type": "AutoScaling",
-      "injected_metric": "group_desired_capacity",
-      "shap_top1": "group_in_service_instances",
-      "shap_top3": {
-        "group_in_service_instances": -0.6225529017934198,
-        "group_desired_capacity": -0.5990109346356199,
-        "cost": -0.2854652918249015
-      }
-    },
-    {
-      "sample_id": "AutoScaling_spike_group_desired_capacity_009",
-      "resource_type": "AutoScaling",
-      "injected_metric": "group_desired_capacity",
-      "shap_top1": "cost",
-      "shap_top3": {
-        "cost": -0.5462734797261535,
-        "group_desired_capacity": -0.5083539546818862,
-        "number_of_requests": -0.19661847016890177
+        "cost": -0.5348368319038046,
+        "read_iops": -0.49014942066427175,
+        "database_connections": -0.3272303467738247
       }
     }
   ],
   "case_avg_shap_top3": {
     "AutoScaling/normal": {
-      "cost": 0.3001,
-      "group_desired_capacity": 0.1795,
-      "number_of_requests": 0.1708
+      "cost": 0.2463,
+      "group_desired_capacity": 0.1563,
+      "group_in_service_instances": 0.1328
     },
     "AutoScaling/spike_cost": {
-      "cost": 0.8255,
-      "group_in_service_instances": 0.22,
-      "group_desired_capacity": 0.1703
+      "cost": 0.875,
+      "group_in_service_instances": 0.161,
+      "cpu_utilization": 0.1481
     },
     "AutoScaling/spike_group_desired_capacity": {
-      "group_desired_capacity": 0.5932,
-      "cost": 0.2421,
-      "group_in_service_instances": 0.224
+      "group_desired_capacity": 0.5878,
+      "group_in_service_instances": 0.1733,
+      "cost": 0.1249
     },
     "AutoScaling/spike_group_in_service_instances": {
-      "group_in_service_instances": 0.6463,
-      "cost": 0.236,
-      "bytes_downloaded": 0.1776
+      "group_in_service_instances": 0.8705,
+      "cost": 0.2163,
+      "cpu_utilization": 0.1103
     },
     "EC2/normal": {
-      "cost": 0.2983,
-      "cpu_utilization": 0.185,
-      "number_of_requests": 0.1576
+      "cost": 0.2809,
+      "cpu_utilization": 0.2014,
+      "network_in": 0.1371
     },
     "EC2/spike_cost": {
-      "cost": 0.6688,
-      "number_of_requests": 0.1578,
-      "cpu_utilization": 0.1383
+      "cost": 0.6234,
+      "cpu_utilization": 0.1574,
+      "network_in": 0.1096
     },
     "EC2/spike_cpu_utilization": {
-      "cpu_utilization": 0.4194,
-      "cost": 0.229,
-      "number_of_requests": 0.1565
+      "cpu_utilization": 0.6873,
+      "cost": 0.2314,
+      "network_in": 0.1495
     },
     "EC2/spike_network_in": {
-      "network_in": 0.4806,
-      "cost": 0.2912,
-      "cpu_utilization": 0.2257
+      "network_in": 0.55,
+      "cpu_utilization": 0.3001,
+      "cost": 0.2522
     },
     "EC2/spike_network_out": {
-      "network_out": 0.4793,
-      "cost": 0.3336,
-      "cpu_utilization": 0.1998
+      "network_out": 0.7046,
+      "cost": 0.3469,
+      "network_in": 0.1978
     },
     "Lambda/normal": {
-      "cost": 0.1718,
-      "invocation_count": 0.169,
-      "error_count": 0.1688
+      "cost": 0.1933,
+      "error_count": 0.1825,
+      "invocation_count": 0.1553
     },
     "Lambda/spike_cost": {
-      "cost": 0.8164,
-      "error_count": 0.1912,
-      "duration_avg": 0.1868
+      "cost": 0.768,
+      "error_count": 0.2225,
+      "duration_avg": 0.184
     },
     "Lambda/spike_duration_avg": {
-      "duration_avg": 0.563,
-      "bytes_downloaded": 0.1402,
-      "invocation_count": 0.1345
+      "duration_avg": 1.4839,
+      "error_count": 0.0993,
+      "cpu_utilization": 0.094
     },
     "Lambda/spike_error_count": {
-      "error_count": 0.618,
-      "cost": 0.1882,
-      "duration_avg": 0.162
+      "error_count": 0.7978,
+      "cost": 0.1588,
+      "invocation_count": 0.1326
     },
     "Lambda/spike_invocation_count": {
-      "invocation_count": 0.6017,
-      "duration_avg": 0.1915,
-      "number_of_requests": 0.1488
+      "invocation_count": 0.4659,
+      "duration_avg": 0.1533,
+      "cost": 0.1394
     },
     "RDS/normal": {
-      "cost": 0.4364,
-      "number_of_requests": 0.1553,
-      "read_iops": 0.1541
+      "cost": 0.267,
+      "write_iops": 0.1615,
+      "read_iops": 0.1387
     },
     "RDS/spike_cost": {
-      "cost": 0.756,
-      "read_iops": 0.1903,
-      "number_of_requests": 0.1532
+      "cost": 0.6684,
+      "read_iops": 0.211,
+      "write_iops": 0.1367
     },
     "RDS/spike_cpu_utilization": {
-      "cost": 0.4881,
-      "cpu_utilization": 0.4044,
-      "number_of_requests": 0.1509
+      "cpu_utilization": 0.5696,
+      "cost": 0.3009,
+      "write_iops": 0.1375
     },
     "RDS/spike_database_connections": {
-      "database_connections": 0.8589,
-      "cost": 0.5004,
-      "number_of_requests": 0.1639
+      "database_connections": 0.9986,
+      "cost": 0.3582,
+      "write_iops": 0.0839
     },
     "RDS/spike_read_iops": {
-      "read_iops": 0.808,
-      "cost": 0.4644,
-      "database_connections": 0.2058
+      "read_iops": 0.5461,
+      "cost": 0.2264,
+      "database_connections": 0.1607
     },
     "RDS/spike_write_iops": {
-      "write_iops": 0.6602,
-      "cost": 0.4285,
-      "read_iops": 0.1621
+      "write_iops": 0.6229,
+      "cost": 0.2629,
+      "read_iops": 0.128
     },
     "S3/normal": {
-      "cost": 0.2755,
-      "number_of_requests": 0.2109,
-      "bytes_downloaded": 0.1886
+      "cost": 0.4575,
+      "bytes_downloaded": 0.2143,
+      "number_of_requests": 0.1352
     },
     "S3/spike_bytes_downloaded": {
-      "bytes_downloaded": 0.5372,
-      "cost": 0.2287,
-      "number_of_requests": 0.2246
+      "bytes_downloaded": 0.5034,
+      "cost": 0.4741,
+      "number_of_requests": 0.185
     },
     "S3/spike_cost": {
-      "cost": 0.9625,
-      "bytes_downloaded": 0.1745,
-      "number_of_requests": 0.1714
+      "cost": 0.7939,
+      "bytes_downloaded": 0.2183,
+      "number_of_requests": 0.1709
     },
     "S3/spike_number_of_requests": {
-      "number_of_requests": 0.5967,
-      "bytes_downloaded": 0.1497,
-      "cost": 0.1414
+      "cost": 0.4383,
+      "number_of_requests": 0.4244,
+      "bytes_downloaded": 0.2254
     }
   }
 }

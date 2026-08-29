@@ -94,16 +94,20 @@ def _make_metrics(resource_type: str) -> dict[str, list[float]]:
 # ── 추론 시간 측정 ─────────────────────────────────────────────────────────────
 
 def _measure_iforest_inference(resource_type: str, metrics: dict, model_dir: str) -> float:
-    """캐시된 모델로 decision_function만 실행하는 순수 추론 시간 측정."""
+    """캐시된 모델로 decision_function만 실행하는 순수 추론 시간 측정.
+
+    ⚠️ 리소스 타입별 개별 파일(iforest_{resource_type}.pkl)로 캐싱하던 예전 구조 기준
+    코드였음 — 지금은 IFOREST_UNIFIED_MODEL_NAME("unified") 하나로 전 타입을 같이
+    캐싱하므로 그에 맞게 로드/피처 구성 방식을 수정."""
     da.IFOREST_MODEL_DIR = model_dir
 
     # 모델이 없으면 먼저 학습해서 캐싱
-    cached = da._load_cached_model(resource_type)
+    cached = da._load_cached_model(da.IFOREST_UNIFIED_MODEL_NAME)
     if cached is None:
         da._get_or_train_iforest(resource_type, metrics)
 
-    model, feature_keys = da._load_cached_model(resource_type)
-    X = np.column_stack([metrics[k] for k in feature_keys])
+    model, feature_keys = da._load_cached_model(da.IFOREST_UNIFIED_MODEL_NAME)
+    X = da.build_unified_feature_matrix(resource_type, metrics)
 
     # 순수 추론 시간만 측정
     start = time.perf_counter()

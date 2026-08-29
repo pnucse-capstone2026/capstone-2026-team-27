@@ -2,7 +2,19 @@ import numpy as np
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
+
+# ⚠️ 이 테스트는 아래에서 shutil.rmtree(IFOREST_MODEL_DIR)로 모델 캐시를 반복적으로
+# 지운다. PIPELINE_MODEL_DIR을 지정 안 하면 pipeline/detection_agent.py의
+# IFOREST_MODEL_DIR이 프로덕션과 동일한 "models/" 디렉터리를 가리켜서, 실 AWS
+# 파일럿(run_full_pipeline.py 등)이 쌓아온 학습 버퍼가 이 테스트 실행 한 번에 통째로
+# 날아가는 사고가 있었다 — validate_real_aws_buffer.py처럼 테스트 전용 디렉터리로
+# 격리한다. import 시점에 IFOREST_MODEL_DIR이 확정되므로 pipeline.detection_agent를
+# import하기 전에 반드시 설정해야 한다.
+os.environ.setdefault(
+    "PIPELINE_MODEL_DIR", os.path.join(PROJECT_ROOT, ".test_models_detection_agent")
+)
 
 from pipeline.detection_agent import (
     build_unified_feature_matrix,
@@ -100,6 +112,12 @@ def test_end_to_end_detection_node():
     # 스파이크인 데이터로 구성 (n이 너무 작으면 스파이크가 평균/표준편차 자체를
     # 끌어올려서 z-score가 잘 안 오르는 문제도 있음 — 페이지 4/persistence 관련 논의 참고)
     n_normal = 27
+    normal_metrics = {
+        "cost":            [1.0 + 0.02 * ((i % 5) - 2) for i in range(30)],
+        "network_in":      [100.0 + 2 * ((i % 5) - 2) for i in range(30)],
+        "network_out":     [50.0 + 1 * ((i % 5) - 2) for i in range(30)],
+        "cpu_utilization": [30.0 + 1 * ((i % 5) - 2) for i in range(30)],
+    }
     fake_state = {
         "resource_id": "i-12345",
         "resource_type": "EC2",
@@ -115,6 +133,15 @@ def test_end_to_end_detection_node():
         "anomaly_score_iforest": None,
         "triggered_metrics": [],
     }
+
+    # 콜드스타트 시드는 이제 그 순간 이상해 보이면 거부되므로(실 AWS 파일럿에서 발견한
+    # 버퍼 자기오염 문제 수정 — 아래 test_cold_start_seed_rejects_contaminated_window 참고),
+    # 먼저 정상 데이터로 한 번 시드해서 모델을 만들어둔 뒤에 스파이크 데이터를 넣는다.
+    detection_node({
+        "resource_id": "i-12345", "resource_type": "EC2", "raw_metrics": normal_metrics,
+        "timestamp": "2026-08-04T00:00:00Z", "anomaly_flag": False,
+        "anomaly_score_zscore": None, "anomaly_score_iforest": None, "triggered_metrics": [],
+    })
 
     result = detection_node(fake_state)
 
@@ -133,6 +160,63 @@ def test_end_to_end_detection_node():
     print("✅ end-to-end 통과")
 
 test_end_to_end_detection_node()
+
+
+def test_cold_start_seed_rejects_contaminated_window():
+    """실 AWS 파일럿 테스트에서 발견한 버퍼 자기오염 사고 재현 + 수정 검증.
+
+    사고: 부하 테스트로 Lambda를 반복 호출하던 중, 하필 그 순간에 콜드스타트가
+    겹쳐서 "이상해 보이는 윈도우"가 아무 검사 없이 그대로 시드 모델로 확정
+    학습됐다 — 그 뒤로 모델이 "이 정도 부하는 정상"이라고 계속 오판. IForest
+    점수는 모델이 없어 콜드스타트 시점엔 원천적으로 못 보지만, Z-score는 모델
+    없이도 계산 가능하므로 최소한 이거라도 걸어서, 첫 윈도우 자체가 이미
+    이상해 보이면 시드를 거부하고 다음 사이클에 재시도하도록 고쳤다.
+    """
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    # 정상(0)이 대부분이고 마지막 몇 개만 튄, 딱 사고 재현 상황과 같은 윈도우
+    contaminated = {
+        "invocation_count": [0.0] * 24 + [50.0, 109.0, 141.0, 100.0, 110.0, 137.0],
+        "error_count":      [0.0] * 30,
+        "duration_avg":     [0.0] * 24 + [0.5, 1.2, 2.3, 1.0, 1.1, 1.8],
+        "cost":             [0.0] * 24 + [1e-5] * 6,
+    }
+    normal = {
+        "invocation_count": [0.0] * 30,
+        "error_count":      [0.0] * 30,
+        "duration_avg":     [0.0] * 30,
+        "cost":              [0.0] * 30,
+    }
+
+    # 오염된 윈도우로 여러 번 시도해도 시드가 절대 확정되면 안 됨
+    for i in range(5):
+        result = detection_node({
+            "resource_id": "func-pilot", "resource_type": "Lambda", "raw_metrics": contaminated,
+            "timestamp": "2026-08-29T00:00:00Z", "anomaly_flag": False,
+            "anomaly_score_zscore": None, "anomaly_score_iforest": None, "triggered_metrics": [],
+        })
+        assert result["anomaly_score_iforest"] == 0.0, (
+            f"{i+1}번째 시도에서 IForest가 오염된 윈도우로 시드됨 (콜드스타트 게이팅 실패)"
+        )
+    expected_path = os.path.join(IFOREST_MODEL_DIR, f"iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl")
+    assert not os.path.exists(expected_path), "오염된 윈도우인데도 모델 캐시 파일이 생성됨"
+    print("✅ 오염된 윈도우 5회 시도 전부 시드 거부 확인 (캐시 파일 미생성)")
+
+    # 정상 데이터가 들어오면 그제서야 시드되어야 함
+    detection_node({
+        "resource_id": "func-pilot", "resource_type": "Lambda", "raw_metrics": normal,
+        "timestamp": "2026-08-29T00:05:00Z", "anomaly_flag": False,
+        "anomaly_score_zscore": None, "anomaly_score_iforest": None, "triggered_metrics": [],
+    })
+    assert os.path.exists(expected_path), "정상 윈도우인데도 시드가 안 됨"
+    print("✅ 정상 윈도우가 들어오자 정상적으로 시드됨")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_cold_start_seed_rejects_contaminated_window()
+
 
 def test_multiple_resource_types_share_cache():
     lambda_state = {

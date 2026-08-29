@@ -56,8 +56,9 @@ PERSISTENCE_WINDOW_POINTS = 3
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
 RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
-BUFFER_SCORE_MARGIN = 0.7          # 버퍼링 기준 = 탐지 임계값의 70% (탐지보다 보수적)
-BUFFER_ZSCORE_MARGIN = 0.7
+BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
+BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
+                                    # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
 
 # Z-score는 "비용, 네트워크 입력, 호출 횟수" 지표에만 적용 (보고서 3.3.1).
 # 리소스마다 필드명이 달라 의미 단위로 매핑한다.
@@ -71,6 +72,17 @@ Z_SCORE_TARGET_METRICS = {
     "invocation_count",
     "number_of_requests",
 }
+
+# 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
+# network_in을 뺐다. 실제 AWS 실환경 검증(playground/validate_real_aws_buffer.py)에서
+# EC2 network_in이 20~40분 주기로 반복적으로 튀는(9K/16K/23K대 다단계) 패턴을 가진 걸
+# 확인했는데, window-max 방식이라 2.5시간 윈도우 안에 이 튐이 항상 하나쯤 들어있어서
+# 마진(BUFFER_SCORE_MARGIN/BUFFER_ZSCORE_MARGIN)을 아무리 풀어도 EC2 버퍼 채택률이
+# 7% 밑으로 막혀 있었다. 이 반복 패턴은 실제 이상이 아니라 이 리소스의 정상 트래픽
+# 특성이라, 버퍼 채택 판정에서만 network_in을 빼서 학습이 이 패턴을 정상으로
+# 받아들이게 한다. 알림 판단(detection_node)과 IForest 피처에는 network_in이
+# 그대로 남아있어서, 진짜 지속되는 이상은 여전히 감지된다.
+BUFFER_ZSCORE_TARGET_METRICS = Z_SCORE_TARGET_METRICS - {"network_in"}
 
 # ── Isolation Forest 통합 모델용 스키마 (state.py에서 자동 추출) ──────────
 _raw_metrics_type = typing.get_type_hints(PipelineState)["raw_metrics"]
@@ -257,11 +269,12 @@ def _fit_and_cache_unified(buffer: np.ndarray) -> IsolationForest:
 
 
 def _zscore_max(metrics: dict[str, list[float]]) -> float:
-    """Z-score 대상 지표들 중 |Z|의 최댓값. detection_node의 트리거 판단과 별개로,
-    학습 버퍼링 여부를 결정할 때도 재사용한다."""
+    """BUFFER_ZSCORE_TARGET_METRICS(학습 버퍼 채택 판정 전용 — Z_SCORE_TARGET_METRICS와
+    다름, 위 상수 정의 참고) 중 |Z|의 최댓값. detection_node의 알림 판단과는 별개로
+    학습 버퍼링 여부를 결정할 때만 쓰인다."""
     z_max = 0.0
     for metric_name, values in metrics.items():
-        if metric_name not in Z_SCORE_TARGET_METRICS:
+        if metric_name not in BUFFER_ZSCORE_TARGET_METRICS:
             continue
         z, _is_triggered = _zscore_check(values)
         z_max = max(z_max, z)
@@ -279,13 +292,72 @@ def _normalized_scores(
 
     s_min, s_max = raw_scores.min(), raw_scores.max()
     if s_max == s_min:
-        return np.zeros_like(raw_scores)
+        # 창 내부 min-max로는 정규화가 불가능(0/0)한 퇴화 케이스 — 윈도우 30개
+        # 전부가 raw_score가 동일하게 나온 경우다. 예전엔 이걸 무조건 "전부 정상(0점)"
+        # 으로 처리했는데, 실제로는 "진짜로 다 정상이라 점수가 같음"과 "이 리소스
+        # 타입 학습이 부족해서 모델이 값 차이를 구분 못 함"을 구분하지 못하는 문제였다
+        # (실 AWS 파일럿에서 AutoScaling 10배 스파이크가 이걸로 조용히 통과된 사고 확인).
+        # 창 내부 상대 비교 대신, 모델이 학습 시 contamination으로 이미 고정해둔 절대
+        # 기준(decision_function의 부호 — model.predict()가 쓰는 것과 동일한 기준)으로
+        # 대체한다. 창이 오염되지 않은 모델이라면 최소한 이 폴백에서도 신호가 산다.
+        is_anomaly = bool(raw_scores[0] < 0)
+        return np.full_like(raw_scores, 1.0 if is_anomaly else 0.0)
 
     return np.clip((s_max - raw_scores) / (s_max - s_min), 0.0, 1.0)
 
 
 def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
     return float(_normalized_scores(model, resource_type, metrics)[-1])
+
+
+# 콜드스타트 자체 검증(_self_referential_iforest_check) 전용 기준.
+# contamination=0.1 → 30개 창에서 항상 ~3개는 "상대적으로 가장 이상치"로 분류되는데
+# (min-max 정규화 방식은 이 3개 중 최댓값이 무조건 1.0이 돼버려서 못 씀 — 첫 시도에서
+# 발견한 버그), 그 3개가 "최근 구간에 몰려있는가"를 대신 본다. 순수 정상 데이터로
+# 무작위 30회 시뮬레이션한 결과 이 기준(최근 6개 중 2개 이상)의 오탐률은 10%
+# (콜드스타트가 가끔 한 사이클 늦어지는 정도라 감내 가능한 수준으로 판단).
+SELF_CHECK_RECENT_WINDOW = 6
+SELF_CHECK_MIN_OUTLIERS = 2
+
+
+def _self_referential_iforest_check(resource_type: str, metrics: dict[str, list[float]]) -> bool:
+    """콜드스타트 시드 후보 검증 전용. 아직 저장된 모델이 없어 정식 IForest 점수를
+    못 매기므로(_score_with_model은 학습된 모델이 필요), 이 윈도우 자체(30개 행)로
+    임시 IsolationForest를 하나 학습시켜서 "최근 시점들 중 다수가 나머지 대비
+    이상치로 분류되는가"를 자체 판단한다 — 저장은 안 하고 이 판단에만 쓰고 버린다.
+    Z-score의 window-max(_zscore_max)와 같은 철학: 윈도우 자기 자신을 기준으로 삼는다.
+    반환값 True면 시드 거부 대상."""
+    X = build_unified_feature_matrix(resource_type, metrics)
+    temp_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    predictions = temp_model.fit_predict(X)  # -1=이상치, 1=정상
+
+    k_eff = min(SELF_CHECK_RECENT_WINDOW, len(predictions))
+    n_outliers_recent = int((predictions[-k_eff:] == -1).sum())
+    return n_outliers_recent >= SELF_CHECK_MIN_OUTLIERS
+
+
+def _model_independent_seed_check(
+    resource_type: str, metrics: dict[str, list[float]]
+) -> tuple[float, bool]:
+    """저장된 모델 없이도(또는 모델은 있지만 이 리소스 타입은 한 번도 못 봤을 때도)
+    계산 가능한 검증만으로 "이 윈도우가 그 자체로 이상해 보이는가"를 판단한다.
+    Z-score(모델 불필요)와 "이 윈도우 자체로 임시 학습해서 자체 검증"하는
+    _self_referential_iforest_check 둘 다 모델 없이 가능하므로 이 둘만 건다.
+
+    두 곳에서 공유: ① 전역 콜드스타트(모델 파일 자체가 없음) ② 모델은 있지만 이
+    resource_type의 윈도우가 버퍼에 하나도 없는 경우 — 후자를 별도 취급 안 하면,
+    다른 타입 하나로 시드된 모델이 "낯선 타입=이상"으로 계속 오판해서 새 타입이
+    영영 버퍼에 못 들어가는 문제가 있었다(실 AWS 파일럿에서 EC2 1개 윈도우로 시드된
+    모델이 Lambda/AutoScaling을 전부 이상으로 오판한 사고로 발견).
+
+    반환: (z_max, believed_normal)
+    """
+    z_max = _zscore_max(metrics)
+    self_iforest_flagged = _self_referential_iforest_check(resource_type, metrics)
+    believed_normal = (
+        z_max < Z_SCORE_THRESHOLD * BUFFER_ZSCORE_MARGIN and not self_iforest_flagged
+    )
+    return z_max, believed_normal
 
 
 def _get_or_train_iforest(
@@ -307,12 +379,27 @@ def _get_or_train_iforest(
             buffer_by_type, pending_count = _load_training_buffer()
 
             if n >= MIN_POINTS_FOR_IFOREST:
-                provisional_score = _score_with_model(model, resource_type, metrics)
-                z_max = _zscore_max(metrics)
-                believed_normal = (
-                    provisional_score < IFOREST_THRESHOLD * BUFFER_SCORE_MARGIN
-                    and z_max < Z_SCORE_THRESHOLD * BUFFER_ZSCORE_MARGIN
-                )
+                # 이 타입은 모델은 있어도 버퍼에 한 번도 안 쌓여본 "모델 입장에서 낯선
+                # 타입" — 기존 모델의 provisional_score로 평가하면 학습한 적 없는
+                # 타입이라 항상 이상치처럼 보여서 계속 튕겨나간다. 콜드스타트와 동일한
+                # 모델-독립적 검증으로 대신 판단한다.
+                type_unseen = not buffer_by_type.get(resource_type)
+
+                if type_unseen:
+                    z_max, believed_normal = _model_independent_seed_check(resource_type, metrics)
+                    # 0.0: "모델 기반 score 조건은 이 경로에서 평가 안 함 — z_max/자기참조
+                    # IForest만으로 판단"이라는 뜻. score=None을 쓰지 않는 이유: 이 로그를
+                    # 파싱하는 playground/phase6_detection_node_e2e.py의
+                    # _BufferDecisionCapture가 args[1]을 항상 float(score)로 변환하므로
+                    # (resource_type, score, z_max) 위치와 타입을 그대로 유지해야 한다.
+                    provisional_score = 0.0
+                else:
+                    provisional_score = _score_with_model(model, resource_type, metrics)
+                    z_max = _zscore_max(metrics)
+                    believed_normal = (
+                        provisional_score < IFOREST_THRESHOLD * BUFFER_SCORE_MARGIN
+                        and z_max < Z_SCORE_THRESHOLD * BUFFER_ZSCORE_MARGIN
+                    )
 
                 if believed_normal:
                     bucket = buffer_by_type.setdefault(resource_type, [])
@@ -320,31 +407,54 @@ def _get_or_train_iforest(
                     if len(bucket) > MAX_WINDOWS_PER_TYPE:
                         del bucket[: len(bucket) - MAX_WINDOWS_PER_TYPE]  # FIFO — 오래된 것부터 제거
                     pending_count += 1
+                    # ⚠️ 로그 인자 순서 (resource_type, score, z_max, ...)는 playground/
+                    # phase6_detection_node_e2e.py의 _BufferDecisionCapture가
+                    # record.args[0:3]을 그대로 파싱하므로 앞 3자리는 유지하고
+                    # type_unseen은 뒤에 덧붙인다.
                     logger.info(
                         "[iforest_buffer] 채택 resource_type=%s score=%.4f z_max=%.4f "
-                        "버퍼크기=%d pending=%d",
-                        resource_type, provisional_score, z_max, len(bucket), pending_count,
+                        "버퍼크기=%d pending=%d (신규타입=%s)",
+                        resource_type, provisional_score, z_max, len(bucket), pending_count, type_unseen,
                     )
                 else:
                     logger.info(
-                        "[iforest_buffer] 제외(경계/이상 의심) resource_type=%s score=%.4f z_max=%.4f",
-                        resource_type, provisional_score, z_max,
+                        "[iforest_buffer] 제외(경계/이상 의심) resource_type=%s score=%.4f z_max=%.4f "
+                        "(신규타입=%s)",
+                        resource_type, provisional_score, z_max, type_unseen,
                     )
 
                 _save_training_buffer(buffer_by_type, pending_count)
 
-                if pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS and buffer_by_type:
+                # 신규 타입이 방금 채택됐으면 재학습 카운트(5개)를 기다리지 않고 즉시
+                # 반영한다 — 안 그러면 이 타입은 다음 정기 재학습 전까지 계속 "모델이
+                # 모르는 타입" 상태로 남아 매번 다시 튕겨날 수 있다.
+                type_just_learned = believed_normal and type_unseen
+                if (pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS or type_just_learned) and buffer_by_type:
                     combined = np.vstack([np.vstack(v) for v in buffer_by_type.values() if v])
                     model = _fit_and_cache_unified(combined)
                     _save_training_buffer(buffer_by_type, 0)
                     logger.info(
-                        "[iforest_buffer] 재학습 완료 총 윈도우=%d (타입별=%s)",
+                        "[iforest_buffer] 재학습 완료 총 윈도우=%d (타입별=%s)%s",
                         combined.shape[0], {k: len(v) for k, v in buffer_by_type.items()},
+                        " (신규 타입 즉시 반영)" if type_just_learned else "",
                     )
 
             return model
 
     if n < MIN_POINTS_FOR_IFOREST:
+        return None
+
+    # ⚠️ 콜드스타트 시드 검증 (실 AWS 파일럿 테스트에서 발견): 예전엔 첫 윈도우를
+    # 무조건(어떤 검사도 없이) 정상으로 확정해서 시드 모델을 학습시켰다. 실제로 Lambda
+    # 파일럿에서 부하 테스트 시작 직후에 콜드스타트가 겹치면서 부하 자체가 시드로
+    # 굳어버리는 사고가 있었음 (z_max=4.88로 명백히 이상했는데도 무조건 통과됐음).
+    z_max, believed_normal = _model_independent_seed_check(resource_type, metrics)
+    if not believed_normal:
+        logger.info(
+            "[iforest_buffer] 콜드스타트 시드 거부(첫 윈도우가 이미 이상해 보임) "
+            "resource_type=%s z_max=%.4f — 다음 사이클에 재시도",
+            resource_type, z_max,
+        )
         return None
 
     X = build_unified_feature_matrix(resource_type, metrics)
