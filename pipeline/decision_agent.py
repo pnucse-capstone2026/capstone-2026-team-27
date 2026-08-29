@@ -60,6 +60,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from config.decision_policy import get_priority_weight
 from schema.state import (
     PipelineState,
     CandidateAction,
@@ -329,6 +330,28 @@ def _build_saving_rate_only_prompt(
 # 선택하는 _build_action_selection_prompt()로 교체됨.
 
 
+# [ADDED] 관리자 대시보드의 "가용성 ↔ 비용 절감" 슬라이더(priority_weight, 0~100)를
+# LLM 선택 기준에 반영하는 지침 문구. 프론트(SettingsTab.jsx)의 3구간 설명과 경계값을
+# 그대로 맞췄다 — 관리자가 화면에서 본 설명과 실제 LLM에게 가는 지침이 일치해야 하므로.
+def _priority_guidance_text(priority_weight: int) -> str:
+    if priority_weight <= 34:
+        return (
+            f"관리자 설정: 가용성 우선 (priority_weight={priority_weight}/100). "
+            "서비스 중단 위험이 있는 강한 액션(Stop, Block)은 피하고, Resize처럼 "
+            "가용성 영향이 적은 액션을 우선 선택하라."
+        )
+    elif priority_weight <= 64:
+        return (
+            f"관리자 설정: 균형 (priority_weight={priority_weight}/100). "
+            "비용 절감과 가용성을 동등한 비중으로 고려해 상황에 맞는 액션을 선택하라."
+        )
+    else:
+        return (
+            f"관리자 설정: 비용 절감 우선 (priority_weight={priority_weight}/100). "
+            "가용성에 치명적이지 않은 한, 비용 절감 효과가 가장 큰 액션을 적극적으로 선택하라."
+        )
+
+
 # [ADDED] LLM이 boto3 스펙을 근거로 액션을 직접 선택하도록 만드는 프롬프트.
 def _build_action_selection_prompt(
     allowed_actions: list[str],
@@ -377,6 +400,8 @@ def _build_action_selection_prompt(
         if values:
             metrics_summary[key] = {"mean": round(_mean(values), 4), "n": len(values)}
 
+    priority_weight = get_priority_weight()
+
     return f"""당신은 AWS FinOps 전문가입니다.
 클라우드 리소스 이상 탐지 후 실행할 최적 액션 1개를 선택해주세요.
 
@@ -393,7 +418,7 @@ def _build_action_selection_prompt(
 
 ## 선택 기준
 1. 비용 절감 수치와 가용성 부작용을 함께 고려할 것
-2. 서비스 가용성을 최우선으로 보호할 것
+2. {_priority_guidance_text(priority_weight)}
 3. 이상 유형에 맞는 액션을 선택할 것
 4. 부작용이 최소화되는 방향으로 보수적으로 판단할 것
 
