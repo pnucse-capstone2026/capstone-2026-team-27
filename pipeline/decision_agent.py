@@ -3,14 +3,14 @@ Decision Agent
 ==============
 node_contracts.md Step 3 기준.
 
-입력 (읽는 필드):
+입력 :
   - anomaly_type, resource_type, resource_id, classification_reasoning, raw_metrics
 
-출력 (채우는 필드):
+출력 :
   - candidate_actions, selected_action, risk_level,
     requires_approval, decision_reasoning, target_instance_type
 
-설계 (saving_rate 산정 방식 — 2026-07 중간보고 시점 개선):
+설계 :
   - saving_rate는 "LLM이 추정하는 값"이 아니라 raw_metrics["cost"] 시계열로부터
     결정론적으로 계산하는 것을 기본으로 한다. 액션별 계산 방식:
       * Stop           : 리소스를 완전히 멈추므로 현재 평균 비용의 100%가 절감된다고 본다.
@@ -57,6 +57,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from datetime import datetime, timezone
 
 from schema.state import (
     PipelineState,
@@ -67,6 +69,14 @@ from schema.state import (
 from utils.llm_utils import call_gemini
 
 logger = logging.getLogger(__name__)
+
+# [ADDED] LLM의 액션 선택 판단(pseudo_code 포함) 로그 경로.
+# classification_agent.py의 llm_classification_log.jsonl과 동일한 패턴 —
+# trace_id로 QA_agent가 이후 qa_result를 채워주고, decision_pseudocode_promoter.py가
+# 이 로그를 모아 반복되는 판단 패턴을 분석한다.
+LLM_DECISION_LOG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "schema", "logs", "llm_decision_log.jsonl"
+)
 
 # 1. 설정값
 # JSON 파싱 재시도 최대 횟수
@@ -388,7 +398,11 @@ def _build_action_selection_prompt(
 4. 부작용이 최소화되는 방향으로 보수적으로 판단할 것
 
 아래 JSON 형식으로만 응답하세요. 설명, 마크다운, 다른 텍스트 절대 포함 금지:
-{{"action": "<액션명>", "reason": "<선택 이유 한 문장>"}}
+{{
+  "action": "<액션명>",
+  "reason": "<선택 이유 한 문장>",
+  "pseudo_code": "<판단 로직을 if-else 형태의 pseudo code 한 줄로. 예: if cpu_mean < 5.0 and cost_spike_detected: return 'Resize'(target=one_tier_down)>"
+}}
 """
 
 
@@ -472,10 +486,11 @@ def _select_action_with_llm(
     anomaly_type: str,
     resource_type: str,
     raw_metrics: dict,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
     입력: allowed_actions, anomaly_type, resource_type, raw_metrics
-    출력: (selected_action, reason)
+    출력: (selected_action, reason, pseudo_code)
+          pseudo_code는 LLM 실패/fallback 시 빈 문자열("")로 처리
 
     LLM이 boto3 스펙을 보고 직접 액션 1개를 추천.
     실패 시 RULE_BASED_SCORE_TABLE에서 가장 높은 saving_rate 액션으로 fallback.
@@ -486,19 +501,79 @@ def _select_action_with_llm(
     parsed = _invoke_llm_with_retry(prompt, "action_selection")
 
     if parsed is None:
-        return _rule_based_fallback_action(allowed_actions), "LLM 실패 - 룰 기반 선택"
+        return _rule_based_fallback_action(allowed_actions), "LLM 실패 - 룰 기반 선택", ""
 
     llm_action = parsed.get("action", "NoAction")
     reason = parsed.get("reason", "")
+    pseudo_code = parsed.get("pseudo_code", "")  # [ADDED]
 
     # 환각 방어: ALLOWED_ACTIONS 범위 밖이면 fallback
     if llm_action not in allowed_actions:
         logger.warning(
             "LLM이 허용되지 않은 액션 추천: %s (allowed: %s)", llm_action, allowed_actions
         )
-        return _rule_based_fallback_action(allowed_actions), "허용 범위 초과 - 룰 기반 선택"
+        return _rule_based_fallback_action(allowed_actions), "허용 범위 초과 - 룰 기반 선택", ""
 
-    return llm_action, reason
+    return llm_action, reason, pseudo_code
+
+
+# [ADDED] LLM의 액션 선택 판단을 JSONL에 기록 (pseudo_code 패턴 분석용).
+def _log_llm_decision(
+    state: PipelineState,
+    allowed_actions: list[str],
+    selected_action: str,
+    reason: str,
+    pseudo_code: str,
+    used_llm: bool,
+) -> None:
+    """
+    입력: state, allowed_actions, selected_action, reason, pseudo_code, used_llm
+    출력: 없음 (LLM_DECISION_LOG_PATH에 한 줄 append)
+
+    classification_agent._log_llm_judgment()와 동일한 패턴. trace_id는
+    classification_node에서 이미 생성돼 있으므로 여기서는 재사용만 한다.
+    used_llm=False(룰 기반 fallback)인 경우도 "LLM 호출은 됐으나 결과를
+    못 씀"을 구분하기 위해 함께 기록한다 (pseudo_code는 이 경우 빈 문자열).
+    """
+    trace_id = state.get("trace_id")
+    if not trace_id:
+        return  # trace_id 없으면 로깅 스킵 (classification_node를 거치지 않은 호출 등)
+
+    raw_metrics = state.get("raw_metrics", {})
+    metrics_summary = {}
+    for key, values in raw_metrics.items():
+        if isinstance(values, list) and values:
+            metrics_summary[key] = {
+                "latest": round(values[-1], 3),
+                "mean": round(_mean(values), 3),
+            }
+
+    log_entry = {
+        "trace_id": trace_id,
+        "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "input": {
+            "resource_id": state.get("resource_id"),
+            "resource_type": state.get("resource_type"),
+            "anomaly_type": state.get("anomaly_type"),
+            "allowed_actions": allowed_actions,
+            "metrics_summary": metrics_summary,
+        },
+        "output": {
+            "selected_action": selected_action,
+            "reason": reason,
+            "pseudo_code": pseudo_code,
+            "used_llm": used_llm,
+        },
+        # QA 결과는 QA_agent가 trace_id로 매칭해서 이후에 채운다.
+        "qa_result": None,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(LLM_DECISION_LOG_PATH), exist_ok=True)
+        with open(LLM_DECISION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("decision LLM 판단 로그 기록 실패: %s", e)
 
 
 def _rule_based_fallback_action(allowed_actions: list[str]) -> str:
@@ -567,7 +642,8 @@ def decision_node(state: PipelineState) -> PipelineState:
     """
     입력: state["anomaly_type"], state["resource_type"], state["raw_metrics"]
     출력: state["candidate_actions"], state["selected_action"], state["risk_level"],
-          state["requires_approval"], state["decision_reasoning"], state["target_instance_type"]
+          state["requires_approval"], state["decision_reasoning"], state["target_instance_type"],
+          state["decision_pseudo_code"]
     """
     anomaly_type = state["anomaly_type"]
     resource_type = state["resource_type"]
@@ -587,8 +663,15 @@ def decision_node(state: PipelineState) -> PipelineState:
     # selected = max(candidates, key=lambda c: c["score"])
 
     # [ADDED] LLM이 boto3 스펙을 보고 액션을 직접 선택
-    selected_action, llm_reason = _select_action_with_llm(
+    selected_action, llm_reason, pseudo_code = _select_action_with_llm(
         allowed_actions, anomaly_type, resource_type, raw_metrics
+    )
+
+    # LLM 판단 로깅 (pseudo_code 패턴 분석용) - pseudo_code가 비어있으면
+    # 룰 기반 fallback으로 간주 (LLM 실패 또는 허용 범위 초과 시 "").
+    _log_llm_decision(
+        state, allowed_actions, selected_action, llm_reason, pseudo_code,
+        used_llm=bool(pseudo_code),
     )
 
     # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지
@@ -636,6 +719,7 @@ def decision_node(state: PipelineState) -> PipelineState:
     state["risk_level"] = risk
     state["requires_approval"] = risk in ("MED", "HIGH")
     state["target_instance_type"] = target_instance_type
+    state["decision_pseudo_code"] = pseudo_code  # [ADDED]
     state["decision_reasoning"] = (
         f"LLM boto3 스펙 기반 선택: '{selected_action}' - {llm_reason} "
         f"(risk={risk}, cost {current_cost_usd:.4f} -> {after_cost_usd:.4f} USD/hr, "
