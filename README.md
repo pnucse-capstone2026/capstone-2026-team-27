@@ -335,3 +335,75 @@ python playground/test_detection_logging_agents.py
 # 더미 파이프라인 실행
 python playground/run_dummy_pipeline.py
 ```
+
+---
+
+## 관리자 대시보드 (api/ + frontend/)
+
+관리자가 파이프라인 상태를 모니터링하고, 승인 대기 항목을 처리하고, 
+Rule Book/화이트리스트/설정을 조정하는 웹 대시보드다. 
+
+- 백엔드: FastAPI, 전역 변수 기반 mock 데이터 (DB 없음)
+- 프론트엔드: React (Vite), 외부 UI 라이브러리 없이 인라인 스타일
+
+### 폴더 구조
+
+```
+api/
+├── main.py              # FastAPI 앱 생성 + 라우터 등록 + uvicorn 진입점
+├── store.py             # mock 데이터 (전역 변수) — 실제 연동 시 DB/checkpointer로 교체될 지점
+├── schemas.py           # 요청 바디 Pydantic 모델
+└── routers/
+    ├── status.py        # GET /status
+    ├── approvals.py     # /queue (승인 대기 조회/승인/거부)
+    ├── rules.py         # /rules (Rule Book CRUD)
+    ├── whitelist.py     # /whitelist
+    ├── logs.py          # GET /logs
+    └── settings.py      # /settings
+
+frontend/
+├── index.html
+└── src/
+    ├── main.jsx
+    ├── App.jsx          # 탭 상태 + API 호출 + 낙관적 업데이트
+    ├── api.js           # fetch 래퍼
+    ├── styles.js         # 색상/배지/버튼 등 공용 인라인 스타일 상수
+    └── components/       # 탭별 컴포넌트 (Dashboard, SettingsTab, ApprovalQueue, RuleBook, Whitelist, LlmLogs, Header)
+```
+
+
+### 실행 방법
+
+**1) 백엔드 (FastAPI, 포트 8000)** — 프로젝트 루트에서 실행 (라우터가 `api` 패키지로 되어 있어
+`cd api`로 들어가서 실행하면 import 에러가 남)
+
+```bash
+pip install -r api/requirements.txt
+python -m api.main
+```
+
+**2) 프론트엔드 (React, 포트 3000)** — 백엔드를 먼저 켜둔 상태에서 별도 터미널로 실행
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+`npm install`은 `package.json`이 바뀌지 않는 한 최초 1회만 하면 되고,
+이후에는 `npm run dev`만 실행하면 된다. 
+백엔드/프론트는 각자 별도 터미널에서 동시에 떠 있어야 한다
+(프론트는 `http://localhost:8000`으로 API를 호출하므로 백엔드가 먼저 켜져 있어야 정상 동작).
+
+브라우저에서 `http://localhost:3000` 접속.
+
+### 실제 연동 시 해야 할 일
+
+- `api/main.py`의 `# TODO: LangGraph resume` 부분을 `pipeline/graph.py`의
+  checkpointer(`PostgresSaver`) 기반 `interrupt` 재개 로직으로 교체
+- Rule Book / 화이트리스트 CRUD를 `schema/rules/*.json` (또는 DB 테이블)에 반영하고
+  `RuleEngine.load_rules()`가 재로드하도록 연결
+- `/logs`를 `schema/logs/llm_classification_log.jsonl` 또는 Logging Agent가 쓰는
+  Postgres `agent_steps` 테이블 조회로 교체
+- `/settings`의 `priority_weight`를 Decision Agent의 스코어 가중치
+  (`score = w1*saving_rate - w2*impact_score + w3*stability_score`) 산정에 실제로 반영
