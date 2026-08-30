@@ -20,6 +20,16 @@ _POLICY_PATH = os.path.join(os.path.dirname(__file__), "decision_policy.json")
 
 DEFAULT_PRIORITY_WEIGHT = 30
 
+DEFAULT_POLLING_INTERVAL_MINUTES = 5
+
+DEFAULT_RESOURCES = {
+    "EC2": True,
+    "Lambda": True,
+    "S3": False,
+    "RDS": True,
+    "AutoScaling": True,
+}
+
 # README에 기록된 이 프로젝트 Gemini 키의 실측 무료 티어 한도(하루 20회, 공식 문서엔
 # 계정별 배정이라 고정 수치가 없어 이 값이 유일한 근거)를, 실제 decision_agent
 # 프롬프트 크기로 측정한 호출당 비용(2026-08 기준 input=964/output=1485 토큰,
@@ -64,3 +74,34 @@ def get_llm_cost_limit() -> float:
 
 def set_llm_cost_limit(value: float) -> None:
     _write_policy({"llm_cost_limit": max(0.0, float(value))})
+
+
+def get_polling_interval_minutes() -> int:
+    """탐지 사이클 폴링 주기 (분). 파일/키가 없으면 기본값."""
+    value = _read_policy().get("polling_interval", DEFAULT_POLLING_INTERVAL_MINUTES)
+    return max(1, int(value))
+
+
+def set_polling_interval_minutes(value: int) -> None:
+    _write_policy({"polling_interval": max(1, int(value))})
+
+
+def get_resources() -> dict[str, bool]:
+    """리소스 타입별 탐지 활성화 여부. 파일/키가 없으면 기본값."""
+    stored = _read_policy().get("resources", {})
+    resources = dict(DEFAULT_RESOURCES)
+    resources.update(stored)
+    return resources
+
+
+def set_resources(patch: dict[str, bool]) -> None:
+    """주어진 리소스 타입만 갱신 (나머지는 기존 값 유지)."""
+    resources = get_resources()
+    resources.update(patch)
+    _write_policy({"resources": resources})
+
+
+def get_enabled_resource_types() -> list[str]:
+    """활성화된(True) 리소스 타입만 리스트로. discover_all_resources()/
+    run_detection_cycle()의 resource_types 인자로 바로 넘길 수 있는 형태."""
+    return [rtype for rtype, enabled in get_resources().items() if enabled]

@@ -30,7 +30,7 @@ detection~logging을 한 번에 잇는 방식:
   프로젝트 루트에서:
     python playground/run_full_pipeline.py --once                       # 전체 리소스 1회 실행
     python playground/run_full_pipeline.py --once --resource-types Lambda,EC2
-    python playground/run_full_pipeline.py --loop                       # 5분마다 반복 (Ctrl+C로 중단)
+    python playground/run_full_pipeline.py --loop                       # 관리자 설정의 폴링 주기로 반복 (Ctrl+C로 중단)
     python playground/run_full_pipeline.py --loop --max-cycles 20
 """
 
@@ -50,13 +50,13 @@ if str(PROJECT_ROOT) not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
+from config import decision_policy
 from pipeline.resource_discovery import discover_all_resources
 from pipeline.orchestrator import assemble_resource
 from pipeline.detection_agent import _build_initial_state
 from pipeline.graph import app
 
 LOG_PATH = PROJECT_ROOT / "playground" / "eval_outputs" / "full_pipeline.jsonl"
-POLL_INTERVAL_SECONDS = 300
 
 
 def _append_log(record: dict) -> None:
@@ -67,7 +67,12 @@ def _append_log(record: dict) -> None:
 
 def _run_once(resource_types: list[str] | None = None) -> tuple[int, int]:
     """태그된 리소스 전체 스캔 → 리소스마다 전체 그래프(detection~logging) 1회 invoke.
-    (스캔한 리소스 수, 이상 발견 건수) 반환."""
+    (스캔한 리소스 수, 이상 발견 건수) 반환.
+
+    resource_types: --resource-types CLI 인자로 명시적으로 준 경우에만 이 값을 쓰고,
+    안 주면(None) 관리자 설정(config/decision_policy.json)의 활성화된 리소스 타입을 쓴다."""
+    if resource_types is None:
+        resource_types = decision_policy.get_enabled_resource_types()
     discovered = discover_all_resources(resource_types=resource_types)
 
     n_scanned = 0
@@ -109,7 +114,7 @@ def _run_once(resource_types: list[str] | None = None) -> tuple[int, int]:
 
 
 def run_loop(max_cycles: int | None, resource_types: list[str] | None) -> None:
-    print(f"전체 파이프라인 시작 — {POLL_INTERVAL_SECONDS}초 주기")
+    print("전체 파이프라인 시작 — 관리자 설정의 폴링 주기로 반복")
     print(f"로그: {LOG_PATH}")
     cycle = 0
     while True:
@@ -121,7 +126,9 @@ def run_loop(max_cycles: int | None, resource_types: list[str] | None) -> None:
             print(f"\nmax_cycles({max_cycles}) 도달 — 종료")
             break
 
-        time.sleep(POLL_INTERVAL_SECONDS)
+        poll_interval_seconds = decision_policy.get_polling_interval_minutes() * 60
+        print(f"{poll_interval_seconds}초 대기...")
+        time.sleep(poll_interval_seconds)
 
 
 def main() -> None:
