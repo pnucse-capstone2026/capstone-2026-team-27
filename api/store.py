@@ -26,7 +26,7 @@ def now_iso() -> str:
     return datetime.now(KST).isoformat()
 
 
-_whitelist_id_counter = itertools.count(3)
+_whitelist_id_counter = itertools.count(1)  # 관리자 웹에서 추가 시 wl1부터 시작
 
 rule_book: list[dict] = [
     {
@@ -65,24 +65,8 @@ rule_book: list[dict] = [
 
 _rule_id_counter = itertools.count(len(rule_book) + 1)
 
-whitelist: list[dict] = [
-    {
-        "id": "wl1",
-        "pattern": "i-batch-*",
-        "resource_type": "EC2",
-        "reason": "야간 배치 전용 인스턴스, 낮은 CPU 사용률이 정상 동작임",
-        "expires_at": None,
-        "created_at": "2026-08-01T00:00:00+09:00",
-    },
-    {
-        "id": "wl2",
-        "pattern": "detection-loadtest-*",
-        "resource_type": "AutoScaling",
-        "reason": "부하 테스트 기간 한시적 예외 (자동 만료)",
-        "expires_at": "2026-09-01T00:00:00+09:00",
-        "created_at": "2026-08-20T00:00:00+09:00",
-    },
-]
+# 화이트리스트는 관리자 웹사이트에서 추가/삭제 (코드에서 자동 제어하지 않음)
+whitelist: list[dict] = []
 
 settings_state: dict = {
     "priority_weight": 30,
