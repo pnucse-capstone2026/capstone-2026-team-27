@@ -87,12 +87,33 @@ def normalize_metrics(metrics: list[str]) -> tuple[str, ...]:
     return tuple(sorted(metrics))
 
 
+def _extract_spike_metrics(metrics_summary: dict, threshold: float = 2.0) -> list[str]:
+    """
+    metrics_summary에서 latest가 mean 대비 threshold배 이상인 지표들을 추출.
+    triggered_metrics가 비어있을 때 (IForest만으로 탐지된 경우) 대체용.
+
+    예: {"invocation_count": {"latest": 5000, "mean": 916}} → ["invocation_count"]
+    """
+    spike_metrics = []
+    for metric_name, values in metrics_summary.items():
+        if not isinstance(values, dict):
+            continue
+        latest = values.get("latest", 0)
+        mean = values.get("mean", 0)
+        if mean > 0 and latest / mean >= threshold:
+            spike_metrics.append(metric_name)
+    return spike_metrics
+
+
 def find_promotion_candidates(logs: list[dict], min_count: int) -> list[dict]:
     """
     승격 후보 찾기.
 
     그룹핑 키: (resource_type, sorted(triggered_metrics), anomaly_type)
     조건: qa_passed=True인 항목만 카운트, min_count 이상이면 후보
+
+    ⚠️ triggered_metrics가 비어있는 경우 (Isolation Forest만으로 탐지된 케이스):
+       metrics_summary에서 평균 대비 2배 이상 급증한 지표들을 추출하여 대체.
     """
     # 그룹별 카운트 및 샘플 저장
     groups: dict[tuple, list[dict]] = defaultdict(list)
@@ -112,7 +133,15 @@ def find_promotion_candidates(logs: list[dict], min_count: int) -> list[dict]:
         triggered_metrics = input_data.get("triggered_metrics", [])
         anomaly_type = output_data.get("anomaly_type")
 
-        if not resource_type or not triggered_metrics or not anomaly_type:
+        if not resource_type or not anomaly_type:
+            continue
+
+        # triggered_metrics가 비어있으면 metrics_summary에서 급증 지표 추출
+        if not triggered_metrics:
+            triggered_metrics = _extract_spike_metrics(input_data.get("metrics_summary", {}))
+
+        # 그래도 비어있으면 스킵 (판단 근거 없음)
+        if not triggered_metrics:
             continue
 
         key = (resource_type, normalize_metrics(triggered_metrics), anomaly_type)

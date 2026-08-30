@@ -123,5 +123,30 @@
     "updated_at": "2025-01-01T00:00:00Z",
     "author": "system",
     "rationale": "RDS에서 비용만 이상하고 CPU/연결수 정상이면 오버프로비저닝"
+  },
+  {
+    "rule_id": "CLF-006",
+    "rule_type": "classification",
+    "description": "Lambda cost+invocation_count -> cost_spike",
+    "resource_types": [
+      "Lambda"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "cost",
+        "invocation_count"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_spike",
+      "interim_action": "Lambda 트리거 및 로그를 확인하여 급증 원인 파악",
+      "reasoning_template": "Lambda 호출 횟수와 관련 비용이 평균 대비 5배 이상 급증했습니다. 이는 트래픽 폭증으로 인한 비용 급증 유형에 해당합니다."
+    },
+    "priority": 100,
+    "enabled": true,
+    "created_at": "2026-08-30T16:54:30Z",
+    "updated_at": "2026-08-30T16:54:30Z",
+    "author": "auto-promoted",
+    "rationale": "14건의 LLM 판단 로그 기반 자동 승격, 승격일 2026-08-30"
   }
 ]

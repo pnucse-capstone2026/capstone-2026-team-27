@@ -126,6 +126,12 @@ class RuleEngine:
         triggered_metrics_cond = conditions.get("triggered_metrics")
         if triggered_metrics_cond:
             state_metrics = set(state.get("triggered_metrics", []))
+
+            # triggered_metrics가 비어있으면 raw_metrics에서 급증 지표 추출
+            # (IForest만으로 탐지된 경우 Z-score 기반 triggered_metrics가 비어있음)
+            if not state_metrics:
+                state_metrics = self._extract_spike_metrics(state.get("raw_metrics", {}))
+
             cond_metrics = set(triggered_metrics_cond)
             if not cond_metrics.issubset(state_metrics):
                 return False
@@ -152,6 +158,28 @@ class RuleEngine:
                 return False
 
         return True
+
+    def _extract_spike_metrics(self, raw_metrics: dict, threshold: float = 2.0) -> set[str]:
+        """
+        raw_metrics에서 latest가 mean 대비 threshold배 이상인 지표들을 추출.
+        triggered_metrics가 비어있을 때 (IForest만으로 탐지된 경우) 대체용.
+
+        Args:
+            raw_metrics: {"metric_name": [v1, v2, ...], ...}
+            threshold: latest/mean >= threshold 이면 급증으로 판단
+
+        Returns:
+            급증 지표 이름들의 set
+        """
+        spike_metrics = set()
+        for metric_name, values in raw_metrics.items():
+            if not isinstance(values, list) or not values:
+                continue
+            latest = values[-1]
+            mean = sum(values) / len(values)
+            if mean > 0 and latest / mean >= threshold:
+                spike_metrics.add(metric_name)
+        return spike_metrics
 
     def _evaluate_metric_thresholds(self, thresholds: dict, state: PipelineState) -> bool:
         """지표 임계값 조건 평가"""
