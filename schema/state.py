@@ -178,6 +178,12 @@ class PipelineState(TypedDict):
     action_executed: Optional[str]
     action_result:   Optional[dict]
 
+    # 인바운드 트래픽 제어 옵션 (선택적)
+    dry_run: bool              # True면 실제 API 호출 없이 계획만 반환
+    apply_waf: bool            # AutoScaling ScaleDown 시 WAF Rate-based Rule 병행
+    waf_rate_limit: int        # WAF 제한 (5분간 요청 수, 기본 2000)
+    associated_alb_arn: Optional[str]  # WAF 적용 대상 ALB ARN
+
     # ── Step 5: QA Agent ──────────────────────────────────────────────────────
     qa_passed:        Optional[bool]
     sla_check_result: Optional[SlaCheckResult]

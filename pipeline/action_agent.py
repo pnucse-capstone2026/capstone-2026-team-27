@@ -32,6 +32,12 @@ import boto3
 from botocore.exceptions import ClientError, WaiterError
 
 from schema.state import PipelineState, EC2Snapshot, LambdaSnapshot, AutoScalingSnapshot
+from pipeline.inbound_handlers import (
+    throttle_lambda_concurrency,
+    scale_down_with_rate_limit,
+    apply_waf_rate_based_rule,
+    get_alb_arn_for_asg,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,33 +173,55 @@ def _execute_ec2_resize(resource_id: str, target_instance_type: str) -> dict:
         return {"status": "failed", "error": str(exc)}
 
 
-def _execute_lambda_throttle(resource_id: str, limit: int = DEFAULT_LAMBDA_THROTTLE_LIMIT) -> dict:
+def _execute_lambda_throttle(
+    resource_id: str,
+    limit: int = DEFAULT_LAMBDA_THROTTLE_LIMIT,
+    dry_run: bool = False,
+) -> dict:
     """
-    입력: resource_id (Lambda 함수명), limit (제한할 동시성, 기본 10)
-    출력: {"status": "success"/"failed", ...}
+    입력: resource_id (Lambda 함수명), limit (제한할 동시성, 기본 10), dry_run
+    출력: {"status": "success"/"failed"/"dry_run", ...}
+
+    inbound_handlers.throttle_lambda_concurrency()로 위임.
+    dry_run=True일 경우 실제 API 호출 없이 실행 계획만 반환.
     """
-    lambda_client = _get_lambda_client()
-    try:
-        resp = lambda_client.put_function_concurrency(
-            FunctionName=resource_id,
-            ReservedConcurrentExecutions=limit,
-        )
-        return {
-            "status": "success",
-            "reserved_concurrency": resp.get("ReservedConcurrentExecutions", limit),
-        }
-    except ClientError as exc:
-        logger.error("Lambda Throttle 실패 (%s): %s", resource_id, exc)
-        return {"status": "failed", "error": str(exc)}
+    return throttle_lambda_concurrency(
+        function_name=resource_id,
+        reserved_concurrency=limit,
+        dry_run=dry_run,
+    )
 
 
 def _execute_autoscaling_scaledown(
-    resource_id: str, max_size: int = DEFAULT_ASG_SCALEDOWN_MAX_SIZE
+    resource_id: str,
+    max_size: int = DEFAULT_ASG_SCALEDOWN_MAX_SIZE,
+    apply_waf: bool = False,
+    waf_rate_limit: int = 2000,
+    dry_run: bool = False,
 ) -> dict:
     """
-    입력: resource_id (AutoScaling 그룹명), max_size (축소할 최대 인스턴스 수, 기본 2)
-    출력: {"status": "success"/"failed", ...}
+    입력: resource_id (AutoScaling 그룹명), max_size (축소할 최대 인스턴스 수, 기본 2),
+          apply_waf (연결된 ALB에 WAF Rate-based Rule 적용 여부),
+          waf_rate_limit (WAF 제한, 5분간 요청 수),
+          dry_run (실제 API 호출 없이 계획만 반환)
+    출력: {"status": "success"/"failed"/"dry_run", ...}
+
+    apply_waf=True이면 scale_down_with_rate_limit()을 호출하여
+    AutoScaling 스케일다운 + WAF Rate-based Rule을 병행 적용.
     """
+    if apply_waf or dry_run:
+        # 연결된 ALB 조회 시도
+        alb_arn = get_alb_arn_for_asg(resource_id) if apply_waf else None
+
+        return scale_down_with_rate_limit(
+            auto_scaling_group_name=resource_id,
+            target_capacity=max_size,
+            associated_alb_arn=alb_arn,
+            waf_rate_limit=waf_rate_limit,
+            dry_run=dry_run,
+        )
+
+    # 기존 동작: WAF 없이 스케일다운만 수행
     asg_client = _get_autoscaling_client()
     try:
         current = asg_client.describe_auto_scaling_groups(AutoScalingGroupNames=[resource_id])
@@ -216,9 +244,22 @@ def execute_action(
     resource_type: str,
     resource_id: str,
     target_instance_type: str | None = None,
+    dry_run: bool = False,
+    apply_waf: bool = False,
+    waf_rate_limit: int = 2000,
+    associated_alb_arn: str | None = None,
 ) -> dict:
     """
-    입력: action, resource_type, resource_id, target_instance_type(Resize 전용, 없으면 기본값 사용)
+    입력:
+        action: 실행할 액션 (NoAction, Stop, Resize, Throttle, ScaleDown, Block 등)
+        resource_type: 리소스 타입 (EC2, Lambda, AutoScaling 등)
+        resource_id: 리소스 ID
+        target_instance_type: Resize 전용, 없으면 기본값 사용
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+        apply_waf: AutoScaling ScaleDown 시 WAF Rate-based Rule 병행 적용 여부
+        waf_rate_limit: WAF 제한 (5분간 요청 수)
+        associated_alb_arn: Block 액션 시 WAF를 적용할 ALB ARN
+
     출력: {"status": ..., ...} — 선택된 액션을 실제로 실행하는 dispatcher
     """
     if action == "NoAction":
@@ -229,19 +270,43 @@ def execute_action(
             return _execute_ec2_stop(resource_id)
         if action == "Resize":
             return _execute_ec2_resize(resource_id, target_instance_type or "t3.small")
-        # Stop+Schedule, ScaleDown, Block, Throttle 등은 추후 구현
+        if action == "Block" and associated_alb_arn:
+            # EC2 앞단에 ALB가 있는 경우 WAF Rate-based Rule 적용
+            return apply_waf_rate_based_rule(
+                resource_arn=associated_alb_arn,
+                rule_name=f"block-ec2-{resource_id[:20]}",
+                limit=waf_rate_limit,
+                dry_run=dry_run,
+            )
+        # Stop+Schedule 등은 추후 구현
         logger.warning("EC2 액션 미구현: %s", action)
         return {"status": "not_implemented", "action": action}
 
     if resource_type == "Lambda":
         if action == "Throttle":
-            return _execute_lambda_throttle(resource_id)
+            return _execute_lambda_throttle(resource_id, dry_run=dry_run)
+        if action == "Block":
+            # Block = 동시성을 0으로 설정하여 완전 차단
+            return _execute_lambda_throttle(resource_id, limit=0, dry_run=dry_run)
         logger.warning("Lambda 액션 미구현: %s", action)
         return {"status": "not_implemented", "action": action}
 
     if resource_type == "AutoScaling":
         if action == "ScaleDown":
-            return _execute_autoscaling_scaledown(resource_id)
+            return _execute_autoscaling_scaledown(
+                resource_id,
+                apply_waf=apply_waf,
+                waf_rate_limit=waf_rate_limit,
+                dry_run=dry_run,
+            )
+        if action == "Block":
+            # Block = 스케일다운 + WAF Rate-based Rule 병행
+            return _execute_autoscaling_scaledown(
+                resource_id,
+                apply_waf=True,
+                waf_rate_limit=waf_rate_limit,
+                dry_run=dry_run,
+            )
         logger.warning("AutoScaling 액션 미구현: %s", action)
         return {"status": "not_implemented", "action": action}
 
@@ -254,11 +319,19 @@ def action_node(state: PipelineState) -> PipelineState:
     """
     입력: state["selected_action"], state["resource_type"], state["resource_id"],
           state["requires_approval"], state["target_instance_type"]
+          (선택) state["dry_run"], state["apply_waf"], state["waf_rate_limit"],
+                 state["associated_alb_arn"]
     출력: state["pre_action_snapshot"], state["action_executed"], state["action_result"]
     """
     action = state["selected_action"]
     resource_type = state["resource_type"]
     resource_id = state["resource_id"]
+
+    # 추가 옵션들 (state에 있으면 사용, 없으면 기본값)
+    dry_run = state.get("dry_run", False)
+    apply_waf = state.get("apply_waf", False)
+    waf_rate_limit = state.get("waf_rate_limit", 2000)
+    associated_alb_arn = state.get("associated_alb_arn")
 
     if action == "NoAction":
         state["pre_action_snapshot"] = None
@@ -273,13 +346,21 @@ def action_node(state: PipelineState) -> PipelineState:
         state["action_result"] = {"status": "pending_approval"}
         return state
 
-    # 1. 액션 실행 전 스냅샷 (롤백용, 반드시 먼저 — 보고서 4.3절)
-    state["pre_action_snapshot"] = take_snapshot(resource_type, resource_id)
+    # dry_run 모드에서는 스냅샷 생략
+    if dry_run:
+        state["pre_action_snapshot"] = None
+    else:
+        # 1. 액션 실행 전 스냅샷 (롤백용, 반드시 먼저 — 보고서 4.3절)
+        state["pre_action_snapshot"] = take_snapshot(resource_type, resource_id)
 
-    # 2. 실제 액션 실행
+    # 2. 실제 액션 실행 (또는 dry_run 계획)
     result = execute_action(
         action, resource_type, resource_id,
         target_instance_type=state.get("target_instance_type"),
+        dry_run=dry_run,
+        apply_waf=apply_waf,
+        waf_rate_limit=waf_rate_limit,
+        associated_alb_arn=associated_alb_arn,
     )
 
     state["action_executed"] = action
