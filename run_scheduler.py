@@ -11,7 +11,7 @@ AWS CloudWatch에서 Detection=true 태그가 붙은 리소스를 찾아서 지�
 
 [실행 방법]
   python run_scheduler.py           # 1회만 실행하고 종료
-  python run_scheduler.py --loop    # 5분마다 반복 실행 (Ctrl+C로 중단)
+  python run_scheduler.py --loop    # 관리자 설정의 폴링 주기(config/decision_policy.json)로 반복 실행 (Ctrl+C로 중단)
 """
 
 from __future__ import annotations
@@ -19,9 +19,8 @@ from __future__ import annotations
 import sys
 import time
 
+from config import decision_policy
 from pipeline.orchestrator import run_detection_cycle
-
-POLL_INTERVAL_SECONDS = 300
 
 
 def run_once() -> list[dict]:
@@ -29,7 +28,7 @@ def run_once() -> list[dict]:
     print("탐지 사이클 시작 (디스커버리 → 지표 수집 → 순차 스캔)")
     print("=" * 70)
 
-    anomalies = run_detection_cycle()
+    anomalies = run_detection_cycle(resource_types=decision_policy.get_enabled_resource_types())
 
     print(f"\n이상 탐지: {len(anomalies)}건")
     for a in anomalies:
@@ -45,9 +44,11 @@ def run_once() -> list[dict]:
 
 if __name__ == "__main__":
     if "--loop" in sys.argv:
-        print(f"{POLL_INTERVAL_SECONDS}초 주기로 반복 실행합니다 (Ctrl+C로 중단)")
+        print("관리자 설정의 폴링 주기로 반복 실행합니다 (Ctrl+C로 중단)")
         while True:
             run_once()
-            time.sleep(POLL_INTERVAL_SECONDS)
+            poll_interval_seconds = decision_policy.get_polling_interval_minutes() * 60
+            print(f"{poll_interval_seconds}초 대기...")
+            time.sleep(poll_interval_seconds)
     else:
         run_once()
