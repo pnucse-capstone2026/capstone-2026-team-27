@@ -4,7 +4,8 @@ Rule Promoter
 LLM 판단 로그를 분석하여 반복적으로 검증된 패턴을 Rule Book에 자동 승격하는 스크립트.
 
 사용법:
-    python -m pipeline.rule_promoter [--min-count N] [--dry-run]
+    CLI: python -m pipeline.rule_promoter [--min-count N] [--dry-run]
+    코드: from pipeline.rule_promoter import auto_promote_rules; auto_promote_rules()
 
 승격 조건:
     1. 같은 조건(resource_type + triggered_metrics 조합)에서
@@ -15,14 +16,21 @@ LLM 판단 로그를 분석하여 반복적으로 검증된 패턴을 Rule Book�
     - rule_id: CLF-0XX 형식으로 자동 채번
     - author: "auto-promoted"
     - rationale: "N건의 LLM 판단 로그 기반 자동 승격, 승격일 YYYY-MM-DD"
+
+자동 승격 (파이프라인 연동):
+    - logging_agent.py에서 파이프라인 완료 시 auto_promote_rules() 호출
+    - 사용자 승인 없이 조건 충족 시 자동 승격
 """
 
 import argparse
 import json
+import logging
 import os
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # 설정
 MIN_PROMOTION_COUNT = 3  # 최소 반복 횟수 (나중에 조정 가능)
@@ -232,6 +240,103 @@ def display_candidate(candidate: dict, index: int) -> None:
     print(f"  검증된 판단 횟수 : {candidate['count']}회")
     print(f"  샘플 reasoning   : {candidate['sample_reasoning'][:80]}...")
     print(f"  샘플 interim_action: {candidate['sample_interim_action']}")
+
+
+# ── 자동 승격 함수 (파이프라인 연동용) ─────────────────────────────────────────
+
+
+def auto_promote_rules(min_count: int = MIN_PROMOTION_COUNT) -> list[dict]:
+    """
+    조건을 충족하는 패턴을 사용자 승인 없이 자동으로 Rule Book에 승격.
+
+    파이프라인(logging_agent.py)에서 호출되어 실시간으로 규칙 자동 생성.
+
+    Args:
+        min_count: 최소 반복 횟수 (기본값: MIN_PROMOTION_COUNT)
+
+    Returns:
+        승격된 규칙 목록 [{"rule_id": "CLF-XXX", "description": "...", ...}, ...]
+    """
+    promoted_rules = []
+
+    try:
+        # 로그 로드
+        logs = load_llm_logs()
+        if not logs:
+            return []
+
+        # 기존 규칙 로드
+        existing_rules = load_existing_rules()
+
+        # 승격 후보 찾기
+        candidates = find_promotion_candidates(logs, min_count)
+        if not candidates:
+            return []
+
+        # 새로운 후보만 필터링
+        new_candidates = [
+            c for c in candidates
+            if not is_already_covered(c, existing_rules)
+        ]
+
+        if not new_candidates:
+            return []
+
+        # 자동 승격 (사용자 승인 없이)
+        for candidate in new_candidates:
+            rule_id = get_next_rule_id(existing_rules)
+            new_rule = create_rule_from_candidate(candidate, rule_id)
+            existing_rules.append(new_rule)
+            promoted_rules.append(new_rule)
+
+            logger.info(
+                "[auto_promote] 규칙 자동 승격: %s (%s + %s -> %s, %d건 검증됨)",
+                rule_id,
+                candidate["resource_type"],
+                candidate["triggered_metrics"],
+                candidate["anomaly_type"],
+                candidate["count"],
+            )
+
+        # 규칙 저장
+        if promoted_rules:
+            save_rules(existing_rules)
+            logger.info("[auto_promote] %d개 규칙 저장 완료", len(promoted_rules))
+
+        return promoted_rules
+
+    except Exception as e:
+        logger.error("[auto_promote] 자동 승격 실패: %s", e)
+        return []
+
+
+def check_promotion_candidates(min_count: int = MIN_PROMOTION_COUNT) -> list[dict]:
+    """
+    승격 가능한 후보가 있는지 확인만 (실제 승격은 안 함).
+
+    Returns:
+        승격 가능한 후보 목록
+    """
+    try:
+        logs = load_llm_logs()
+        if not logs:
+            return []
+
+        existing_rules = load_existing_rules()
+        candidates = find_promotion_candidates(logs, min_count)
+
+        return [
+            {
+                "resource_type": c["resource_type"],
+                "triggered_metrics": c["triggered_metrics"],
+                "anomaly_type": c["anomaly_type"],
+                "count": c["count"],
+            }
+            for c in candidates
+            if not is_already_covered(c, existing_rules)
+        ]
+    except Exception:
+        return []
 
 
 def main():

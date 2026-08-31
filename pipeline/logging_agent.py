@@ -21,6 +21,7 @@ pipeline/logging_agent.py (박소영)
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Optional
 
@@ -28,6 +29,8 @@ import psycopg2
 from dotenv import load_dotenv
 
 from schema.state import PipelineState
+
+logger = logging.getLogger(__name__)
 
 # .env 파일 로드 (PGHOST 등 접속 정보를 읽기 전에 반드시 실행되어야 함)
 load_dotenv()
@@ -328,5 +331,20 @@ def logging_node(state: PipelineState) -> PipelineState:
     entries = state.get("log_entries", [])
     entries.extend(_format_human_readable(state))
     state["log_entries"] = entries
+
+    # ── Rule Book 자동 승격 (LLM 분류 사용 시에만) ──────────────────────────────
+    # matched_rule_id가 없으면 LLM 분류를 사용한 것 → 로그 기반 자동 승격 시도
+    if state.get("anomaly_flag") and state.get("matched_rule_id") is None:
+        try:
+            from pipeline.rule_promoter import auto_promote_rules
+            promoted = auto_promote_rules()
+            if promoted:
+                logger.info(
+                    "[logging_node] %d개 규칙 자동 승격됨: %s",
+                    len(promoted),
+                    [r["rule_id"] for r in promoted],
+                )
+        except Exception as e:
+            logger.warning("[logging_node] 규칙 자동 승격 실패: %s", e)
 
     return state
