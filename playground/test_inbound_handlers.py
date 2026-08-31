@@ -31,9 +31,18 @@ from pipeline.inbound_handlers import (
     throttle_lambda_concurrency,
     scale_down_with_rate_limit,
     get_alb_arn_for_asg,
+    # 신규 추가: WAF 해제 및 IP 블랙리스트
+    remove_waf_rate_based_rule,
+    release_lambda_throttle,
+    add_ip_to_blacklist,
+    remove_ip_from_blacklist,
+    get_ip_blacklist,
+    get_or_create_ip_set,
+    apply_ip_blacklist_to_web_acl,
     DEFAULT_WAF_RATE_LIMIT,
     DEFAULT_LAMBDA_THROTTLE_LIMIT,
     DEFAULT_ASG_SCALEDOWN_CAPACITY,
+    DEFAULT_IP_SET_NAME,
 )
 from pipeline.action_agent import execute_action
 
@@ -307,6 +316,137 @@ def test_scale_down_mock():
     print("\n  [PASS] AutoScaling ScaleDown Mock 테스트 통과")
 
 
+# ── 신규 테스트: WAF 해제 및 IP 블랙리스트 ─────────────────────────────────────────
+
+
+def test_remove_waf_rule_dry_run():
+    """WAF Rule 해제 (dry_run=True)"""
+    _print_section("테스트: remove_waf_rate_based_rule (dry_run=True)")
+
+    result = remove_waf_rate_based_rule(
+        rule_name="test-rate-limit",
+        web_acl_name="test-web-acl",
+        web_acl_id="test-acl-id-123",
+        scope="REGIONAL",
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["would_execute"] == "remove_waf_rate_based_rule"
+    assert result["rule_name"] == "test-rate-limit"
+    print("\n  [PASS] WAF Rule 해제 dry_run 테스트 통과")
+
+
+def test_release_lambda_throttle_dry_run():
+    """Lambda Throttle 해제 (dry_run=True)"""
+    _print_section("테스트: release_lambda_throttle (dry_run=True)")
+
+    result = release_lambda_throttle(
+        function_name="my-throttled-lambda",
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["would_execute"] == "delete_function_concurrency"
+    assert result["function_name"] == "my-throttled-lambda"
+    print("\n  [PASS] Lambda Throttle 해제 dry_run 테스트 통과")
+
+
+def test_ip_blacklist_add_dry_run():
+    """IP 블랙리스트 추가 (dry_run=True)"""
+    _print_section("테스트: add_ip_to_blacklist (dry_run=True)")
+
+    result = add_ip_to_blacklist(
+        ip_address="192.168.1.100",
+        ip_set_name="test-blacklist",
+        scope="REGIONAL",
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["would_execute"] == "add_ip_to_blacklist"
+    assert result["ip_address"] == "192.168.1.100/32"  # /32 자동 추가
+    print("\n  [PASS] IP 블랙리스트 추가 dry_run 테스트 통과")
+
+
+def test_ip_blacklist_remove_dry_run():
+    """IP 블랙리스트 제거 (dry_run=True)"""
+    _print_section("테스트: remove_ip_from_blacklist (dry_run=True)")
+
+    result = remove_ip_from_blacklist(
+        ip_address="10.0.0.1/32",
+        ip_set_name="test-blacklist",
+        scope="CLOUDFRONT",  # CloudFront 지원 테스트
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["scope"] == "CLOUDFRONT"
+    print("\n  [PASS] IP 블랙리스트 제거 dry_run 테스트 통과")
+
+
+def test_get_or_create_ip_set_dry_run():
+    """IP Set 조회/생성 (dry_run=True)"""
+    _print_section("테스트: get_or_create_ip_set (dry_run=True)")
+
+    result = get_or_create_ip_set(
+        ip_set_name=DEFAULT_IP_SET_NAME,
+        scope="REGIONAL",
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["ip_set_name"] == DEFAULT_IP_SET_NAME
+    print("\n  [PASS] IP Set 조회/생성 dry_run 테스트 통과")
+
+
+def test_apply_ip_blacklist_to_web_acl_dry_run():
+    """IP 블랙리스트를 Web ACL에 적용 (dry_run=True)"""
+    _print_section("테스트: apply_ip_blacklist_to_web_acl (dry_run=True)")
+
+    result = apply_ip_blacklist_to_web_acl(
+        web_acl_name="test-web-acl",
+        web_acl_id="test-acl-id-456",
+        ip_set_name="my-ip-blacklist",
+        rule_name="block-bad-ips",
+        scope="REGIONAL",
+        dry_run=True,
+    )
+
+    _print_result(result)
+    assert result["status"] == "dry_run"
+    assert result["would_execute"] == "apply_ip_blacklist_to_web_acl"
+    print("\n  [PASS] IP 블랙리스트 Web ACL 적용 dry_run 테스트 통과")
+
+
+def test_release_lambda_throttle_mock():
+    """Lambda Throttle 해제 Mock 테스트"""
+    _print_section("테스트: release_lambda_throttle (Mock, dry_run=False)")
+
+    mock_lambda = MagicMock()
+    mock_lambda.get_function_concurrency.return_value = {
+        "ReservedConcurrentExecutions": 0
+    }
+
+    with patch("pipeline.inbound_handlers._get_lambda_client", return_value=mock_lambda):
+        result = release_lambda_throttle(
+            function_name="my-throttled-lambda",
+            dry_run=False,
+        )
+
+    _print_result(result)
+    assert result["status"] == "success"
+    assert result["previous_concurrency"] == 0
+    assert result["new_concurrency"] == "unreserved"
+    mock_lambda.delete_function_concurrency.assert_called_once_with(FunctionName="my-throttled-lambda")
+    print("\n  [PASS] Lambda Throttle 해제 Mock 테스트 통과")
+
+
 # ── 메인 ────────────────────────────────────────────────────────────────────────
 
 def run_all_tests():
@@ -317,6 +457,7 @@ def run_all_tests():
     print("=" * 70)
 
     tests = [
+        # 기존 테스트
         test_waf_rate_based_rule_dry_run,
         test_waf_rate_limit_validation,
         test_lambda_throttle_dry_run,
@@ -327,6 +468,14 @@ def run_all_tests():
         test_execute_action_block_autoscaling,
         test_lambda_throttle_mock,
         test_scale_down_mock,
+        # 신규 테스트: WAF 해제 및 IP 블랙리스트
+        test_remove_waf_rule_dry_run,
+        test_release_lambda_throttle_dry_run,
+        test_ip_blacklist_add_dry_run,
+        test_ip_blacklist_remove_dry_run,
+        test_get_or_create_ip_set_dry_run,
+        test_apply_ip_blacklist_to_web_acl_dry_run,
+        test_release_lambda_throttle_mock,
     ]
 
     passed = 0

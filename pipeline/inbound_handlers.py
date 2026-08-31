@@ -14,9 +14,17 @@ Security Group은 allow-only라 deny를 지원하지 않으므로,
   - wafv2:GetWebACL
   - wafv2:UpdateWebACL
   - wafv2:AssociateWebACL
+  - wafv2:DisassociateWebACL
+  - wafv2:DeleteWebACL
   - wafv2:ListResourcesForWebACL
+  - wafv2:CreateIPSet
+  - wafv2:GetIPSet
+  - wafv2:UpdateIPSet
+  - wafv2:DeleteIPSet
+  - wafv2:ListIPSets
   - lambda:PutFunctionConcurrency
   - lambda:GetFunctionConcurrency
+  - lambda:DeleteFunctionConcurrency
   - autoscaling:DescribeAutoScalingGroups
   - autoscaling:UpdateAutoScalingGroup
   - elasticloadbalancing:DescribeLoadBalancers (ALB ARN 조회 시)
@@ -569,3 +577,523 @@ def get_alb_arn_for_asg(auto_scaling_group_name: str) -> str | None:
     except ClientError as exc:
         logger.warning("ALB ARN 조회 실패 (%s): %s", auto_scaling_group_name, exc)
         return None
+
+
+# ── WAF Rule 해제 (이상 해소 시) ─────────────────────────────────────────────
+
+
+def remove_waf_rate_based_rule(
+    rule_name: str,
+    web_acl_name: str,
+    web_acl_id: str,
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+    delete_empty_acl: bool = False,
+    dry_run: bool = True,
+) -> dict:
+    """
+    Web ACL에서 Rate-based Rule을 제거 (이상 해소 시 호출).
+
+    Args:
+        rule_name: 제거할 Rule 이름
+        web_acl_name: Web ACL 이름
+        web_acl_id: Web ACL ID
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+        delete_empty_acl: 규칙이 모두 제거되면 Web ACL도 삭제할지 여부
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": "success"/"failed"/"dry_run", ...}
+    """
+    result_info = {
+        "rule_name": rule_name,
+        "web_acl_name": web_acl_name,
+        "web_acl_id": web_acl_id,
+        "scope": scope,
+    }
+
+    if dry_run:
+        logger.info("[DRY-RUN] WAF Rule 해제 계획: %s from %s", rule_name, web_acl_name)
+        return {
+            "status": "dry_run",
+            "would_execute": "remove_waf_rate_based_rule",
+            **result_info,
+        }
+
+    waf = _get_wafv2_client(scope)
+
+    for attempt in range(MAX_WAF_RETRY + 1):
+        try:
+            # 현재 Web ACL 조회
+            get_resp = waf.get_web_acl(Name=web_acl_name, Id=web_acl_id, Scope=scope)
+            web_acl = get_resp["WebACL"]
+            lock_token = get_resp["LockToken"]
+            existing_rules = web_acl.get("Rules", [])
+
+            # 해당 규칙 찾기
+            rule_to_remove = next((r for r in existing_rules if r["Name"] == rule_name), None)
+            if not rule_to_remove:
+                logger.info("WAF Rule '%s' 이미 없음 — 해제 생략", rule_name)
+                return {"status": "success", "detail": "rule_not_found", **result_info}
+
+            # 규칙 제거
+            updated_rules = [r for r in existing_rules if r["Name"] != rule_name]
+
+            # 규칙이 모두 제거되고 delete_empty_acl=True면 ACL 자체를 삭제
+            if not updated_rules and delete_empty_acl:
+                return _delete_web_acl(waf, web_acl, lock_token, scope, result_info)
+
+            # Web ACL 업데이트
+            waf.update_web_acl(
+                Name=web_acl_name,
+                Id=web_acl_id,
+                Scope=scope,
+                LockToken=lock_token,
+                DefaultAction=web_acl.get("DefaultAction", {"Allow": {}}),
+                Rules=updated_rules,
+                VisibilityConfig=web_acl["VisibilityConfig"],
+            )
+
+            logger.info("WAF Rule '%s' 해제 완료", rule_name)
+            return {"status": "success", "rules_remaining": len(updated_rules), **result_info}
+
+        except waf.exceptions.WAFOptimisticLockException:
+            if attempt < MAX_WAF_RETRY:
+                logger.warning("WAFOptimisticLockException — 재시도 %d/%d", attempt + 1, MAX_WAF_RETRY)
+                time.sleep(0.5)
+                continue
+            return {"status": "failed", "error": "WAFOptimisticLockException", **result_info}
+
+        except ClientError as exc:
+            logger.error("WAF Rule 해제 실패: %s", exc)
+            return {"status": "failed", "error": str(exc), **result_info}
+
+    return {"status": "failed", "error": "unexpected_loop_exit", **result_info}
+
+
+def _delete_web_acl(waf, web_acl: dict, lock_token: str, scope: str, result_info: dict) -> dict:
+    """Web ACL 삭제 (연결된 리소스가 없을 때만 가능)."""
+    try:
+        # 먼저 연결된 리소스 해제
+        web_acl_arn = web_acl["ARN"]
+        for resource_type in ["APPLICATION_LOAD_BALANCER", "API_GATEWAY", "APPSYNC"]:
+            try:
+                resp = waf.list_resources_for_web_acl(WebACLArn=web_acl_arn, ResourceType=resource_type)
+                for resource_arn in resp.get("ResourceArns", []):
+                    waf.disassociate_web_acl(ResourceArn=resource_arn)
+                    logger.info("Web ACL 연결 해제: %s", resource_arn)
+            except ClientError:
+                pass
+
+        # Web ACL 삭제
+        waf.delete_web_acl(
+            Name=web_acl["Name"],
+            Id=web_acl["Id"],
+            Scope=scope,
+            LockToken=lock_token,
+        )
+        logger.info("빈 Web ACL '%s' 삭제 완료", web_acl["Name"])
+        return {"status": "success", "detail": "web_acl_deleted", **result_info}
+
+    except ClientError as exc:
+        logger.error("Web ACL 삭제 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+def release_lambda_throttle(
+    function_name: str,
+    dry_run: bool = True,
+) -> dict:
+    """
+    Lambda 함수의 예약 동시성 제한을 해제 (이상 해소 시 호출).
+
+    Args:
+        function_name: Lambda 함수 이름 또는 ARN
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": "success"/"failed"/"dry_run", ...}
+    """
+    result_info = {"function_name": function_name}
+
+    if dry_run:
+        logger.info("[DRY-RUN] Lambda Throttle 해제 계획: %s", function_name)
+        return {
+            "status": "dry_run",
+            "would_execute": "delete_function_concurrency",
+            **result_info,
+        }
+
+    lambda_client = _get_lambda_client()
+
+    try:
+        # 현재 동시성 설정 조회
+        try:
+            current = lambda_client.get_function_concurrency(FunctionName=function_name)
+            previous_concurrency = current.get("ReservedConcurrentExecutions", -1)
+        except ClientError:
+            previous_concurrency = -1
+
+        # 동시성 제한 해제
+        lambda_client.delete_function_concurrency(FunctionName=function_name)
+
+        logger.info("Lambda Throttle 해제 완료: %s (이전 제한=%d)", function_name, previous_concurrency)
+
+        return {
+            "status": "success",
+            "previous_concurrency": previous_concurrency,
+            "new_concurrency": "unreserved",
+            **result_info,
+        }
+
+    except ClientError as exc:
+        logger.error("Lambda Throttle 해제 실패 (%s): %s", function_name, exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+# ── IP 블랙리스트 관리 ─────────────────────────────────────────────────────
+
+
+DEFAULT_IP_SET_NAME = "anomaly-detection-blacklist"
+DEFAULT_IP_SET_DESCRIPTION = "자동 탐지된 악성 IP 블랙리스트"
+
+
+def get_or_create_ip_set(
+    ip_set_name: str = DEFAULT_IP_SET_NAME,
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+    dry_run: bool = True,
+) -> dict:
+    """
+    IP Set을 조회하거나 없으면 생성.
+
+    Args:
+        ip_set_name: IP Set 이름
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": ..., "ip_set_id": ..., "ip_set_arn": ..., "addresses": [...]}
+    """
+    result_info = {"ip_set_name": ip_set_name, "scope": scope}
+
+    if dry_run:
+        logger.info("[DRY-RUN] IP Set 조회/생성 계획: %s", ip_set_name)
+        return {"status": "dry_run", "would_execute": "get_or_create_ip_set", **result_info}
+
+    waf = _get_wafv2_client(scope)
+
+    try:
+        # 기존 IP Set 검색
+        list_resp = waf.list_ip_sets(Scope=scope, Limit=100)
+        for ip_set in list_resp.get("IPSets", []):
+            if ip_set["Name"] == ip_set_name:
+                # 상세 조회
+                get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set["Id"], Scope=scope)
+                ip_set_detail = get_resp["IPSet"]
+                return {
+                    "status": "success",
+                    "created": False,
+                    "ip_set_id": ip_set_detail["Id"],
+                    "ip_set_arn": ip_set_detail["ARN"],
+                    "addresses": ip_set_detail.get("Addresses", []),
+                    "lock_token": get_resp["LockToken"],
+                    **result_info,
+                }
+
+        # 없으면 생성
+        create_resp = waf.create_ip_set(
+            Name=ip_set_name,
+            Scope=scope,
+            IPAddressVersion="IPV4",
+            Addresses=[],
+            Description=DEFAULT_IP_SET_DESCRIPTION,
+        )
+
+        logger.info("IP Set '%s' 생성 완료", ip_set_name)
+
+        return {
+            "status": "success",
+            "created": True,
+            "ip_set_id": create_resp["Summary"]["Id"],
+            "ip_set_arn": create_resp["Summary"]["ARN"],
+            "addresses": [],
+            "lock_token": create_resp["Summary"].get("LockToken"),
+            **result_info,
+        }
+
+    except ClientError as exc:
+        logger.error("IP Set 조회/생성 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+def add_ip_to_blacklist(
+    ip_address: str,
+    ip_set_name: str = DEFAULT_IP_SET_NAME,
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+    dry_run: bool = True,
+) -> dict:
+    """
+    IP를 블랙리스트에 추가.
+
+    Args:
+        ip_address: 차단할 IP 주소 (CIDR 형식, 예: "192.168.1.1/32")
+        ip_set_name: IP Set 이름
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": "success"/"failed"/"dry_run", ...}
+    """
+    # CIDR 형식이 아니면 /32 추가
+    if "/" not in ip_address:
+        ip_address = f"{ip_address}/32"
+
+    result_info = {"ip_address": ip_address, "ip_set_name": ip_set_name, "scope": scope}
+
+    if dry_run:
+        logger.info("[DRY-RUN] IP 블랙리스트 추가 계획: %s", ip_address)
+        return {"status": "dry_run", "would_execute": "add_ip_to_blacklist", **result_info}
+
+    waf = _get_wafv2_client(scope)
+
+    try:
+        # IP Set 조회
+        ip_set_info = get_or_create_ip_set(ip_set_name, scope, dry_run=False)
+        if ip_set_info["status"] != "success":
+            return {"status": "failed", "error": "ip_set_not_found", **result_info}
+
+        ip_set_id = ip_set_info["ip_set_id"]
+        current_addresses = set(ip_set_info["addresses"])
+
+        # 이미 존재하면 스킵
+        if ip_address in current_addresses:
+            logger.info("IP '%s' 이미 블랙리스트에 존재", ip_address)
+            return {"status": "success", "detail": "already_exists", **result_info}
+
+        # IP 추가
+        new_addresses = list(current_addresses | {ip_address})
+
+        # LockToken 다시 조회 (동시 수정 방지)
+        get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set_id, Scope=scope)
+        lock_token = get_resp["LockToken"]
+
+        waf.update_ip_set(
+            Name=ip_set_name,
+            Id=ip_set_id,
+            Scope=scope,
+            LockToken=lock_token,
+            Addresses=new_addresses,
+        )
+
+        logger.info("IP '%s' 블랙리스트 추가 완료 (총 %d개)", ip_address, len(new_addresses))
+
+        return {
+            "status": "success",
+            "total_addresses": len(new_addresses),
+            **result_info,
+        }
+
+    except ClientError as exc:
+        logger.error("IP 블랙리스트 추가 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+def remove_ip_from_blacklist(
+    ip_address: str,
+    ip_set_name: str = DEFAULT_IP_SET_NAME,
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+    dry_run: bool = True,
+) -> dict:
+    """
+    IP를 블랙리스트에서 제거.
+
+    Args:
+        ip_address: 제거할 IP 주소 (CIDR 형식)
+        ip_set_name: IP Set 이름
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": "success"/"failed"/"dry_run", ...}
+    """
+    if "/" not in ip_address:
+        ip_address = f"{ip_address}/32"
+
+    result_info = {"ip_address": ip_address, "ip_set_name": ip_set_name, "scope": scope}
+
+    if dry_run:
+        logger.info("[DRY-RUN] IP 블랙리스트 제거 계획: %s", ip_address)
+        return {"status": "dry_run", "would_execute": "remove_ip_from_blacklist", **result_info}
+
+    waf = _get_wafv2_client(scope)
+
+    try:
+        # IP Set 조회
+        ip_set_info = get_or_create_ip_set(ip_set_name, scope, dry_run=False)
+        if ip_set_info["status"] != "success":
+            return {"status": "failed", "error": "ip_set_not_found", **result_info}
+
+        ip_set_id = ip_set_info["ip_set_id"]
+        current_addresses = set(ip_set_info["addresses"])
+
+        # 존재하지 않으면 스킵
+        if ip_address not in current_addresses:
+            logger.info("IP '%s' 블랙리스트에 없음", ip_address)
+            return {"status": "success", "detail": "not_found", **result_info}
+
+        # IP 제거
+        new_addresses = list(current_addresses - {ip_address})
+
+        get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set_id, Scope=scope)
+        lock_token = get_resp["LockToken"]
+
+        waf.update_ip_set(
+            Name=ip_set_name,
+            Id=ip_set_id,
+            Scope=scope,
+            LockToken=lock_token,
+            Addresses=new_addresses,
+        )
+
+        logger.info("IP '%s' 블랙리스트 제거 완료 (남은 %d개)", ip_address, len(new_addresses))
+
+        return {
+            "status": "success",
+            "total_addresses": len(new_addresses),
+            **result_info,
+        }
+
+    except ClientError as exc:
+        logger.error("IP 블랙리스트 제거 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+def get_ip_blacklist(
+    ip_set_name: str = DEFAULT_IP_SET_NAME,
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+) -> dict:
+    """
+    현재 IP 블랙리스트 조회.
+
+    Args:
+        ip_set_name: IP Set 이름
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+
+    Returns:
+        dict: {"status": ..., "addresses": [...], "count": ...}
+    """
+    result_info = {"ip_set_name": ip_set_name, "scope": scope}
+
+    waf = _get_wafv2_client(scope)
+
+    try:
+        list_resp = waf.list_ip_sets(Scope=scope, Limit=100)
+        for ip_set in list_resp.get("IPSets", []):
+            if ip_set["Name"] == ip_set_name:
+                get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set["Id"], Scope=scope)
+                addresses = get_resp["IPSet"].get("Addresses", [])
+                return {
+                    "status": "success",
+                    "addresses": addresses,
+                    "count": len(addresses),
+                    "ip_set_id": ip_set["Id"],
+                    "ip_set_arn": get_resp["IPSet"]["ARN"],
+                    **result_info,
+                }
+
+        return {"status": "success", "addresses": [], "count": 0, "detail": "ip_set_not_found", **result_info}
+
+    except ClientError as exc:
+        logger.error("IP 블랙리스트 조회 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
+
+
+def apply_ip_blacklist_to_web_acl(
+    web_acl_name: str,
+    web_acl_id: str,
+    ip_set_name: str = DEFAULT_IP_SET_NAME,
+    rule_name: str = "ip-blacklist-block",
+    scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL",
+    dry_run: bool = True,
+) -> dict:
+    """
+    IP 블랙리스트(IP Set)를 Web ACL에 Block Rule로 추가.
+
+    Args:
+        web_acl_name: Web ACL 이름
+        web_acl_id: Web ACL ID
+        ip_set_name: IP Set 이름
+        rule_name: 생성할 Rule 이름
+        scope: "REGIONAL" 또는 "CLOUDFRONT"
+        dry_run: True면 실제 API 호출 없이 실행 계획만 반환
+
+    Returns:
+        dict: {"status": "success"/"failed"/"dry_run", ...}
+    """
+    result_info = {
+        "web_acl_name": web_acl_name,
+        "ip_set_name": ip_set_name,
+        "rule_name": rule_name,
+        "scope": scope,
+    }
+
+    if dry_run:
+        logger.info("[DRY-RUN] IP 블랙리스트 Rule 적용 계획: %s -> %s", ip_set_name, web_acl_name)
+        return {"status": "dry_run", "would_execute": "apply_ip_blacklist_to_web_acl", **result_info}
+
+    waf = _get_wafv2_client(scope)
+
+    try:
+        # IP Set 조회
+        ip_set_info = get_or_create_ip_set(ip_set_name, scope, dry_run=False)
+        if ip_set_info["status"] != "success":
+            return {"status": "failed", "error": "ip_set_not_found", **result_info}
+
+        ip_set_arn = ip_set_info["ip_set_arn"]
+
+        # Web ACL 조회
+        get_resp = waf.get_web_acl(Name=web_acl_name, Id=web_acl_id, Scope=scope)
+        web_acl = get_resp["WebACL"]
+        lock_token = get_resp["LockToken"]
+        existing_rules = web_acl.get("Rules", [])
+
+        # 이미 존재하면 스킵
+        if any(r["Name"] == rule_name for r in existing_rules):
+            logger.info("IP 블랙리스트 Rule '%s' 이미 존재", rule_name)
+            return {"status": "success", "detail": "rule_already_exists", **result_info}
+
+        # IP Set Reference Rule 생성
+        max_priority = max((r["Priority"] for r in existing_rules), default=0)
+        new_rule = {
+            "Name": rule_name,
+            "Priority": max_priority + 1,
+            "Statement": {
+                "IPSetReferenceStatement": {
+                    "ARN": ip_set_arn,
+                }
+            },
+            "Action": {"Block": {}},
+            "VisibilityConfig": {
+                "SampledRequestsEnabled": True,
+                "CloudWatchMetricsEnabled": True,
+                "MetricName": rule_name.replace("-", "_"),
+            },
+        }
+
+        updated_rules = existing_rules + [new_rule]
+
+        waf.update_web_acl(
+            Name=web_acl_name,
+            Id=web_acl_id,
+            Scope=scope,
+            LockToken=lock_token,
+            DefaultAction=web_acl.get("DefaultAction", {"Allow": {}}),
+            Rules=updated_rules,
+            VisibilityConfig=web_acl["VisibilityConfig"],
+        )
+
+        logger.info("IP 블랙리스트 Rule '%s' 적용 완료", rule_name)
+        return {"status": "success", **result_info}
+
+    except ClientError as exc:
+        logger.error("IP 블랙리스트 Rule 적용 실패: %s", exc)
+        return {"status": "failed", "error": str(exc), **result_info}
