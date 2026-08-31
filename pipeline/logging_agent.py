@@ -332,19 +332,35 @@ def logging_node(state: PipelineState) -> PipelineState:
     entries.extend(_format_human_readable(state))
     state["log_entries"] = entries
 
-    # ── Rule Book 자동 승격 (LLM 분류 사용 시에만) ──────────────────────────────
-    # matched_rule_id가 없으면 LLM 분류를 사용한 것 → 로그 기반 자동 승격 시도
-    if state.get("anomaly_flag") and state.get("matched_rule_id") is None:
-        try:
-            from pipeline.rule_promoter import auto_promote_rules
-            promoted = auto_promote_rules()
-            if promoted:
-                logger.info(
-                    "[logging_node] %d개 규칙 자동 승격됨: %s",
-                    len(promoted),
-                    [r["rule_id"] for r in promoted],
-                )
-        except Exception as e:
-            logger.warning("[logging_node] 규칙 자동 승격 실패: %s", e)
+    # ── Rule Book 자동 승격 ────────────────────────────────────────────────────
+    # 이상 탐지된 경우에만 자동 승격 시도
+    if state.get("anomaly_flag"):
+        # Classification 규칙 자동 승격 (LLM 분류 사용 시에만)
+        if state.get("matched_rule_id") is None:
+            try:
+                from pipeline.rule_promoter import auto_promote_rules
+                promoted = auto_promote_rules()
+                if promoted:
+                    logger.info(
+                        "[logging_node] Classification 규칙 %d개 자동 승격: %s",
+                        len(promoted),
+                        [r["rule_id"] for r in promoted],
+                    )
+            except Exception as e:
+                logger.warning("[logging_node] Classification 규칙 자동 승격 실패: %s", e)
+
+        # Decision 규칙 자동 승격 (LLM 액션 선택 사용 시에만)
+        if state.get("matched_decision_rule_id") is None:
+            try:
+                from pipeline.decision_pseudocode_promoter import auto_promote_decision_rules
+                promoted = auto_promote_decision_rules()
+                if promoted:
+                    logger.info(
+                        "[logging_node] Decision 규칙 %d개 자동 승격: %s",
+                        len(promoted),
+                        [r["rule_id"] for r in promoted],
+                    )
+            except Exception as e:
+                logger.warning("[logging_node] Decision 규칙 자동 승격 실패: %s", e)
 
     return state

@@ -2,35 +2,36 @@
 Decision Pseudocode Promoter
 -----------------------------
 decision_agent.py가 남긴 LLM 액션 선택 판단 로그(schema/logs/llm_decision_log.jsonl)를
-모아, LLM이 반복적으로 같은 pseudo_code(=판단 로직)를 내놓는 패턴을 찾아낸다.
-
-rule_promoter.py(classification용)와 동일한 목적이지만, 이 스크립트는 아직
-"자동 승격"까지는 하지 않는다 — decision_agent에는 classification처럼 사전에
-매칭을 시도할 action rule engine이 없기 때문이다 (RuleEngine은 현재
-classification/QA 규칙만 지원). 대신 이 스크립트는:
-
-  1. 같은 조건(resource_type + anomaly_type + selected_action)에서
-  2. LLM이 N번 이상 같은 pseudo_code(공백 정규화 후 비교)를 냈고
-  3. 그 판단들이 qa_passed=True로 검증됐다면
-  → "이 조건은 이미 규칙화 가능한 패턴"이라고 보고하고, 그 조건에 해당하는
-    LLM 호출을 앞으로 얼마나 스킵할 수 있었는지(=잠재적 LLM 호출 절감량)를 계산한다.
-
-실제로 룰로 승격해 LLM 호출 자체를 건너뛰게 하려면, decision_agent.py의
-action 선택 단계 앞에 rule_engine 기반 사전 매칭을 추가하는 작업이 별도로
-필요하다 (이 스크립트는 그 판단을 위한 근거 자료를 만드는 단계까지만 다룬다).
+모아, LLM이 반복적으로 같은 액션을 선택하는 패턴을 찾아 Rule Book에 자동 승격한다.
 
 사용법:
-    python -m pipeline.decision_pseudocode_promoter [--min-count N]
+    CLI: python -m pipeline.decision_pseudocode_promoter [--min-count N] [--dry-run]
+    코드: from pipeline.decision_pseudocode_promoter import auto_promote_decision_rules
+
+승격 조건:
+    1. 같은 조건(resource_type + anomaly_type)에서
+    2. LLM이 N번 이상 동일한 selected_action을 선택
+    3. 그 판단들이 qa_passed=True로 검증됨
+    4. 액션 일관성이 80% 이상
+
+자동 승격 (파이프라인 연동):
+    - logging_agent.py에서 파이프라인 완료 시 auto_promote_decision_rules() 호출
+    - 사용자 승인 없이 조건 충족 시 자동 승격
 """
 
 import argparse
 import json
+import logging
 import os
 import re
 from collections import defaultdict
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.dirname(__file__)
 LLM_DECISION_LOG_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "logs", "llm_decision_log.jsonl")
+DECISION_RULES_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "rules", "decision_rules.json")
 
 DEFAULT_MIN_COUNT = 3
 # 그룹 내에서 가장 흔한 pseudo_code가 이 비율 이상을 차지하면 "안정적인 패턴"으로 본다.
@@ -172,6 +173,198 @@ def display_pattern(pattern: dict, index: int) -> None:
     else:
         print(f"  → 액션 자체가 조건마다 갈립니다({action_breakdown}). "
               f"추가 데이터로 원인(메트릭 차이)을 더 봐야 합니다.")
+
+
+# ── Decision 규칙 로드/저장 ─────────────────────────────────────────────────────
+
+
+def load_existing_decision_rules() -> list[dict]:
+    """기존 Decision 규칙 로드."""
+    if not os.path.exists(DECISION_RULES_PATH):
+        return []
+    with open(DECISION_RULES_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_decision_rules(rules: list[dict]) -> None:
+    """Decision 규칙 저장."""
+    with open(DECISION_RULES_PATH, "w", encoding="utf-8") as f:
+        json.dump(rules, f, ensure_ascii=False, indent=2)
+
+
+def get_next_decision_rule_id(existing_rules: list[dict]) -> str:
+    """다음 Decision 규칙 ID 생성 (DEC-005, DEC-006, ...)."""
+    max_num = 0
+    for rule in existing_rules:
+        rule_id = rule.get("rule_id", "")
+        if rule_id.startswith("DEC-"):
+            try:
+                num = int(rule_id.replace("DEC-", ""))
+                max_num = max(max_num, num)
+            except ValueError:
+                continue
+    return f"DEC-{max_num + 1:03d}"
+
+
+def is_decision_rule_covered(pattern: dict, existing_rules: list[dict]) -> bool:
+    """이미 기존 규칙으로 커버되는지 확인."""
+    resource_type = pattern["resource_type"]
+    anomaly_type = pattern["anomaly_type"]
+
+    for rule in existing_rules:
+        rule_types = rule.get("resource_types", [])
+        conditions = rule.get("conditions", {})
+
+        # 리소스 타입 매칭
+        if "*" not in rule_types and resource_type not in rule_types:
+            continue
+
+        # anomaly_type 매칭
+        rule_anomaly_type = conditions.get("anomaly_type")
+        if rule_anomaly_type and rule_anomaly_type == anomaly_type:
+            return True
+
+    return False
+
+
+def create_decision_rule_from_pattern(pattern: dict, rule_id: str) -> dict:
+    """패턴에서 Decision Rule 생성."""
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return {
+        "rule_id": rule_id,
+        "rule_type": "decision",
+        "description": f"{pattern['resource_type']} {pattern['anomaly_type']} -> {pattern['dominant_action']}",
+        "resource_types": [pattern["resource_type"]],
+        "conditions": {
+            "anomaly_type": pattern["anomaly_type"]
+        },
+        "result": {
+            "selected_action": pattern["dominant_action"],
+            "reasoning_template": f"{pattern['resource_type']} {pattern['anomaly_type']} 탐지 -> {pattern['dominant_action']} 액션 선택 (자동 승격 규칙)"
+        },
+        "priority": 100,  # 자동 승격 규칙은 낮은 우선순위
+        "enabled": True,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "author": "auto-promoted",
+        "rationale": f"{pattern['dominant_action_count']}건의 LLM 판단 로그 기반 자동 승격 (액션 일관성 {pattern['action_consistency']*100:.0f}%), 승격일 {today}"
+    }
+
+
+# ── 자동 승격 함수 (파이프라인 연동용) ─────────────────────────────────────────
+
+
+def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:
+    """
+    조건을 충족하는 패턴을 사용자 승인 없이 자동으로 Decision Rule Book에 승격.
+
+    파이프라인(logging_agent.py)에서 호출되어 실시간으로 규칙 자동 생성.
+
+    승격 조건:
+        - min_count 이상 반복
+        - 액션 일관성 >= CONSISTENCY_THRESHOLD (80%)
+
+    Args:
+        min_count: 최소 반복 횟수 (기본값: DEFAULT_MIN_COUNT)
+
+    Returns:
+        승격된 규칙 목록 [{"rule_id": "DEC-XXX", "description": "...", ...}, ...]
+    """
+    promoted_rules = []
+
+    try:
+        # 로그 로드
+        logs = load_decision_logs()
+        if not logs:
+            return []
+
+        # 기존 규칙 로드
+        existing_rules = load_existing_decision_rules()
+
+        # 승격 후보 찾기 (액션이 안정적인 패턴만)
+        patterns = find_patterns(logs, min_count)
+        stable_patterns = [p for p in patterns if p["action_is_stable"]]
+
+        if not stable_patterns:
+            return []
+
+        # 새로운 후보만 필터링
+        new_patterns = [
+            p for p in stable_patterns
+            if not is_decision_rule_covered(p, existing_rules)
+        ]
+
+        if not new_patterns:
+            return []
+
+        # 자동 승격 (사용자 승인 없이)
+        for pattern in new_patterns:
+            rule_id = get_next_decision_rule_id(existing_rules)
+            new_rule = create_decision_rule_from_pattern(pattern, rule_id)
+            existing_rules.append(new_rule)
+            promoted_rules.append(new_rule)
+
+            logger.info(
+                "[auto_promote_decision] 규칙 자동 승격: %s (%s + %s -> %s, %d건 검증됨, 일관성 %.0f%%)",
+                rule_id,
+                pattern["resource_type"],
+                pattern["anomaly_type"],
+                pattern["dominant_action"],
+                pattern["dominant_action_count"],
+                pattern["action_consistency"] * 100,
+            )
+
+        # 규칙 저장
+        if promoted_rules:
+            save_decision_rules(existing_rules)
+            logger.info("[auto_promote_decision] %d개 규칙 저장 완료", len(promoted_rules))
+
+            # RuleEngine 리로드
+            try:
+                from pipeline.rule_engine import reload_rules
+                reload_rules()
+            except Exception:
+                pass
+
+        return promoted_rules
+
+    except Exception as e:
+        logger.error("[auto_promote_decision] 자동 승격 실패: %s", e)
+        return []
+
+
+def check_decision_promotion_candidates(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:
+    """
+    승격 가능한 후보가 있는지 확인만 (실제 승격은 안 함).
+
+    Returns:
+        승격 가능한 후보 목록
+    """
+    try:
+        logs = load_decision_logs()
+        if not logs:
+            return []
+
+        existing_rules = load_existing_decision_rules()
+        patterns = find_patterns(logs, min_count)
+        stable_patterns = [p for p in patterns if p["action_is_stable"]]
+
+        return [
+            {
+                "resource_type": p["resource_type"],
+                "anomaly_type": p["anomaly_type"],
+                "dominant_action": p["dominant_action"],
+                "count": p["dominant_action_count"],
+                "action_consistency": p["action_consistency"],
+            }
+            for p in stable_patterns
+            if not is_decision_rule_covered(p, existing_rules)
+        ]
+    except Exception:
+        return []
 
 
 def main():
