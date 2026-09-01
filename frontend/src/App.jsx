@@ -5,6 +5,7 @@ import SettingsTab from "./components/SettingsTab.jsx";
 import ApprovalQueue from "./components/ApprovalQueue.jsx";
 import RuleBook from "./components/RuleBook.jsx";
 import Whitelist from "./components/Whitelist.jsx";
+import PromotionsQueue from "./components/PromotionsQueue.jsx";
 import LlmLogs from "./components/LlmLogs.jsx";
 import FailuresList from "./components/FailuresList.jsx";
 import { api } from "./api.js";
@@ -26,6 +27,7 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [rules, setRules] = useState([]);
   const [whitelist, setWhitelist] = useState([]);
+  const [promotions, setPromotions] = useState({ classification: [], decision: [] });
   const [logs, setLogs] = useState([]);
   const [failures, setFailures] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -49,6 +51,7 @@ export default function App() {
     api.getQueue().then(setQueue).catch(console.error);
     api.getRules().then(setRules).catch(console.error);
     api.getWhitelist().then(setWhitelist).catch(console.error);
+    api.getPromotions().then(setPromotions).catch(console.error);
     api.getLogs().then(setLogs).catch(console.error);
     api.getFailures().then(setFailures).catch(console.error);
     api.getSettings().then(setSettings).catch(console.error);
@@ -123,6 +126,22 @@ export default function App() {
     });
   }
 
+  // ── Promotions (규칙 승격 승인) ──
+  function handleApprovePromotion(id) {
+    api.approvePromotion(id)
+      .then(() => {
+        api.getPromotions().then(setPromotions);
+        api.getRules().then(setRules);
+      })
+      .catch(console.error);
+  }
+
+  function handleRejectPromotion(id) {
+    api.rejectPromotion(id)
+      .then(() => api.getPromotions().then(setPromotions))
+      .catch(console.error);
+  }
+
   // ── 설정 ──
   function handleUpdateSettings(patch) {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -147,6 +166,7 @@ export default function App() {
         onTabChange={setActiveTab}
         pipelineRunning={status?.pipeline_running ?? false}
         pendingCount={queue.length}
+        promotionsCount={(promotions.classification?.length || 0) + (promotions.decision?.length || 0)}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
       />
@@ -174,6 +194,9 @@ export default function App() {
         )}
         {activeTab === "whitelist" && (
           <Whitelist entries={whitelist} onCreate={handleCreateWhitelist} onDelete={handleDeleteWhitelist} />
+        )}
+        {activeTab === "promotions" && (
+          <PromotionsQueue promotions={promotions} onApprove={handleApprovePromotion} onReject={handleRejectPromotion} />
         )}
         {activeTab === "logs" && <LlmLogs logs={logs} />}
         {activeTab === "failures" && <FailuresList failures={failures} />}
