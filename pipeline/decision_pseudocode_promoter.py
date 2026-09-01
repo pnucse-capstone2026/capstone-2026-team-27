@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = os.path.dirname(__file__)
 LLM_DECISION_LOG_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "logs", "llm_decision_log.jsonl")
 DECISION_RULES_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "rules", "decision_rules.json")
+PENDING_PROMOTIONS_PATH = os.path.join(SCRIPT_DIR, "..", "schema", "logs", "pending_rule_promotions.json")
 
 DEFAULT_MIN_COUNT = 3
 # 그룹 내에서 가장 흔한 pseudo_code가 이 비율 이상을 차지하면 "안정적인 패턴"으로 본다.
@@ -254,14 +255,47 @@ def create_decision_rule_from_pattern(pattern: dict, rule_id: str) -> dict:
     }
 
 
-# ── 자동 승격 함수 (파이프라인 연동용) ─────────────────────────────────────────
+# ── 승인 대기 큐 관리 ─────────────────────────────────────────────────────────
 
 
-def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:
+def load_pending_promotions() -> dict:
+    """승인 대기 중인 규칙 로드."""
+    if not os.path.exists(PENDING_PROMOTIONS_PATH):
+        return {"classification": [], "decision": []}
+    try:
+        with open(PENDING_PROMOTIONS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {"classification": [], "decision": []}
+
+
+def save_pending_promotions(pending: dict) -> None:
+    """승인 대기 중인 규칙 저장."""
+    os.makedirs(os.path.dirname(PENDING_PROMOTIONS_PATH), exist_ok=True)
+    with open(PENDING_PROMOTIONS_PATH, "w", encoding="utf-8") as f:
+        json.dump(pending, f, ensure_ascii=False, indent=2)
+
+
+def is_decision_already_pending(pattern: dict, pending_list: list[dict]) -> bool:
+    """이미 승인 대기 중인지 확인."""
+    resource_type = pattern["resource_type"]
+    anomaly_type = pattern["anomaly_type"]
+
+    for pending in pending_list:
+        if pending.get("resource_type") == resource_type and pending.get("anomaly_type") == anomaly_type:
+            return True
+    return False
+
+
+# ── 승인 대기 큐 추가 함수 (파이프라인 연동용) ─────────────────────────────────
+
+
+def queue_decision_promotion_candidates(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:
     """
-    조건을 충족하는 패턴을 사용자 승인 없이 자동으로 Decision Rule Book에 승격.
+    조건을 충족하는 패턴을 승인 대기 큐에 추가 (관리자 승인 필요).
 
-    파이프라인(logging_agent.py)에서 호출되어 실시간으로 규칙 자동 생성.
+    파이프라인(logging_agent.py)에서 호출되어 승격 후보를 대기 큐에 등록.
+    실제 승격은 관리자가 웹에서 승인 시 approve_pending_decision_rule()로 진행.
 
     승격 조건:
         - min_count 이상 반복
@@ -271,9 +305,9 @@ def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict
         min_count: 최소 반복 횟수 (기본값: DEFAULT_MIN_COUNT)
 
     Returns:
-        승격된 규칙 목록 [{"rule_id": "DEC-XXX", "description": "...", ...}, ...]
+        대기 큐에 추가된 후보 목록
     """
-    promoted_rules = []
+    queued_candidates = []
 
     try:
         # 로그 로드
@@ -284,6 +318,10 @@ def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict
         # 기존 규칙 로드
         existing_rules = load_existing_decision_rules()
 
+        # 승인 대기 큐 로드
+        pending = load_pending_promotions()
+        pending_dec = pending.get("decision", [])
+
         # 승격 후보 찾기 (액션이 안정적인 패턴만)
         patterns = find_patterns(logs, min_count)
         stable_patterns = [p for p in patterns if p["action_is_stable"]]
@@ -291,25 +329,29 @@ def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict
         if not stable_patterns:
             return []
 
-        # 새로운 후보만 필터링
-        new_patterns = [
-            p for p in stable_patterns
-            if not is_decision_rule_covered(p, existing_rules)
-        ]
+        # 새로운 후보만 필터링 (기존 규칙에도 없고, 대기 큐에도 없는 것)
+        for pattern in stable_patterns:
+            if is_decision_rule_covered(pattern, existing_rules):
+                continue
+            if is_decision_already_pending(pattern, pending_dec):
+                continue
 
-        if not new_patterns:
-            return []
-
-        # 자동 승격 (사용자 승인 없이)
-        for pattern in new_patterns:
-            rule_id = get_next_decision_rule_id(existing_rules)
-            new_rule = create_decision_rule_from_pattern(pattern, rule_id)
-            existing_rules.append(new_rule)
-            promoted_rules.append(new_rule)
+            # 대기 큐에 추가할 항목 생성
+            pending_entry = {
+                "id": f"pending-dec-{len(pending_dec) + 1}",
+                "resource_type": pattern["resource_type"],
+                "anomaly_type": pattern["anomaly_type"],
+                "dominant_action": pattern["dominant_action"],
+                "count": pattern["dominant_action_count"],
+                "action_consistency": pattern["action_consistency"],
+                "dominant_pseudo_code": pattern.get("dominant_pseudo_code", ""),
+                "queued_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            pending_dec.append(pending_entry)
+            queued_candidates.append(pending_entry)
 
             logger.info(
-                "[auto_promote_decision] 규칙 자동 승격: %s (%s + %s -> %s, %d건 검증됨, 일관성 %.0f%%)",
-                rule_id,
+                "[queue_decision_promotion] 승인 대기 큐 추가: %s + %s -> %s (%d건, 일관성 %.0f%%)",
                 pattern["resource_type"],
                 pattern["anomaly_type"],
                 pattern["dominant_action"],
@@ -317,23 +359,122 @@ def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict
                 pattern["action_consistency"] * 100,
             )
 
-        # 규칙 저장
-        if promoted_rules:
-            save_decision_rules(existing_rules)
-            logger.info("[auto_promote_decision] %d개 규칙 저장 완료", len(promoted_rules))
+        # 대기 큐 저장
+        if queued_candidates:
+            pending["decision"] = pending_dec
+            save_pending_promotions(pending)
+            logger.info("[queue_decision_promotion] %d개 후보 대기 큐 추가 완료", len(queued_candidates))
 
-            # RuleEngine 리로드
-            try:
-                from pipeline.rule_engine import reload_rules
-                reload_rules()
-            except Exception:
-                pass
-
-        return promoted_rules
+        return queued_candidates
 
     except Exception as e:
-        logger.error("[auto_promote_decision] 자동 승격 실패: %s", e)
+        logger.error("[queue_decision_promotion] 대기 큐 추가 실패: %s", e)
         return []
+
+
+def approve_pending_decision_rule(pending_id: str) -> dict | None:
+    """
+    승인 대기 중인 Decision 규칙을 승인하여 Rule Book에 추가.
+
+    Args:
+        pending_id: 대기 중인 규칙 ID (예: "pending-dec-1")
+
+    Returns:
+        승격된 규칙 dict, 실패 시 None
+    """
+    try:
+        pending = load_pending_promotions()
+        pending_dec = pending.get("decision", [])
+
+        # 해당 ID 찾기
+        target = None
+        target_idx = -1
+        for i, entry in enumerate(pending_dec):
+            if entry.get("id") == pending_id:
+                target = entry
+                target_idx = i
+                break
+
+        if target is None:
+            logger.warning("[approve_decision_rule] 대기 중인 규칙 없음: %s", pending_id)
+            return None
+
+        # 규칙 생성 및 저장
+        existing_rules = load_existing_decision_rules()
+        rule_id = get_next_decision_rule_id(existing_rules)
+
+        pattern = {
+            "resource_type": target["resource_type"],
+            "anomaly_type": target["anomaly_type"],
+            "dominant_action": target["dominant_action"],
+            "dominant_action_count": target["count"],
+            "action_consistency": target["action_consistency"],
+        }
+        new_rule = create_decision_rule_from_pattern(pattern, rule_id)
+        existing_rules.append(new_rule)
+        save_decision_rules(existing_rules)
+
+        # 대기 큐에서 제거
+        pending_dec.pop(target_idx)
+        pending["decision"] = pending_dec
+        save_pending_promotions(pending)
+
+        # RuleEngine 리로드
+        try:
+            from pipeline.rule_engine import reload_rules
+            reload_rules()
+        except Exception:
+            pass
+
+        logger.info("[approve_decision_rule] 규칙 승격 완료: %s -> %s", pending_id, rule_id)
+        return new_rule
+
+    except Exception as e:
+        logger.error("[approve_decision_rule] 규칙 승인 실패: %s", e)
+        return None
+
+
+def reject_pending_decision_rule(pending_id: str) -> bool:
+    """
+    승인 대기 중인 Decision 규칙을 거부 (대기 큐에서 제거).
+
+    Args:
+        pending_id: 대기 중인 규칙 ID
+
+    Returns:
+        성공 여부
+    """
+    try:
+        pending = load_pending_promotions()
+        pending_dec = pending.get("decision", [])
+
+        # 해당 ID 찾아서 제거
+        for i, entry in enumerate(pending_dec):
+            if entry.get("id") == pending_id:
+                pending_dec.pop(i)
+                pending["decision"] = pending_dec
+                save_pending_promotions(pending)
+                logger.info("[reject_decision_rule] 규칙 거부됨: %s", pending_id)
+                return True
+
+        logger.warning("[reject_decision_rule] 대기 중인 규칙 없음: %s", pending_id)
+        return False
+
+    except Exception as e:
+        logger.error("[reject_decision_rule] 규칙 거부 실패: %s", e)
+        return False
+
+
+# ── 하위 호환용 (기존 auto_promote_decision_rules 유지) ─────────────────────────
+
+
+def auto_promote_decision_rules(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:
+    """
+    [Deprecated] 이전 버전 호환용. 이제 queue_decision_promotion_candidates() 사용 권장.
+
+    이 함수는 이제 자동 승격 대신 승인 대기 큐에 추가합니다.
+    """
+    return queue_decision_promotion_candidates(min_count)
 
 
 def check_decision_promotion_candidates(min_count: int = DEFAULT_MIN_COUNT) -> list[dict]:

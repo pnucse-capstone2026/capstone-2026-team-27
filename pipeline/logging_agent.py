@@ -332,35 +332,33 @@ def logging_node(state: PipelineState) -> PipelineState:
     entries.extend(_format_human_readable(state))
     state["log_entries"] = entries
 
-    # ── Rule Book 자동 승격 ────────────────────────────────────────────────────
-    # 이상 탐지된 경우에만 자동 승격 시도
+    # ── Rule Book 승격 후보 → 승인 대기 큐 ────────────────────────────────────
+    # 이상 탐지된 경우에만 승격 후보 확인 (관리자 승인 필요)
     if state.get("anomaly_flag"):
-        # Classification 규칙 자동 승격 (LLM 분류 사용 시에만)
+        # Classification 규칙 승격 후보 → 승인 대기 큐 (LLM 분류 사용 시에만)
         if state.get("matched_rule_id") is None:
             try:
-                from pipeline.rule_promoter import auto_promote_rules
-                promoted = auto_promote_rules()
-                if promoted:
+                from pipeline.rule_promoter import queue_promotion_candidates
+                queued = queue_promotion_candidates()
+                if queued:
                     logger.info(
-                        "[logging_node] Classification 규칙 %d개 자동 승격: %s",
-                        len(promoted),
-                        [r["rule_id"] for r in promoted],
+                        "[logging_node] Classification 규칙 %d개 승인 대기 큐 추가",
+                        len(queued),
                     )
             except Exception as e:
-                logger.warning("[logging_node] Classification 규칙 자동 승격 실패: %s", e)
+                logger.warning("[logging_node] Classification 규칙 대기 큐 추가 실패: %s", e)
 
-        # Decision 규칙 자동 승격 (LLM 액션 선택 사용 시에만)
+        # Decision 규칙 승격 후보 → 승인 대기 큐 (LLM 액션 선택 사용 시에만)
         if state.get("matched_decision_rule_id") is None:
             try:
-                from pipeline.decision_pseudocode_promoter import auto_promote_decision_rules
-                promoted = auto_promote_decision_rules()
-                if promoted:
+                from pipeline.decision_pseudocode_promoter import queue_decision_promotion_candidates
+                queued = queue_decision_promotion_candidates()
+                if queued:
                     logger.info(
-                        "[logging_node] Decision 규칙 %d개 자동 승격: %s",
-                        len(promoted),
-                        [r["rule_id"] for r in promoted],
+                        "[logging_node] Decision 규칙 %d개 승인 대기 큐 추가",
+                        len(queued),
                     )
             except Exception as e:
-                logger.warning("[logging_node] Decision 규칙 자동 승격 실패: %s", e)
+                logger.warning("[logging_node] Decision 규칙 대기 큐 추가 실패: %s", e)
 
     return state
