@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import graph_runtime
-from api.routers import approvals, failures, logs, recent, rules, settings, status, whitelist
+from api.routers import approvals, failures, logs, promotions, recent, rules, settings, status, whitelist
 
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ app.include_router(status.router)
 app.include_router(approvals.router)
 app.include_router(rules.router)
 app.include_router(whitelist.router)
+app.include_router(promotions.router)
 app.include_router(logs.router)
 app.include_router(failures.router)
 app.include_router(recent.router)
