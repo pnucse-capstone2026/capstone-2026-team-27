@@ -63,13 +63,15 @@ export const api = {
       pattern: e.resource_id,
     }));
   },
-  createWhitelistEntry: (entry) =>
-    request("/whitelist", { method: "POST", body: JSON.stringify({
+  createWhitelistEntry: async (entry) => {
+    const data = await request("/whitelist", { method: "POST", body: JSON.stringify({
       resource_id: entry.pattern,
       resource_type: entry.resource_type,
       reason: entry.reason,
       expires_at: entry.expires_at,
-    })}),
+    })});
+    return { ...data, id: data.entry_id, pattern: data.resource_id };
+  },
   deleteWhitelistEntry: (id) => request(`/whitelist/${id}`, { method: "DELETE" }),
 
   // Promotions (승인 대기 규칙)
