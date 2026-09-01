@@ -25,11 +25,19 @@ from api.routers import approvals, failures, logs, promotions, recent, rules, se
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    graph_runtime.start() # Postgres 연결 + 승인 그래프 준비
+    # Postgres 연결 시도 (실패해도 기본 API는 동작)
+    try:
+        graph_runtime.start()
+    except Exception as e:
+        print(f"[WARNING] graph_runtime 시작 실패 (Postgres 미연결): {e}")
+        print("[WARNING] 승인 기능 제외하고 기본 API만 동작합니다.")
     try:
         yield
     finally:
-        graph_runtime.stop()
+        try:
+            graph_runtime.stop()
+        except Exception:
+            pass
 
 
 app = FastAPI(title="Cloud Anomaly Agent - Admin API", lifespan=lifespan)
