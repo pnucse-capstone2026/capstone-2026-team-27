@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { card, colors, button, inputStyle } from "../styles.js";
 
+const RESOURCE_TYPES = ["", "EC2", "Lambda", "S3", "RDS", "AutoScaling"];
+
 export default function Whitelist({ entries, onCreate, onDelete }) {
   const [form, setForm] = useState({ pattern: "", resource_type: "", reason: "", expires_at: "" });
 
@@ -19,17 +21,21 @@ export default function Whitelist({ entries, onCreate, onDelete }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ ...card(), display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <input
-          placeholder="패턴 (예: i-batch-*)"
+          placeholder="패턴 (예: i-batch-*, dev-*)"
           value={form.pattern}
           onChange={(e) => setForm({ ...form, pattern: e.target.value })}
-          style={{ ...inputStyle(), width: 180 }}
+          style={{ ...inputStyle(), width: 200 }}
         />
-        <input
-          placeholder="리소스 타입 (선택)"
+        <select
           value={form.resource_type}
           onChange={(e) => setForm({ ...form, resource_type: e.target.value })}
-          style={{ ...inputStyle(), width: 140 }}
-        />
+          style={inputStyle()}
+        >
+          <option value="">전체 타입</option>
+          {RESOURCE_TYPES.filter(t => t).map((type) => (
+            <option key={type} value={type}>{type}</option>
+          ))}
+        </select>
         <input
           placeholder="사유"
           value={form.reason}
@@ -39,7 +45,7 @@ export default function Whitelist({ entries, onCreate, onDelete }) {
         <input
           type="date"
           value={form.expires_at ? form.expires_at.slice(0, 10) : ""}
-          onChange={(e) => setForm({ ...form, expires_at: e.target.value ? `${e.target.value}T00:00:00+09:00` : "" })}
+          onChange={(e) => setForm({ ...form, expires_at: e.target.value ? `${e.target.value}T23:59:59Z` : "" })}
           style={inputStyle()}
         />
         <button onClick={submit} style={{ ...button.base(), ...button.primary() }}>
@@ -51,7 +57,7 @@ export default function Whitelist({ entries, onCreate, onDelete }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: "left", borderBottom: `1px solid ${colors.border}` }}>
-              {["패턴", "리소스 타입", "사유", "만료일", ""].map((h) => (
+              {["ID", "패턴", "리소스 타입", "사유", "만료일", ""].map((h) => (
                 <th key={h} style={{ padding: "10px 16px", color: colors.subtext, fontWeight: 600 }}>
                   {h}
                 </th>
@@ -61,6 +67,7 @@ export default function Whitelist({ entries, onCreate, onDelete }) {
           <tbody>
             {entries.map((entry) => (
               <tr key={entry.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                <td style={{ padding: "10px 16px", fontWeight: 600, color: colors.subtext }}>{entry.id}</td>
                 <td style={{ padding: "10px 16px", fontFamily: "monospace" }}>{entry.pattern}</td>
                 <td style={{ padding: "10px 16px" }}>{entry.resource_type || "전체"}</td>
                 <td style={{ padding: "10px 16px" }}>{entry.reason}</td>

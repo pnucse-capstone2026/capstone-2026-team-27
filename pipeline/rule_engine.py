@@ -20,6 +20,7 @@ class RuleEngine:
 
     def __init__(self):
         self.classification_rules: list[Rule] = []
+        self.decision_rules: list[Rule] = []
         self.qa_rules: list[Rule] = []
         self.whitelist: list[WhitelistEntry] = []
         self._rules_dir = os.path.join(os.path.dirname(__file__), "..", "schema", "rules")
@@ -35,6 +36,14 @@ class RuleEngine:
                 self.classification_rules = [r for r in rules if r.get("enabled", True)]
                 # 우선순위 순 정렬 (낮을수록 먼저)
                 self.classification_rules.sort(key=lambda r: r.get("priority", 999))
+
+        # Decision 규칙 로드
+        dec_path = os.path.join(self._rules_dir, "decision_rules.json")
+        if os.path.exists(dec_path):
+            with open(dec_path, "r", encoding="utf-8") as f:
+                rules = json.load(f)
+                self.decision_rules = [r for r in rules if r.get("enabled", True)]
+                self.decision_rules.sort(key=lambda r: r.get("priority", 999))
 
         # QA 규칙 로드
         qa_path = os.path.join(self._rules_dir, "qa_rules.json")
@@ -114,6 +123,29 @@ class RuleEngine:
 
         return None
 
+    def match_decision_rules(self, state: PipelineState) -> Optional[Rule]:
+        """우선순위 순으로 매칭되는 첫 번째 Decision 규칙 반환"""
+        resource_type = state.get("resource_type", "")
+        anomaly_type = state.get("anomaly_type", "")
+
+        for rule in self.decision_rules:
+            # 리소스 타입 체크
+            rule_types = rule.get("resource_types", ["*"])
+            if "*" not in rule_types and resource_type not in rule_types:
+                continue
+
+            # anomaly_type 조건 체크
+            conditions = rule.get("conditions", {})
+            rule_anomaly_type = conditions.get("anomaly_type")
+            if rule_anomaly_type and rule_anomaly_type != anomaly_type:
+                continue
+
+            # 기타 조건 평가
+            if self.evaluate_conditions(rule, state):
+                return rule
+
+        return None
+
     def evaluate_conditions(self, rule: Rule, state: PipelineState) -> bool:
         """규칙 조건 평가"""
         conditions = rule.get("conditions", {})
@@ -126,6 +158,12 @@ class RuleEngine:
         triggered_metrics_cond = conditions.get("triggered_metrics")
         if triggered_metrics_cond:
             state_metrics = set(state.get("triggered_metrics", []))
+
+            # triggered_metrics가 비어있으면 raw_metrics에서 급증 지표 추출
+            # (IForest만으로 탐지된 경우 Z-score 기반 triggered_metrics가 비어있음)
+            if not state_metrics:
+                state_metrics = self._extract_spike_metrics(state.get("raw_metrics", {}))
+
             cond_metrics = set(triggered_metrics_cond)
             if not cond_metrics.issubset(state_metrics):
                 return False
@@ -152,6 +190,28 @@ class RuleEngine:
                 return False
 
         return True
+
+    def _extract_spike_metrics(self, raw_metrics: dict, threshold: float = 2.0) -> set[str]:
+        """
+        raw_metrics에서 latest가 mean 대비 threshold배 이상인 지표들을 추출.
+        triggered_metrics가 비어있을 때 (IForest만으로 탐지된 경우) 대체용.
+
+        Args:
+            raw_metrics: {"metric_name": [v1, v2, ...], ...}
+            threshold: latest/mean >= threshold 이면 급증으로 판단
+
+        Returns:
+            급증 지표 이름들의 set
+        """
+        spike_metrics = set()
+        for metric_name, values in raw_metrics.items():
+            if not isinstance(values, list) or not values:
+                continue
+            latest = values[-1]
+            mean = sum(values) / len(values)
+            if mean > 0 and latest / mean >= threshold:
+                spike_metrics.add(metric_name)
+        return spike_metrics
 
     def _evaluate_metric_thresholds(self, thresholds: dict, state: PipelineState) -> bool:
         """지표 임계값 조건 평가"""

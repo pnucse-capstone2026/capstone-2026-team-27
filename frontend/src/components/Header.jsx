@@ -4,13 +4,14 @@ const TABS = [
   { key: "dashboard", label: "대시보드" },
   { key: "settings", label: "시스템 설정" },
   { key: "queue", label: "승인 대기" },
+  { key: "promotions", label: "규칙 승격" },
   { key: "rules", label: "Rule Book" },
   { key: "whitelist", label: "화이트리스트" },
   { key: "logs", label: "LLM 로그" },
   { key: "failures", label: "처리 실패" },
 ];
 
-export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, theme, onToggleTheme }) {
+export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, theme, onToggleTheme }) {
   return (
     <div
       style={{
@@ -83,6 +84,20 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
                   }}
                 >
                   {pendingCount}
+                </span>
+              )}
+              {tab.key === "promotions" && promotionsCount > 0 && (
+                <span
+                  style={{
+                    background: active ? "rgba(255,255,255,0.25)" : "#f59e0b",
+                    color: "#ffffff",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "1px 7px",
+                  }}
+                >
+                  {promotionsCount}
                 </span>
               )}
             </button>

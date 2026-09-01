@@ -61,6 +61,7 @@ import os
 from datetime import datetime, timezone
 
 from config.decision_policy import get_priority_weight
+from pipeline.rule_engine import get_rule_engine, reload_rules
 from schema.state import (
     PipelineState,
     CandidateAction,
@@ -679,25 +680,50 @@ def decision_node(state: PipelineState) -> PipelineState:
     if not allowed_actions:
         allowed_actions = ["NoAction"]
 
-    # [REMOVED] 기존 후보별 LLM impact/stability 추정 + 점수 공식 기반 선택
-    # candidates: list[CandidateAction] = []
-    # for action in allowed_actions:
-    #     saving_rate, impact_score, stability_score, estimated_saving_usd = _score_components(...)
-    #     score = 0.5 * saving_rate - 0.3 * impact_score + 0.2 * stability_score
-    #     candidates.append(...)
-    # selected = max(candidates, key=lambda c: c["score"])
+    # ── Rule Book 기반 사전 매칭 (LLM 호출 전) ─────────────────────────────────
+    rule_engine = get_rule_engine()
+    matched_rule = rule_engine.match_decision_rules(state)
 
-    # [ADDED] LLM이 boto3 스펙을 보고 액션을 직접 선택
-    selected_action, llm_reason, pseudo_code = _select_action_with_llm(
-        allowed_actions, anomaly_type, resource_type, raw_metrics
-    )
+    if matched_rule:
+        # 규칙 매칭 성공 → LLM 호출 없이 규칙 결과 사용
+        rule_id = matched_rule.get("rule_id", "")
+        result = matched_rule.get("result", {})
+        selected_action = result.get("selected_action", "NoAction")
+        llm_reason = rule_engine.format_reasoning(matched_rule, state)
+        pseudo_code = ""  # 규칙 기반이므로 pseudo_code 없음
 
-    # LLM 판단 로깅 (pseudo_code 패턴 분석용) - pseudo_code가 비어있으면
-    # 룰 기반 fallback으로 간주 (LLM 실패 또는 허용 범위 초과 시 "").
-    _log_llm_decision(
-        state, allowed_actions, selected_action, llm_reason, pseudo_code,
-        used_llm=bool(pseudo_code),
-    )
+        # 규칙이 선택한 액션이 allowed_actions에 없으면 NoAction으로 대체
+        if selected_action not in allowed_actions:
+            logger.warning(
+                "Decision 규칙 %s이 허용되지 않은 액션 %s 선택, NoAction으로 대체",
+                rule_id, selected_action
+            )
+            selected_action = "NoAction"
+            llm_reason = f"규칙 {rule_id} 액션이 허용 범위 초과 - NoAction으로 대체"
+
+        state["matched_decision_rule_id"] = rule_id
+        logger.info("[decision_node] 규칙 매칭: %s -> %s", rule_id, selected_action)
+
+        # 규칙 기반 판단도 로깅 (used_llm=False)
+        _log_llm_decision(
+            state, allowed_actions, selected_action, llm_reason, pseudo_code,
+            used_llm=False,
+        )
+    else:
+        # 규칙 매칭 실패 → LLM 호출
+        state["matched_decision_rule_id"] = None
+
+        # [ADDED] LLM이 boto3 스펙을 보고 액션을 직접 선택
+        selected_action, llm_reason, pseudo_code = _select_action_with_llm(
+            allowed_actions, anomaly_type, resource_type, raw_metrics
+        )
+
+        # LLM 판단 로깅 (pseudo_code 패턴 분석용) - pseudo_code가 비어있으면
+        # 룰 기반 fallback으로 간주 (LLM 실패 또는 허용 범위 초과 시 "").
+        _log_llm_decision(
+            state, allowed_actions, selected_action, llm_reason, pseudo_code,
+            used_llm=bool(pseudo_code),
+        )
 
     # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지
     saving_rate, _, _, estimated_saving_usd = _score_components(selected_action, state)

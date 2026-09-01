@@ -1,0 +1,36 @@
+{
+  "classification": [
+    {
+      "id": "pending-clf-1",
+      "resource_type": "Lambda",
+      "triggered_metrics": ["duration_avg", "invocation_count"],
+      "anomaly_type": "cost_spike",
+      "count": 5,
+      "sample_reasoning": "[LLM] Lambda 호출 횟수와 평균 실행 시간이 평소 대비 급증하여 비용 급증이 예상됩니다.",
+      "sample_interim_action": "Lambda 호출 원인 및 최근 배포 확인",
+      "queued_at": "2026-09-01T10:30:00Z"
+    },
+    {
+      "id": "pending-clf-2",
+      "resource_type": "EC2",
+      "triggered_metrics": ["cpu_utilization", "network_in"],
+      "anomaly_type": "cost_spike",
+      "count": 3,
+      "sample_reasoning": "[LLM] EC2 CPU 사용률과 네트워크 트래픽이 동시에 급증하여 비용 증가가 예상됩니다.",
+      "sample_interim_action": "EC2 워크로드 및 트래픽 원인 조사",
+      "queued_at": "2026-09-01T10:25:00Z"
+    }
+  ],
+  "decision": [
+    {
+      "id": "pending-dec-1",
+      "resource_type": "RDS",
+      "anomaly_type": "cost_inefficiency",
+      "dominant_action": "Resize",
+      "count": 4,
+      "action_consistency": 0.85,
+      "dominant_pseudo_code": "if cpu_mean < 10 and cost_spike: return 'Resize'",
+      "queued_at": "2026-09-01T10:20:00Z"
+    }
+  ]
+}

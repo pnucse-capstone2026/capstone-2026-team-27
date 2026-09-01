@@ -1,0 +1,78 @@
+[
+  {
+    "rule_id": "DEC-001",
+    "rule_type": "decision",
+    "description": "EC2 cost_inefficiency -> Resize",
+    "resource_types": ["EC2"],
+    "conditions": {
+      "anomaly_type": "cost_inefficiency"
+    },
+    "result": {
+      "selected_action": "Resize",
+      "reasoning_template": "EC2 비용 비효율 탐지 -> Resize 액션으로 인스턴스 타입 다운사이즈"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "EC2에서 비용 비효율이 탐지되면 Resize가 가장 효과적인 대응"
+  },
+  {
+    "rule_id": "DEC-002",
+    "rule_type": "decision",
+    "description": "Lambda cost_spike -> Throttle",
+    "resource_types": ["Lambda"],
+    "conditions": {
+      "anomaly_type": "cost_spike"
+    },
+    "result": {
+      "selected_action": "Throttle",
+      "reasoning_template": "Lambda 비용 급증 탐지 -> Throttle 액션으로 동시성 제한"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "Lambda 비용 급증 시 Throttle로 급증분 차단"
+  },
+  {
+    "rule_id": "DEC-003",
+    "rule_type": "decision",
+    "description": "AutoScaling risk_security -> ScaleDown",
+    "resource_types": ["AutoScaling"],
+    "conditions": {
+      "anomaly_type": "risk_security"
+    },
+    "result": {
+      "selected_action": "ScaleDown",
+      "reasoning_template": "AutoScaling 보안 위험(EDoS) 탐지 -> ScaleDown으로 최대 인스턴스 수 제한"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "AutoScaling EDoS 의심 시 ScaleDown으로 비용 폭증 방어"
+  },
+  {
+    "rule_id": "DEC-004",
+    "rule_type": "decision",
+    "description": "S3 risk_security -> Block",
+    "resource_types": ["S3"],
+    "conditions": {
+      "anomaly_type": "risk_security"
+    },
+    "result": {
+      "selected_action": "Block",
+      "reasoning_template": "S3 보안 위험(데이터 유출) 탐지 -> Block으로 퍼블릭 접근 차단"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z",
+    "author": "system",
+    "rationale": "S3 데이터 유출 의심 시 Block으로 즉시 차단"
+  }
+]

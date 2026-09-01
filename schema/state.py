@@ -170,6 +170,7 @@ class PipelineState(TypedDict):
     decision_reasoning: Optional[str]
     target_instance_type: Optional[str]  # Decision Agent가 Resize 선택 시 채움 (기본값 None)
     decision_pseudo_code: Optional[str]  # LLM이 액션 선택 근거를 if-else 한 줄로 표현한 것 (실패 시 "")
+    matched_decision_rule_id: Optional[str]  # 매칭된 Decision 규칙 ID (예: "DEC-001")
 
     # ── Step 4: Action Agent ──────────────────────────────────────────────────
     pre_action_snapshot: Optional[
@@ -177,6 +178,12 @@ class PipelineState(TypedDict):
     ]
     action_executed: Optional[str]
     action_result:   Optional[dict]
+
+    # 인바운드 트래픽 제어 옵션 (선택적)
+    dry_run: bool              # True면 실제 API 호출 없이 계획만 반환
+    apply_waf: bool            # AutoScaling ScaleDown 시 WAF Rate-based Rule 병행
+    waf_rate_limit: int        # WAF 제한 (5분간 요청 수, 기본 2000)
+    associated_alb_arn: Optional[str]  # WAF 적용 대상 ALB ARN
 
     # ── Step 5: QA Agent ──────────────────────────────────────────────────────
     qa_passed:        Optional[bool]
