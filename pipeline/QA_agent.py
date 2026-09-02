@@ -30,6 +30,7 @@ from typing import Optional
 from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
 from pipeline.rule_engine import get_rule_engine
+from utils.slack_notifier import send_slack_alert
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
 LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
@@ -519,6 +520,12 @@ def qa_node(state: PipelineState) -> PipelineState:
         if state["rollback_count"] >= 2:
             # 2회 초과: 현재 상태 유지, 관리자 알림 필요 (더 이상 action으로 재시도하지 않음)
             reasoning += " [ALERT] 롤백 2회 초과, 관리자 확인 필요"
+            send_slack_alert(
+                f"[롤백 2회 초과] {state['resource_type']} · {state['resource_id']}\n"
+                f"액션: {state.get('action_executed')}\n"
+                f"사유: {reasoning}\n"
+                f"더 이상 자동 재시도하지 않습니다 — 관리자 확인이 필요합니다."
+            )
 
     # 로그 엔트리 추가
     log_entries.append(f"[QA] {reasoning}")

@@ -21,6 +21,9 @@ psycopg2-binary==2.9.12
 # 환경변수
 python-dotenv==1.2.2
 
+# Slack 알림
+requests==2.33.1
+
 # 테스트 실행
 pytest
 

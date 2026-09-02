@@ -21,6 +21,7 @@ from pipeline.classification_agent import classification_node
 from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
 from pipeline.approval_gate import approval_gate_node
+from pipeline.notify_gate import notify_gate_node
 from pipeline.QA_agent import qa_node
 from pipeline.logging_agent import logging_node
 
@@ -71,8 +72,10 @@ def build_graph(qa_node_override=None, with_approval_gate: bool = False) -> Stat
     graph.add_edge("classification", "decision")
 
     if with_approval_gate:
+        graph.add_node("notify_gate",   notify_gate_node)
         graph.add_node("approval_gate", approval_gate_node)
-        graph.add_edge("decision",       "approval_gate")
+        graph.add_edge("decision",       "notify_gate")
+        graph.add_edge("notify_gate",    "approval_gate")
         graph.add_edge("approval_gate",  "action")
     else:
         graph.add_edge("decision", "action")
