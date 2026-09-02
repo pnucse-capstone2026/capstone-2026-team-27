@@ -8,10 +8,12 @@ import Whitelist from "./components/Whitelist.jsx";
 import PromotionsQueue from "./components/PromotionsQueue.jsx";
 import LlmLogs from "./components/LlmLogs.jsx";
 import FailuresList from "./components/FailuresList.jsx";
-import { api } from "./api.js";
-import { colors, applyTheme, getStoredTheme } from "./styles.js";
+import Login from "./components/Login.jsx";
+import { api, AuthError, getStoredToken, logout as apiLogout } from "./api.js";
+import { colors, applyTheme, getStoredTheme, font, gridBackground } from "./styles.js";
 
 export default function App() {
+  const [isAuthed, setIsAuthed] = useState(() => !!getStoredToken());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [theme, setTheme] = useState(getStoredTheme);
 
@@ -32,30 +34,38 @@ export default function App() {
   const [failures, setFailures] = useState([]);
   const [settings, setSettings] = useState(null);
 
-  const refreshStatus = useCallback(() => {
-    api
-      .getStatus()
-      .then(setStatus)
-      .catch(console.error)
-      .finally(() => setStatusLoading(false));
-    api.getRecentDetections().then(setRecentDetections).catch(console.error);
+  // 401(AuthError) 받으면 로그인 화면으로 돌려보냄, 그 외 에러는 그냥 콘솔에만
+  const handleError = useCallback((err) => {
+    if (err instanceof AuthError) {
+      setIsAuthed(false);
+    } else {
+      console.error(err);
+    }
   }, []);
 
+  const refreshStatus = useCallback(() => {
+    if (!isAuthed) return;
+    api.getStatus().then(setStatus).catch(handleError).finally(() => setStatusLoading(false));
+    api.getRecentDetections().then(setRecentDetections).catch(handleError);
+  }, [isAuthed, handleError]);
+
   useEffect(() => {
+    if (!isAuthed) return;
     refreshStatus();
     const interval = setInterval(refreshStatus, 5000);
     return () => clearInterval(interval);
-  }, [refreshStatus]);
+  }, [isAuthed, refreshStatus]);
 
   useEffect(() => {
-    api.getQueue().then(setQueue).catch(console.error);
-    api.getRules().then(setRules).catch(console.error);
-    api.getWhitelist().then(setWhitelist).catch(console.error);
-    api.getPromotions().then(setPromotions).catch(console.error);
-    api.getLogs().then(setLogs).catch(console.error);
-    api.getFailures().then(setFailures).catch(console.error);
-    api.getSettings().then(setSettings).catch(console.error);
-  }, []);
+    if (!isAuthed) return;
+    api.getQueue().then(setQueue).catch(handleError);
+    api.getRules().then(setRules).catch(handleError);
+    api.getWhitelist().then(setWhitelist).catch(handleError);
+    api.getPromotions().then(setPromotions).catch(handleError);
+    api.getLogs().then(setLogs).catch(handleError);
+    api.getFailures().then(setFailures).catch(handleError);
+    api.getSettings().then(setSettings).catch(handleError);
+  }, [isAuthed, handleError]);
 
   // ── 승인 대기 ──
   function handleApprove(id) {
@@ -151,14 +161,18 @@ export default function App() {
     });
   }
 
+  if (!isAuthed) {
+    return <Login onSuccess={() => setIsAuthed(true)} />;
+  }
+
   return (
     <div
       style={{
         display: "flex",
         minHeight: "100vh",
-        background: colors.bg,
+        ...gridBackground(),
         color: colors.text,
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: font.display,
       }}
     >
       <Header
@@ -169,6 +183,10 @@ export default function App() {
         promotionsCount={(promotions.classification?.length || 0) + (promotions.decision?.length || 0)}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+        onLogout={() => {
+          apiLogout();
+          setIsAuthed(false);
+        }}
       />
       <div style={{ padding: 24, flex: 1, minWidth: 0 }}>
         {activeTab === "dashboard" && (

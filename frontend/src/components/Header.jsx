@@ -1,4 +1,4 @@
-import { colors } from "../styles.js";
+import { colors, font, labelStyle } from "../styles.js";
 
 const TABS = [
   { key: "dashboard", label: "대시보드" },
@@ -11,7 +11,7 @@ const TABS = [
   { key: "failures", label: "처리 실패" },
 ];
 
-export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, theme, onToggleTheme }) {
+export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, theme, onToggleTheme, onLogout }) {
   return (
     <div
       style={{
@@ -26,30 +26,34 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
         borderRight: `1px solid ${colors.border}`,
       }}
     >
-      <div style={{ padding: "20px 20px 16px" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: colors.subtext }}>
-          DETECTION
-        </div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: colors.text, marginTop: 2 }}>
+      <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${colors.border}` }}>
+        <div style={{ ...labelStyle, color: colors.accent }}>DETECTION</div>
+        <div style={{ fontFamily: font.display, fontSize: 19, fontWeight: 700, color: colors.text, marginTop: 4 }}>
           관리자 제어판
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
+        <style>{`
+          @keyframes sidebar-pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 4px 0 ${colors.accent}; }
+            50% { opacity: 0.35; box-shadow: 0 0 10px 3px ${colors.accent}; }
+          }
+        `}</style>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12 }}>
           <span
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: pipelineRunning ? "#22c55e" : "#6b7280",
+              width: 7,
+              height: 7,
+              background: pipelineRunning ? colors.accent : colors.subtext,
               display: "inline-block",
+              animation: pipelineRunning ? "sidebar-pulse 1s ease-in-out infinite" : "none",
             }}
           />
-          <span style={{ fontSize: 12, color: colors.subtext }}>
-            {pipelineRunning ? "파이프라인 실행 중" : "파이프라인 중지됨"}
+          <span style={{ fontFamily: font.mono, fontSize: 11, letterSpacing: "0.03em", color: colors.subtext }}>
+            {pipelineRunning ? "RUNNING" : "STOPPED"}
           </span>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", padding: "10px 0", flex: 1 }}>
         {TABS.map((tab) => {
           const active = tab.key === activeTab;
           return (
@@ -61,26 +65,28 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
                 alignItems: "center",
                 justifyContent: "space-between",
                 textAlign: "left",
-                padding: "10px 12px",
-                borderRadius: 8,
+                padding: "11px 20px",
                 border: "none",
+                borderLeft: `3px solid ${active ? colors.accent : "transparent"}`,
                 cursor: "pointer",
+                fontFamily: font.display,
                 fontSize: 14,
                 fontWeight: active ? 700 : 500,
-                color: active ? "#ffffff" : colors.subtext,
-                background: active ? colors.accent : "transparent",
+                color: active ? colors.text : colors.subtext,
+                background: active ? colors.panelRaised : "transparent",
               }}
             >
               <span>{tab.label}</span>
               {tab.key === "queue" && pendingCount > 0 && (
                 <span
                   style={{
-                    background: active ? "rgba(255,255,255,0.25)" : "#ef4444",
-                    color: "#ffffff",
-                    borderRadius: 999,
+                    background: colors.accent,
+                    color: "#0a0a0a",
+                    borderRadius: 2,
+                    fontFamily: font.mono,
                     fontSize: 11,
                     fontWeight: 700,
-                    padding: "1px 7px",
+                    padding: "1px 6px",
                   }}
                 >
                   {pendingCount}
@@ -115,15 +121,33 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
             justifyContent: "center",
             gap: 8,
             padding: "10px 12px",
-            borderRadius: 8,
+            borderRadius: 2,
             border: `1px solid ${colors.border}`,
             background: "transparent",
             color: colors.subtext,
             cursor: "pointer",
             fontSize: 13,
+            fontFamily: font.display,
           }}
         >
           {theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
+        </button>
+        <button
+          onClick={onLogout}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            padding: "10px 12px",
+            borderRadius: 2,
+            border: `1px solid ${colors.accentDim}`,
+            background: "transparent",
+            color: colors.accent,
+            cursor: "pointer",
+            fontSize: 13,
+            fontFamily: font.display,
+          }}
+        >
+          로그아웃
         </button>
       </div>
     </div>

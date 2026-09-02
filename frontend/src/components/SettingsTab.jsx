@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { card, colors, button, inputStyle, progressBarColor } from "../styles.js";
 
-// decision_agent 프롬프트(_priority_guidance_text)가 실제로 구분하는 경계값과 동일하게 3개로만 나눈다.
+// decision_agent 프롬프트가 실제로 구분하는 경계값과 동일하게 3개로만 나눈다.
 const PRIORITY_OPTIONS = [
   { tier: "availability", label: "가용성 우선", value: 15 },
   { tier: "balanced", label: "균형", value: 50 },
@@ -46,6 +46,10 @@ function Toggle({ checked, onChange }) {
   );
 }
 
+// config/decision_policy.py::MIN_POLLING_INTERVAL_MINUTES와 값 맞춰야 함 —
+// 최종 강제는 서버가 하지만(우회 방지), 여기선 입력 단계에서 바로 알려주는 용도.
+const MIN_POLLING_INTERVAL = 5;
+
 function priorityDescription(value) {
   if (value <= 34) return "가용성 우선 — 서비스 중단을 피하고, Delete 대신 Resize를 선택합니다";
   if (value <= 64) return "균형 — 상황에 따라 Delete 또는 Resize를 혼용합니다";
@@ -66,7 +70,7 @@ export default function SettingsTab({ settings, onUpdate }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%", maxWidth: 640, margin: "0 auto" }}>
       <div style={card()}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: colors.text }}>
           가용성 ↔ 비용 절감 우선순위
@@ -109,12 +113,25 @@ export default function SettingsTab({ settings, onUpdate }) {
         </div>
         <input
           type="number"
-          min={1}
+          min={MIN_POLLING_INTERVAL}
           value={local.polling_interval}
           onChange={(e) => setLocal({ ...local, polling_interval: Number(e.target.value) })}
-          onBlur={(e) => commit({ polling_interval: Number(e.target.value) })}
+          onBlur={(e) => {
+            const clamped = Math.max(MIN_POLLING_INTERVAL, Number(e.target.value) || MIN_POLLING_INTERVAL);
+            setLocal({ ...local, polling_interval: clamped });
+            commit({ polling_interval: clamped });
+          }}
           style={{ ...inputStyle(), width: 120 }}
         />
+        {local.polling_interval < MIN_POLLING_INTERVAL && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "#0284c7" }}>
+            {MIN_POLLING_INTERVAL}분보다 짧으면 탐지 모델 학습에 영향을 줘서, 저장 시 자동으로{" "}
+            {MIN_POLLING_INTERVAL}분으로 조정됩니다.
+          </div>
+        )}
+        <div style={{ marginTop: 8, fontSize: 12, color: colors.subtext }}>
+          최소 {MIN_POLLING_INTERVAL}분 (Detection Agent 학습 안정성을 위한 제한)
+        </div>
       </div>
 
       <div style={card()}>
