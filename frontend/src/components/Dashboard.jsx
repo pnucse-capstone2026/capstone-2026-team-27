@@ -1,9 +1,13 @@
 import { card, colors, badgeStyle, SEVERITY_STYLES } from "../styles.js";
 
+// 실제 파이프라인 6단계 그대로 — 예전 mock 시절엔 "Recovery"라는, 실제 에이전트에
+// 없는 이름이 들어있었다 (실제 에이전트: Detection/Classification/Decision/Action/QA/Logging).
 const NODE_LABELS = [
   { key: "detection", label: "Detection" },
+  { key: "classification", label: "Classification" },
   { key: "decision", label: "Decision" },
-  { key: "recovery", label: "Recovery" },
+  { key: "action", label: "Action" },
+  { key: "qa", label: "QA" },
   { key: "logging", label: "Logging" },
 ];
 
