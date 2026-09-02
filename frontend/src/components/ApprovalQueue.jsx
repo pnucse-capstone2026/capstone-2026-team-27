@@ -31,7 +31,7 @@ function QueueCard({ item, onApprove, onReject }) {
           <div style={{ fontSize: 12, color: colors.subtext }}>
             {new Date(item.timestamp).toLocaleString("ko-KR")}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#16a34a" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#3b82f6" }}>
             +${item.estimated_saving.toFixed(2)}/hr
           </div>
           <div style={{ fontSize: 11, color: colors.subtext }}>예상 절감</div>

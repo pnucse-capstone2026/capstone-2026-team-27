@@ -24,8 +24,8 @@ function SlaBadges({ failure }) {
               fontSize: 11,
               padding: "2px 8px",
               borderRadius: 999,
-              background: ok ? "#dcfce7" : "#fee2e2",
-              color: ok ? "#166534" : "#991b1b",
+              background: ok ? "#e0f2fe" : "#fee2e2",
+              color: ok ? "#075985" : "#991b1b",
             }}
           >
             {label} {ok ? "정상" : "위반"}
@@ -75,7 +75,7 @@ export default function FailuresList({ failures }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", maxWidth: 640, margin: "0 auto" }}>
       {failures.map((f) => (
         <FailureCard key={f.id} failure={f} />
       ))}
