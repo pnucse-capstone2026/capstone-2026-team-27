@@ -1,16 +1,91 @@
 const BASE_URL = "http://localhost:8000";
+const TOKEN_STORAGE = "admin-dashboard-token";
+
+export function getStoredToken() {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredToken(token) {
+  try {
+    localStorage.setItem(TOKEN_STORAGE, token);
+  } catch {
+    // localStorage 접근 불가(프라이빗 모드 등)해도 이번 세션 안에서는 계속 쓸 수 있게
+  }
+}
+
+export function clearStoredToken() {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE);
+  } catch {
+    // no-op
+  }
+}
+
+class AuthError extends Error {}
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": getStoredToken(),
+    },
     ...options,
   });
+  if (res.status === 401) {
+    clearStoredToken();
+    throw new AuthError("로그인이 필요합니다.");
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`${options.method || "GET"} ${path} failed: ${res.status} ${detail}`);
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+export async function login(username, password) {
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    // 429(로그인 시도 제한)처럼 원인이 다른 경우를 뭉뚱그리지 않고, 백엔드가
+    // 준 실제 사유(detail)를 그대로 보여준다 — 예전에 CORS 에러를 "비밀번호
+    // 틀림"으로 오해했던 것과 같은 문제가 재발하지 않게.
+    // detail은 401일 땐 문자열, 429(잠금)일 땐 {message, retry_after_seconds} 객체.
+    const body = await res.json().catch(() => null);
+    const detail = body?.detail;
+    const message =
+      (typeof detail === "string" ? detail : detail?.message) ||
+      "아이디 또는 비밀번호가 올바르지 않습니다.";
+    const err = new Error(message);
+    if (detail && typeof detail === "object" && typeof detail.retry_after_seconds === "number") {
+      err.retryAfterSeconds = detail.retry_after_seconds;
+    }
+    throw err;
+  }
+  const data = await res.json();
+  setStoredToken(data.token);
+  return data;
+}
+
+export async function logout() {
+  const token = getStoredToken();
+  clearStoredToken();
+  if (!token) return;
+  try {
+    await fetch(`${BASE_URL}/auth/logout`, {
+      method: "POST",
+      headers: { "X-Admin-Key": token },
+    });
+  } catch {
+    // 서버에 로그아웃 통보 실패해도 로컬 토큰은 이미 지웠으니 로그인 화면으로는 넘어감
+  }
 }
 
 export const api = {
@@ -86,3 +161,5 @@ export const api = {
   updateSettings: (patch) =>
     request("/settings", { method: "PATCH", body: JSON.stringify(patch) }),
 };
+
+export { AuthError };
