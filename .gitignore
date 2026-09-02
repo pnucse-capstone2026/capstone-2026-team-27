@@ -13,6 +13,17 @@ venv/
 # Environment Variables
 .env
 .env
+
+# 관리자 초기 비밀번호가 평문으로 들어있는 로컬 전용 스크립트 
+api/seed_admin_users.py
+
+# 실행할 때마다 갱신되는 런타임 상태 파일 (소스 아님)
+config/pipeline_live_status.json
+config/decision_policy.json
+config/llm_usage.json
+
+# 프론트엔드 의존성 (npm install로 복원 가능, 커밋 대상 아님)
+frontend/node_modules/
 .venv/
 __pycache__/
 *.pyc
