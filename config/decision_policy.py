@@ -5,10 +5,12 @@ Decision Policy
   - priority_weight (0~100): 가용성 ↔ 비용 절감 우선순위
   - llm_cost_limit ($/일): LLM 호출에 하루 최대 얼마까지 쓸지 상한
 
-decision_agent.py 등은 별도 프로세스(파이프라인 워커)에서 돌고, admin API(FastAPI)는
-또 다른 프로세스에서 돈다. 두 프로세스가 값을 공유하려면 메모리 변수로는 안 되고
-DB나 파일 같은 공유 저장소가 필요하다. 이 프로젝트는 이미 schema/rules/*.json을
-RuleEngine이 파일로 읽는 방식을 쓰고 있어서, 같은 패턴으로 파일을 택했다
+decision_agent.py 등은 별도 프로세스(파이프라인 워커)에서 돌고, 
+admin API(FastAPI)는 또 다른 프로세스에서 돈다. 
+두 프로세스가 값을 공유하려면 메모리 변수로는 안 되고
+DB나 파일 같은 공유 저장소가 필요하다. 
+이 프로젝트는 이미 schema/rules/*.json을 RuleEngine이 파일로 읽는 방식을 쓰고 있어서, 
+같은 패턴으로 파일을 택했다
 """
 
 from __future__ import annotations
@@ -21,6 +23,10 @@ _POLICY_PATH = os.path.join(os.path.dirname(__file__), "decision_policy.json")
 DEFAULT_PRIORITY_WEIGHT = 30
 
 DEFAULT_POLLING_INTERVAL_MINUTES = 5
+
+# Detection Agent 담당자 요청: 5분보다 짧게 폴링하면 탐지 모델 학습(윈도우/베이스라인
+# 계산)에 영향을 줘서, 값이 뭐가 들어오든 서버에서 무조건 5 밑으로는 안 내려가게 막는다.
+MIN_POLLING_INTERVAL_MINUTES = 5
 
 DEFAULT_RESOURCES = {
     "EC2": True,
@@ -77,13 +83,13 @@ def set_llm_cost_limit(value: float) -> None:
 
 
 def get_polling_interval_minutes() -> int:
-    """탐지 사이클 폴링 주기 (분). 파일/키가 없으면 기본값."""
+    """탐지 사이클 폴링 주기 (분). 파일/키가 없으면 기본값. 최소 5분 보장."""
     value = _read_policy().get("polling_interval", DEFAULT_POLLING_INTERVAL_MINUTES)
-    return max(1, int(value))
+    return max(MIN_POLLING_INTERVAL_MINUTES, int(value))
 
 
 def set_polling_interval_minutes(value: int) -> None:
-    _write_policy({"polling_interval": max(1, int(value))})
+    _write_policy({"polling_interval": max(MIN_POLLING_INTERVAL_MINUTES, int(value))})
 
 
 def get_resources() -> dict[str, bool]:
