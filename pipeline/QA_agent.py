@@ -223,14 +223,44 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
     action_result = state.get("action_result", {})
     engine = get_rule_engine()
 
-    # 1. Rule Book에서 QA 규칙 매칭 시도
+    # 1. 액션 결과가 명확히 실패인 경우 - 어떤 규칙보다 우선 처리
+    # (QA-002 야간 규칙 등 force_pass가 있어도 액션 실패는 무조건 실패 처리)
+    if action_result.get("status") == "failed":
+        error_msg = action_result.get("error", "알 수 없는 오류")
+        return (
+            {
+                "cpu_ok": True,  # CPU는 영향 없음
+                "cost_ok": True,  # 비용은 영향 없음
+                "availability_ok": False,
+                "detail": f"액션 실행 실패: {error_msg}",
+            },
+            False,
+            f"[Rule] 액션 실행 실패로 인한 SLA 검증 실패: {error_msg}",
+            None,
+        )
+
+    # 2. 기본 규칙: NoAction인 경우 항상 통과
+    if action_executed == "NoAction" or action_executed is None:
+        return (
+            {
+                "cpu_ok": True,
+                "cost_ok": True,
+                "availability_ok": True,
+                "detail": "NoAction - 액션 없음, 검증 스킵",
+            },
+            True,
+            "[Rule] NoAction이므로 SLA 검증 통과",
+            None,
+        )
+
+    # 3. Rule Book에서 QA 규칙 매칭 시도
     matched_rule = engine.match_qa_rules(state)
     if matched_rule is not None:
         result = matched_rule.get("result", {})
         rule_id = matched_rule.get("rule_id")
         reasoning = engine.format_reasoning(matched_rule, state)
 
-        # force_pass가 True이면 무조건 통과
+        # force_pass가 True이면 통과 (액션 실패 케이스는 위에서 이미 처리됨)
         if result.get("force_pass"):
             return (
                 {
@@ -257,35 +287,6 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
                 f"[Rule:{rule_id}] {reasoning}",
                 rule_id,
             )
-
-    # 2. 기본 규칙: NoAction인 경우 항상 통과
-    if action_executed == "NoAction" or action_executed is None:
-        return (
-            {
-                "cpu_ok": True,
-                "cost_ok": True,
-                "availability_ok": True,
-                "detail": "NoAction - 액션 없음, 검증 스킵",
-            },
-            True,
-            "[Rule] NoAction이므로 SLA 검증 통과",
-            None,
-        )
-
-    # 3. 액션 결과가 명확히 실패인 경우
-    if action_result.get("status") == "failed":
-        error_msg = action_result.get("error", "알 수 없는 오류")
-        return (
-            {
-                "cpu_ok": True,  # CPU는 영향 없음
-                "cost_ok": True,  # 비용은 영향 없음
-                "availability_ok": False,
-                "detail": f"액션 실행 실패: {error_msg}",
-            },
-            False,
-            f"[Rule] 액션 실행 실패로 인한 SLA 검증 실패: {error_msg}",
-            None,
-        )
 
     # 4. 개별 SLA 체크
     cpu_ok, cpu_detail = _check_cpu_sla(state)
