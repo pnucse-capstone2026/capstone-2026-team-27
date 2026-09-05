@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # 합성 평가 데이터셋(435개) 기준 정확도가 76.78%에 머물러 80% 목표에 미달했던 것을,
 # "학습 버퍼를 리소스 타입당 다수 윈도우로 확장"(아래 학습 버퍼 섹션 참고)하면서
 # 재튜닝해 0.5 / 2.75로 변경 — 정확도 80.46%, 결합(다변량) 이상 탐지율 99.29% 확인.
-Z_SCORE_THRESHOLD = 2.75                     # k = 2.75 (기존 3.0)
+Z_SCORE_THRESHOLD = 2.5                      # k = 2.5 (테스트용, 원래 2.75)
 Z_SCORE_EPSILON = 1e-9                       # ε (분모 0 방지)
 IFOREST_THRESHOLD = 0.5                      # τ = 0.5 (기존 0.6)
 IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
@@ -51,7 +51,7 @@ MIN_POINTS_FOR_IFOREST = 5
 # 너무 오래 기다리지도 않는 절충값으로 임의 설정. period_seconds를 바꾸면 실제 지속 시간도
 # 같이 바뀐다는 점 감안. (참고: Nagios류 모니터링의 기본 재확인 횟수 3회, Prometheus 흔한
 # `for: 15m` 관례와 유사한 수준)
-PERSISTENCE_WINDOW_POINTS = 3
+PERSISTENCE_WINDOW_POINTS = 1  # 테스트용 (원래 3)
 
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
@@ -71,6 +71,8 @@ Z_SCORE_TARGET_METRICS = {
     "network_in",
     "invocation_count",
     "number_of_requests",
+    "group_desired_capacity",      # AutoScaling (테스트용 추가)
+    "group_in_service_instances",  # AutoScaling (테스트용 추가)
 }
 
 # 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
