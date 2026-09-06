@@ -60,17 +60,21 @@ BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% 
 BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
                                     # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
 
-# Z-score는 "비용, 네트워크 입력, 호출 횟수" 지표에만 적용 (보고서 3.3.1).
+# Z-score는 "비용, 네트워크 입력, 호출 횟수, 인스턴스 수" 지표에 적용 (보고서 3.3.1).
 # 리소스마다 필드명이 달라 의미 단위로 매핑한다.
-#   비용        → cost                  (전 리소스 공통)
-#   네트워크 입력 → network_in            (EC2)
-#   호출 횟수    → invocation_count       (Lambda)
-#               → number_of_requests     (S3)
+#   비용         → cost                       (전 리소스 공통)
+#   네트워크 입력 → network_in                  (EC2)
+#   호출 횟수    → invocation_count             (Lambda)
+#               → number_of_requests           (S3)
+#   인스턴스 수  → group_desired_capacity       (AutoScaling)
+#               → group_in_service_instances   (AutoScaling)
 Z_SCORE_TARGET_METRICS = {
     "cost",
     "network_in",
     "invocation_count",
     "number_of_requests",
+    "group_desired_capacity",
+    "group_in_service_instances",
 }
 
 # 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
