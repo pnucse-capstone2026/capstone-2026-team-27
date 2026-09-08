@@ -3,7 +3,9 @@ pipeline/detection_agent.py (박소영)
 
 3.3.1 Detection Agent (이상 탐지)
 - Z-score 기반 탐지 (단기 스파이크 대응) + Isolation Forest 탐지 (다변량 복합 드리프트 대응)
-  → 두 알고리즘을 병렬 적용하고 OR 앙상블로 결합.
+  + EC2 저사용률(유휴) 절대임계값 체크 (좀비 인스턴스 대응, 신규)
+  + Lambda 에러 재시도 폭증 절대임계값 체크 (신규)
+  → 네 경로를 병렬 적용하고 OR 앙상블로 결합.
 
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
@@ -52,6 +54,55 @@ MIN_POINTS_FOR_IFOREST = 5
 # 같이 바뀐다는 점 감안. (참고: Nagios류 모니터링의 기본 재확인 횟수 3회, Prometheus 흔한
 # `for: 15m` 관례와 유사한 수준)
 PERSISTENCE_WINDOW_POINTS = 3
+
+# ── EC2 저사용률(유휴) 체크 (절대임계값, 신규) ────────────────────────────────
+# 출처: AWS Compute Optimizer idle recommendations 기준
+#   https://docs.aws.amazon.com/compute-optimizer/latest/ug/view-idle-recommendations.html
+#   "peak CPU utilization < 5% AND network I/O < 5MB/day (14일 lookback)"
+#
+# ⚠️ 팀 논의로 확정한 단순화(2026-09-05, 시나리오 1 작업): 이 파이프라인은 14일치
+# 일별 데이터가 아니라 2.5시간(n_points=30 × period_seconds=300초, cloudwatch_client.py
+# 기본값) 슬라이딩 윈도우만 갖고 있어서, AWS의 "14일 중 4일 이상 지속" 조건을 그대로
+# 재현하지 않는다. 대신 "윈도우 전체(30포인트)가 처음부터 끝까지 임계값 이하"를
+# 지속성 조건으로 대체한 근사치다 — AWS 원문 기준을 그대로 적용한 게 아니라 우리
+# 시스템의 윈도우 스케일(2.5시간)로 축소 적용한 것임을 로그/문서에 명시할 것.
+# (참고로 "5%"는 Compute Optimizer 기준이고, "4일 이상"은 별개 체크인 Trusted
+# Advisor의 Low Utilization EC2 Instances 체크(CPU 10%대)에서 온 것이라 두 체크가
+# 섞여 있었음 — 이번에 5%(Compute Optimizer) 쪽으로 통일해서 채택.)
+EC2_IDLE_CPU_THRESHOLD_PCT = 5.0   # peak(윈도우 내 최댓값) 기준
+
+_EC2_IDLE_NETWORK_IO_MB_PER_DAY = 5.0
+_EC2_IDLE_WINDOW_HOURS = (30 * 300) / 3600  # n_points × period_seconds 기본값 = 2.5시간
+# 5MB/day를 윈도우 길이에 비례 환산 (network_in/network_out은 Sum 스탯이라
+# 누적량이므로 비례식이 그대로 성립) → 약 546,133 bytes(~0.52MB)
+EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD = (
+    _EC2_IDLE_NETWORK_IO_MB_PER_DAY * 1024 * 1024 * (_EC2_IDLE_WINDOW_HOURS / 24)
+)
+
+# network_in + network_out 합산을 "network I/O"로 매핑 (AWS 정의상 in+out 합산이 일반적)
+EC2_IDLE_TARGET_METRICS = ("cpu_utilization", "network_in", "network_out")
+
+# ── Lambda 에러 재시도 폭증 체크 (절대임계값, 신규, 시나리오 4) ────────────────
+# 스코프: "에러로 인한 재시도 폭증"(Lambda 비동기 호출은 에러 시 기본 2회, 최대 6시간에
+# 걸쳐 재시도하며 이 추가 호출도 전부 과금됨)만 다룬다. AWS Lambda의 재귀 루프 감지
+# (X-Ray Lineage 헤더 기반 16회 초과 차단, RecursiveInvocationsDropped 지표)는 에러 없이도
+# 발생 가능한 별개 현상이라 이번 범위에서 제외 — 별도 시나리오로 분리하기로 팀 논의 확정
+# (2026-09-05). 출처: https://aws.amazon.com/blogs/compute/implementing-error-handling-for-aws-lambda-asynchronous-invocations/
+#
+# EC2 유휴 체크와 반대로 "윈도우 전체"가 아니라 "최근 k개 포인트"(PERSISTENCE_WINDOW_POINTS
+# 재사용, 기본 3개=15분) 지속 여부를 본다 — 유휴 탐지는 신생 리소스 오탐을 피하려고
+# 일부러 보수적으로(느리게) 설계했지만, 비용이 실시간으로 새는 재시도 폭증은 반대로
+# 빨리 반응하는 게 유리하기 때문 (설계 의도가 정반대).
+LAMBDA_ERROR_RATE_THRESHOLD = 0.5   # 50% — Lambda 기본 재시도 최대 2회 감안, 진짜 지속적
+                                     # 장애면 호출의 절반 이상이 실패로 나타날 가능성이 높음.
+                                     # 이보다 낮추면(예: 20%) 정상 서비스의 베이스라인 에러율
+                                     # (외부 API 오류 등)까지 폭증으로 오탐할 위험이 커짐.
+
+# 노이즈 방지용 최소 호출수 게이트(포인트당). 베이스라인 에러율 5%인 정상 서비스가
+# 우연히 한 포인트에서 50% 이상 에러로 보일 확률: N=3이면 약 0.7%, N=5면 약 0.11%,
+# N=10이면 약 0.006% — 게다가 이 조건을 연속 3개 포인트(PERSISTENCE_WINDOW_POINTS)
+# 전부에서 요구하므로 최종 오탐 확률은 사실상 0에 수렴한다. N=10을 채택.
+LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
 
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
@@ -171,6 +222,82 @@ def _zscore_check_persistent(
 
     is_triggered = bool(np.all(recent > Z_SCORE_THRESHOLD))
     return float(recent[-1]), is_triggered
+
+
+def _low_utilization_check(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
+) -> tuple[list[str], bool]:
+    """EC2 저사용률(유휴/좀비) 절대임계값 체크. EC2_IDLE_* 상수 정의 위 주석 참고.
+
+    z-score/IForest와 달리 window 내부 평균·표준편차를 쓰지 않는 절대 기준이라,
+    "윈도우 내내 낮기만 하고 변동이 없는" 진짜 유휴 패턴(z-score가 놓치는 케이스)도
+    잡을 수 있다. peak(=max) CPU와 window 전체 network I/O 합산을 보므로, 윈도우
+    30포인트 전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
+
+    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 (), False 반환.
+
+    ⚠️ 신생 인스턴스 오탐 방지 가드 (2026-09-05 실 AWS 테스트에서 발견): CloudWatch는
+    리소스가 존재하기 전 구간을 0으로 채워서 반환한다(cloudwatch_client.py:85-89).
+    막 생성된 인스턴스는 윈도우 대부분이 "진짜 유휴"가 아니라 "아직 이력이 없어서
+    0"인 값이라, 하필 부팅 트래픽마저 작았다면 즉시 좀비로 오판될 수 있다. 나이가
+    윈도우 길이(EC2_IDLE 상수 정의 위 _EC2_IDLE_WINDOW_HOURS)보다 어리면 판단을
+    보류한다. resource_age_seconds=None(나이를 모름 — EC2 외 타입이거나 조회 실패)이면
+    가드를 적용하지 않고 기존처럼 그냥 평가한다(하위호환 기본값).
+    """
+    if resource_type != "EC2":
+        return [], False
+    if not all(m in metrics and metrics[m] for m in EC2_IDLE_TARGET_METRICS):
+        return [], False
+    if resource_age_seconds is not None and resource_age_seconds < _EC2_IDLE_WINDOW_HOURS * 3600:
+        return [], False
+
+    peak_cpu = max(metrics["cpu_utilization"])
+    network_io_bytes = sum(metrics["network_in"]) + sum(metrics["network_out"])
+
+    is_idle = (
+        peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT
+        and network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD
+    )
+    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if is_idle else []
+    return triggered_metrics, is_idle
+
+
+def _lambda_error_rate_check(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    k: int = PERSISTENCE_WINDOW_POINTS,
+) -> tuple[list[str], bool]:
+    """Lambda 에러 재시도 폭증 절대임계값 체크. LAMBDA_ERROR_RATE_* 상수 정의 위 주석 참고.
+
+    최근 k개 포인트가 "전부" invocation_count >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+    AND error_count/invocation_count >= LAMBDA_ERROR_RATE_THRESHOLD를 만족해야 트리거된다
+    (_zscore_check_persistent와 동일한 "최근 k개 전부" 지속성 패턴).
+
+    게이트(최소 호출수)를 나눗셈보다 먼저 확인하므로 invocation_count=0인 포인트는
+    항상 게이트에서 먼저 걸러져 0으로 나누는 경우가 발생하지 않는다.
+
+    Lambda 전용 — 다른 리소스 타입은 항상 (), False 반환.
+    """
+    if resource_type != "Lambda":
+        return [], False
+    if not all(m in metrics and metrics[m] for m in ("invocation_count", "error_count")):
+        return [], False
+
+    invocation = metrics["invocation_count"]
+    error = metrics["error_count"]
+    k_eff = min(k, len(invocation))
+    recent_invocation = invocation[-k_eff:]
+    recent_error = error[-k_eff:]
+
+    is_surge = all(
+        inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS and (err / inv) >= LAMBDA_ERROR_RATE_THRESHOLD
+        for inv, err in zip(recent_invocation, recent_error)
+    )
+    triggered_metrics = ["error_count", "invocation_count"] if is_surge else []
+    return triggered_metrics, is_surge
+
 
 def build_unified_feature_matrix(
     resource_type: str, metrics: dict[str, list[float]]
@@ -584,8 +711,24 @@ def detection_node(state: PipelineState) -> PipelineState:
     # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량, 마찬가지로 지속성 체크) ──
     iforest_score, iforest_triggered = _iforest_score_and_trigger(resource_type, metrics)
 
-    # ── 3) OR 앙상블 결합 ─────────────────────────────────────────────────
-    anomaly_flag = bool(triggered_metrics) or iforest_triggered
+    # ── 3) EC2 저사용률(유휴) 절대임계값 체크 (신규, EC2 전용) ──────────────
+    idle_metrics, idle_triggered = _low_utilization_check(
+        resource_type, metrics, state.get("resource_age_seconds")
+    )
+    for m in idle_metrics:
+        if m not in triggered_metrics:
+            triggered_metrics.append(m)
+
+    # ── 4) Lambda 에러 재시도 폭증 절대임계값 체크 (신규, Lambda 전용) ───────
+    error_surge_metrics, error_surge_triggered = _lambda_error_rate_check(resource_type, metrics)
+    for m in error_surge_metrics:
+        if m not in triggered_metrics:
+            triggered_metrics.append(m)
+
+    # ── 5) OR 앙상블 결합 ─────────────────────────────────────────────────
+    anomaly_flag = (
+        bool(triggered_metrics) or iforest_triggered or idle_triggered or error_surge_triggered
+    )
 
     state["anomaly_flag"] = anomaly_flag
     state["anomaly_score_zscore"] = round(max_abs_z, 4)
@@ -610,6 +753,7 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "resource_type": resource["resource_type"],
         "raw_metrics":   resource["raw_metrics"],
         "timestamp":     resource.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "resource_age_seconds": resource.get("resource_age_seconds"),
 
         "anomaly_flag":          False,
         "anomaly_score_zscore":  None,
