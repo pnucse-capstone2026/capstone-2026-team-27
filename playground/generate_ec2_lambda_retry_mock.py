@@ -37,7 +37,7 @@ import pipeline.detection_agent as da
 
 N = 30                    # 윈도우당 포인트 수
 PERIOD_SECONDS = 300       # 5분
-OUT_DIR = PROJECT_ROOT / "playground" / "mock_datasets"
+OUT_DIR = PROJECT_ROOT / "playground" / "mock_data"
 
 # 친구 파일과 동일한 3시간 간격 슬롯 순환 (하루 8슬롯)
 _SLOT_HOURS = [0, 3, 6, 9, 12, 15, 18, 21]
