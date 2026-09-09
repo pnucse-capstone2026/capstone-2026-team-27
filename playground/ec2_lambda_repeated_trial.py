@@ -127,10 +127,16 @@ def _setup_logging(scenario: str) -> Path:
 
 # ── 판정 (두 가지 방식을 모두 계산) ────────────────────────────────────────────
 
-def detect_both(resource_type: str, resource_id: str, resource_age_seconds: float | None = None) -> dict:
+def detect_both(resource_type: str, resource_id: str, resource_age_seconds: float | None = None,
+                 usage: dict[str, list[float]] | None = None) -> dict:
     """teammate_compat(낡은 헬퍼 방식)와 production(detection_node 실제 방식)을 모두 계산.
-    raw_metrics 전체를 결과에 포함한다(요약이 아니라 원본)."""
-    usage = fetch_metrics(resource_type, resource_id)
+    raw_metrics 전체를 결과에 포함한다(요약이 아니라 원본).
+
+    usage를 넘기면 그걸 그대로 쓴다 - S3 스크립트처럼 end_time을 과거로 지정해서
+    직접 조회한 지표를 넣을 수 있게 하기 위함(판정 로직을 한 곳에서만 관리).
+    """
+    if usage is None:
+        usage = fetch_metrics(resource_type, resource_id)
     n = len(next(iter(usage.values()))) if usage else 0
 
     out = {
