@@ -120,6 +120,37 @@ def main():
                 entry.setdefault("diagnosis", {})[lbl] = DIAGNOSES[key]
         results.append(entry)
 
+    # ── 보충: lambda_eval_retry.json엔 normal이 없어서(팀원 데이터 재사용 결정),
+    # 팀원 제공 정상 Lambda 윈도우 전체(train 50 + eval 20 = 70)를 전체 파이프라인
+    # 기준으로 재확인. 앞서 개별 함수(_lambda_error_rate_check) 단독 검증(0/70)과
+    # 달리, IForest까지 포함하면 오탐이 생길 수 있음을 실측으로 확인.
+    all_normal = []
+    for fname in ("lambda_train.json", "lambda_eval.json"):
+        with open(MOCK_DATA_DIR / fname, encoding="utf-8") as f:
+            all_normal += [w for w in json.load(f) if w["label"] == "normal"]
+
+    outcomes = [(w["window_id"], run_window("Lambda", w)) for w in all_normal]
+    triggered = [wid for wid, t in outcomes if t]
+    rate = len(triggered) / len(all_normal)
+    print(f"\n[보충] Lambda 정상 전체(팀원 제공, train+eval={len(all_normal)}개), "
+          f"전체 파이프라인 기준: {len(triggered)}/{len(all_normal)} ({rate:.1%})")
+    results.append({
+        "scenario_label": "Lambda 정상 전체 (팀원 제공 train+eval, 보충 검증)",
+        "resource_type": "Lambda",
+        "eval_file": "lambda_train.json + lambda_eval.json (label=normal만)",
+        "stats": {"normal": {"triggered": len(triggered), "total": len(all_normal), "rate": round(rate, 4)}},
+        "details": {"normal_false_positive_window_ids": triggered},
+        "diagnosis": {
+            "normal": (
+                "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 데이터 70개 "
+                "전체를 전체 파이프라인(detection_node)으로 재확인. _lambda_error_rate_check "
+                "단독으로는 0/70이었으나(이전 검증), IForest까지 포함한 전체 파이프라인은 "
+                "2/70(2.9%) - 학습에 쓰인 윈도우(lambda_train_003/027) 안에서도 발생. "
+                "요청 A에서 확인한 IForest 알림 경로의 구조적 오탐 성질과 같은 맥락."
+            )
+        },
+    })
+
     out_path = PROJECT_ROOT / "playground" / "eval_outputs" / "scenario_mock_detection_rates.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:

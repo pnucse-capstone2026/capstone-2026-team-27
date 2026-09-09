@@ -147,6 +147,27 @@
         "missed_window_ids": [],
         "edge_normal_false_positive_window_ids": []
       }
+    },
+    {
+      "scenario_label": "Lambda 정상 전체 (팀원 제공 train+eval, 보충 검증)",
+      "resource_type": "Lambda",
+      "eval_file": "lambda_train.json + lambda_eval.json (label=normal만)",
+      "stats": {
+        "normal": {
+          "triggered": 2,
+          "total": 70,
+          "rate": 0.0286
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [
+          "lambda_train_003",
+          "lambda_train_027"
+        ]
+      },
+      "diagnosis": {
+        "normal": "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 데이터 70개 전체를 전체 파이프라인(detection_node)으로 재확인. _lambda_error_rate_check 단독으로는 0/70이었으나(이전 검증), IForest까지 포함한 전체 파이프라인은 2/70(2.9%) - 학습에 쓰인 윈도우(lambda_train_003/027) 안에서도 발생. 요청 A에서 확인한 IForest 알림 경로의 구조적 오탐 성질과 같은 맥락."
+      }
     }
   ]
 }
