@@ -456,6 +456,55 @@ def _normalized_scores(
     return np.clip((s_max - raw_scores) / (s_max - s_min), 0.0, 1.0)
 
 
+# Stage 2 후보 A 그리드 실험(2026-09-09) 결과 채택값 — 실측 근거:
+# contamination 환산 0.02(=percentile 2.0)/K=3 조합이 정상 오탐 6.3%로 가장 낮으면서
+# 장기·지속형 이상(spike_len 15~24)은 87~100% 거부. 짧은 스파이크(len 3~6)는 이 게이트가
+# 아니라 z-score(_zscore_check_persistent)가 먼저 잡는 역할 분담을 전제로 함.
+STAGE2_ADMIT_PERCENTILE = 2.0
+STAGE2_ADMIT_K_MIN = 3
+
+
+def _absolute_score_and_admit(
+    model: IsolationForest,
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    buffer_windows: list[np.ndarray],
+    percentile: float = STAGE2_ADMIT_PERCENTILE,
+    k_min: int = STAGE2_ADMIT_K_MIN,
+) -> tuple[float, bool]:
+    """Stage 2 후보 A: provisional_score(버퍼 admission 판정)를 창 내부 min-max
+    (_normalized_scores) 대신, 모델의 raw score_samples()와 버퍼 자체에서 직접 계산한
+    percentile 임계값으로 판단한다.
+
+    ⚠️ min-max와 다른 점: score_samples()는 트리 구조(fit 시 확정, contamination과
+    무관)에서만 나오는 순수 이상치 점수라 "이 창 안에서 제일 이상한 점은 항상 1.0"
+    같은 구조적 왜곡이 없다. 대신 "얼마나 낮으면 이상치로 볼지" 기준(threshold)을
+    모델의 built-in offset_(contamination=0.1 기준, 최종 알림 판정용) 대신 버퍼
+    자체에서 우리가 원하는 percentile로 별도 계산한다 — sklearn이 모델 생성 시
+    내부적으로 하는 계산(percentile(score_samples(학습데이터), 100*contamination))과
+    같은 공식을, 버퍼 admission이라는 다른 목적에 맞는 값(2%)으로 재사용하는 것.
+    모델을 두 번 학습시킬 필요가 없다(트리는 contamination과 무관하므로).
+
+    ⚠️ 아직 어디서도 호출 안 됨(독립·테스트 전용) - _get_or_train_iforest의
+    provisional_score 판정에 실제로 연결하려면 이 함수를 호출하도록 바꿔야 하는데,
+    시연 전 실측 검증(요청 A 포함) 전까지는 보류하기로 함(2026-09-09).
+
+    반환: (최근 시점 raw score_samples 값 — 리포팅용, 버퍼에 받아들여도 되는가)
+    """
+    if not buffer_windows:
+        return 0.0, False
+
+    buffer_matrix = np.vstack(buffer_windows)
+    threshold = float(np.percentile(model.score_samples(buffer_matrix), percentile))
+
+    X = build_unified_feature_matrix(resource_type, metrics)
+    raw = model.score_samples(X)
+    outliers = int((raw < threshold).sum())
+    believed_normal = outliers < k_min
+
+    return float(raw[-1]), believed_normal
+
+
 def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
     return float(_normalized_scores(model, resource_type, metrics)[-1])
 
