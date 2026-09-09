@@ -350,15 +350,47 @@ def scenario_3_edos_suspicion() -> dict:
     )
 
 
+# ── 시나리오 4: S3 대량 다운로드 (risk_security) ──────────────────────────────
+
+def scenario_4_s3_mass_download() -> dict:
+    resource_id = os.getenv("S3_BUCKET_NAME", "detection-test-bucket")
+
+    raw_metrics = {
+        "number_of_requests": [100.0] * 30,
+        # bytes_downloaded가 마지막 3개 포인트에서 급증 (지속성 체크(k=3) 때문에
+        # 세 값을 거의 동일한 크기로 줘야 함 — 값이 점점 커지면 그중 가장 작은
+        # 값의 z가 임계값을 못 넘겨 트리거 자체가 안 됨. 시나리오 3의 동일한
+        # 구조적 이유 참고.)
+        "bytes_downloaded":   [1000.0] * 27 + [90000.0, 91000.0, 92000.0],
+        "cost":               [0.05] * 30,
+    }
+
+    return run_scenario(
+        name="4. S3 대량 다운로드 (risk_security)",
+        description=(
+            "S3 bytes_downloaded가 갑자기 급증하는 패턴 (실제 테스트 버킷, 실제 호출 안 함).\n"
+            "기대 결과: anomaly_type=risk_security, selected_action=Block, risk_level=HIGH\n"
+            "requires_approval=True → action_result는 pending_approval로 반환된다.\n"
+            "실제 boto3 Block(put_public_access_block)/롤백 검증은 별도로 "
+            "action_agent.take_snapshot/execute_action/rollback_action 직접 호출로 확인함."
+        ),
+        resource_id=resource_id,
+        resource_type="S3",
+        raw_metrics=raw_metrics,
+        expected_anomaly_type="risk_security",
+    )
+
+
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    _print_section("시나리오 실험 시작 (3개 시나리오 순서대로 실행)")
+    _print_section("시나리오 실험 시작 (4개 시나리오 순서대로 실행)")
 
     results = []
     results.append(scenario_1_zombie_ec2())
     results.append(scenario_2_lambda_spike())
     results.append(scenario_3_edos_suspicion())
+    results.append(scenario_4_s3_mass_download())
 
     _print_section("전체 요약")
     total_elapsed = sum(r["elapsed"] for r in results)

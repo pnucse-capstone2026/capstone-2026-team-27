@@ -1,0 +1,353 @@
+[
+  {
+    "scenario": "1_zombie_ec2",
+    "n_repeats": 5,
+    "noise_std": 0.05,
+    "elapsed_sec": {
+      "mean": 0.03132500648498535,
+      "std": 0.009880512046073573,
+      "values": [
+        0.048960208892822266,
+        0.027995586395263672,
+        0.026759862899780273,
+        0.026711702346801758,
+        0.02619767189025879
+      ]
+    },
+    "anomaly_score_zscore": {
+      "mean": 3.10748,
+      "std": 0.14114946687819968,
+      "values": [
+        2.9243,
+        3.2608,
+        3.2253,
+        3.1129,
+        3.0141
+      ]
+    },
+    "anomaly_score_iforest": {
+      "mean": 0.9133,
+      "std": 0.07914590955949648,
+      "values": [
+        1.0,
+        1.0,
+        0.8555,
+        0.8555,
+        0.8555
+      ]
+    },
+    "selected_action_distribution": {
+      "Resize": 5
+    },
+    "selected_action": "Resize",
+    "risk_level": "MED",
+    "requires_approval": true,
+    "total_failures": 0,
+    "runs": [
+      {
+        "rep": 1,
+        "elapsed_sec": 0.048960208892822266,
+        "anomaly_score_zscore": 2.9243,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "cost_inefficiency",
+        "selected_action": "Resize",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 2,
+        "elapsed_sec": 0.027995586395263672,
+        "anomaly_score_zscore": 3.2608,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "cost_inefficiency",
+        "selected_action": "Resize",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 3,
+        "elapsed_sec": 0.026759862899780273,
+        "anomaly_score_zscore": 3.2253,
+        "anomaly_score_iforest": 0.8555,
+        "anomaly_type": "cost_inefficiency",
+        "selected_action": "Resize",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 4,
+        "elapsed_sec": 0.026711702346801758,
+        "anomaly_score_zscore": 3.1129,
+        "anomaly_score_iforest": 0.8555,
+        "anomaly_type": "cost_inefficiency",
+        "selected_action": "Resize",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 5,
+        "elapsed_sec": 0.02619767189025879,
+        "anomaly_score_zscore": 3.0141,
+        "anomaly_score_iforest": 0.8555,
+        "anomaly_type": "cost_inefficiency",
+        "selected_action": "Resize",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      }
+    ]
+  },
+  {
+    "scenario": "2_lambda_spike",
+    "n_repeats": 5,
+    "noise_std": 0.05,
+    "elapsed_sec": {
+      "mean": 0.038710927963256835,
+      "std": 0.008830225979702146,
+      "values": [
+        0.04122495651245117,
+        0.045743703842163086,
+        0.02490401268005371,
+        0.03553032875061035,
+        0.04615163803100586
+      ]
+    },
+    "anomaly_score_zscore": {
+      "mean": 2.28038,
+      "std": 0.07577339242768524,
+      "values": [
+        2.3495,
+        2.2844,
+        2.1516,
+        2.3127,
+        2.3037
+      ]
+    },
+    "anomaly_score_iforest": {
+      "mean": 0.97988,
+      "std": 0.02967670803846004,
+      "values": [
+        1.0,
+        0.9653,
+        0.9341,
+        1.0,
+        1.0
+      ]
+    },
+    "selected_action_distribution": {
+      "Throttle": 5
+    },
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "requires_approval": true,
+    "total_failures": 0,
+    "runs": [
+      {
+        "rep": 1,
+        "elapsed_sec": 0.04122495651245117,
+        "anomaly_score_zscore": 2.3495,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "cost_spike",
+        "selected_action": "Throttle",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 2,
+        "elapsed_sec": 0.045743703842163086,
+        "anomaly_score_zscore": 2.2844,
+        "anomaly_score_iforest": 0.9653,
+        "anomaly_type": "cost_spike",
+        "selected_action": "Throttle",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 3,
+        "elapsed_sec": 0.02490401268005371,
+        "anomaly_score_zscore": 2.1516,
+        "anomaly_score_iforest": 0.9341,
+        "anomaly_type": "cost_spike",
+        "selected_action": "Throttle",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 4,
+        "elapsed_sec": 0.03553032875061035,
+        "anomaly_score_zscore": 2.3127,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "cost_spike",
+        "selected_action": "Throttle",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 5,
+        "elapsed_sec": 0.04615163803100586,
+        "anomaly_score_zscore": 2.3037,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "cost_spike",
+        "selected_action": "Throttle",
+        "risk_level": "MED",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      }
+    ]
+  },
+  {
+    "scenario": "3_edos_suspicion",
+    "n_repeats": 5,
+    "noise_std": 0.05,
+    "elapsed_sec": {
+      "mean": 0.096087646484375,
+      "std": 0.008596618367432236,
+      "values": [
+        0.08803558349609375,
+        0.08907246589660645,
+        0.10213160514831543,
+        0.10782146453857422,
+        0.09337711334228516
+      ]
+    },
+    "anomaly_score_zscore": {
+      "mean": 3.1663,
+      "std": 0.2158122679552763,
+      "values": [
+        3.3029,
+        2.9133,
+        3.3994,
+        3.2537,
+        2.9622
+      ]
+    },
+    "anomaly_score_iforest": {
+      "mean": 1.0,
+      "std": 0.0,
+      "values": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "selected_action_distribution": {
+      "ScaleDown": 5
+    },
+    "selected_action": "ScaleDown",
+    "risk_level": "HIGH",
+    "requires_approval": true,
+    "total_failures": 0,
+    "runs": [
+      {
+        "rep": 1,
+        "elapsed_sec": 0.08803558349609375,
+        "anomaly_score_zscore": 3.3029,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "risk_security",
+        "selected_action": "ScaleDown",
+        "risk_level": "HIGH",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 2,
+        "elapsed_sec": 0.08907246589660645,
+        "anomaly_score_zscore": 2.9133,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "risk_security",
+        "selected_action": "ScaleDown",
+        "risk_level": "HIGH",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 3,
+        "elapsed_sec": 0.10213160514831543,
+        "anomaly_score_zscore": 3.3994,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "risk_security",
+        "selected_action": "ScaleDown",
+        "risk_level": "HIGH",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 4,
+        "elapsed_sec": 0.10782146453857422,
+        "anomaly_score_zscore": 3.2537,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "risk_security",
+        "selected_action": "ScaleDown",
+        "risk_level": "HIGH",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      },
+      {
+        "rep": 5,
+        "elapsed_sec": 0.09337711334228516,
+        "anomaly_score_zscore": 2.9622,
+        "anomaly_score_iforest": 1.0,
+        "anomaly_type": "risk_security",
+        "selected_action": "ScaleDown",
+        "risk_level": "HIGH",
+        "requires_approval": true,
+        "action_result": {
+          "status": "pending_approval"
+        },
+        "failures": []
+      }
+    ]
+  }
+]
