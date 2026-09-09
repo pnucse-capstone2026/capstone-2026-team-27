@@ -66,11 +66,17 @@ BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완
 #   네트워크 입력 → network_in            (EC2)
 #   호출 횟수    → invocation_count       (Lambda)
 #               → number_of_requests     (S3)
+#   전송량      → bytes_downloaded       (S3)
+# [ADDED] bytes_downloaded 누락 수정: classification_rules.json의 CLF-003(S3 대량
+# 다운로드 -> risk_security)이 triggered_metrics에 "bytes_downloaded"가 있어야
+# 매칭되는데, 이 지표가 원래 대상에서 빠져있어서 Z-score로는 절대 안 잡히고
+# IForest 콜드스타트(모델 없을 때)에만 우연히 걸리는 불안정한 상태였음.
 Z_SCORE_TARGET_METRICS = {
     "cost",
     "network_in",
     "invocation_count",
     "number_of_requests",
+    "bytes_downloaded",
 }
 
 # 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
@@ -171,6 +177,7 @@ def _zscore_check_persistent(
 
     is_triggered = bool(np.all(recent > Z_SCORE_THRESHOLD))
     return float(recent[-1]), is_triggered
+
 
 def build_unified_feature_matrix(
     resource_type: str, metrics: dict[str, list[float]]
