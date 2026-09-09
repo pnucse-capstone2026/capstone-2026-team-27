@@ -60,6 +60,7 @@ def build_report(manifest_path: Path) -> dict:
         windows.append({
             "id": instance_id,
             "true_label": true_label,
+            "profile": inst.get("profile"),
             "predicted": iforest_triggered,
             "iforest_score": round(iforest_score, 4),
             "last_cpu": usage["cpu_utilization"][-3:],
@@ -100,10 +101,10 @@ def main():
 
     report = build_report(manifest_path)
 
-    print(f"{'instance_id':<22} {'true_label':<10} {'predicted':<10} {'iforest_score':<14}")
-    print("-" * 60)
+    print(f"{'instance_id':<22} {'true_label':<10} {'profile':<14} {'predicted':<10} {'iforest_score':<14}")
+    print("-" * 74)
     for w in report["windows"]:
-        print(f"{w['id']:<22} {w['true_label']:<10} {str(w['predicted']):<10} {w['iforest_score']:<14}")
+        print(f"{w['id']:<22} {w['true_label']:<10} {str(w.get('profile')):<14} {str(w['predicted']):<10} {w['iforest_score']:<14}")
 
     print()
     c = report["confusion"]
