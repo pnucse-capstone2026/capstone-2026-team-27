@@ -34,6 +34,58 @@ from pipeline.cost_estimator import estimate_cost_series
 import pipeline.detection_agent as da
 
 
+def compute_all_signals(resource_type: str, metrics: dict, resource_age_seconds=None) -> dict:
+    """4개 메커니즘 + OR게이트를 전부 독립적으로 계산.
+    ⚠️ z-score는 detection_node의 triggered_metrics를 그대로 읽으면 idle/error_surge
+    체크가 같은 리스트에 결과를 이어붙이는 것 때문에 오염된다 - z-score 루프를
+    독립적으로 재현해서 별도 boolean으로 받는다."""
+    z_triggered = False
+    max_abs_z = 0.0
+    for metric_name in metrics:
+        if metric_name not in da.Z_SCORE_TARGET_METRICS:
+            continue
+        z, is_trig = da._zscore_check_persistent(metrics[metric_name])
+        max_abs_z = max(max_abs_z, z)
+        if is_trig:
+            z_triggered = True
+
+    iforest_score, iforest_triggered = da._iforest_score_and_trigger(resource_type, metrics)
+    _, idle_triggered = da._low_utilization_check(resource_type, metrics, resource_age_seconds)
+    _, error_surge_triggered = da._lambda_error_rate_check(resource_type, metrics)
+
+    absolute_triggered = idle_triggered or error_surge_triggered  # 타입별로 하나만 의미 있음
+    or_gate = z_triggered or iforest_triggered or idle_triggered or error_surge_triggered
+
+    return {
+        "z_score": z_triggered,
+        "z_max": round(max_abs_z, 4),
+        "iforest": iforest_triggered,
+        "iforest_score": round(iforest_score, 4),
+        "absolute": absolute_triggered,
+        "or_gate": or_gate,
+    }
+
+
+def _confusion_and_metrics(windows: list[dict], predicted_key: str) -> dict:
+    TP = sum(1 for w in windows if w["true_label"] == "anomaly" and w[predicted_key])
+    FN = sum(1 for w in windows if w["true_label"] == "anomaly" and not w[predicted_key])
+    FP = sum(1 for w in windows if w["true_label"] == "normal" and w[predicted_key])
+    TN = sum(1 for w in windows if w["true_label"] == "normal" and not w[predicted_key])
+    n_anomaly, n_normal = TP + FN, TN + FP
+    accuracy = (TP + TN) / len(windows) if windows else None
+    recall = TP / n_anomaly if n_anomaly else None
+    precision = TP / (TP + FP) if (TP + FP) else None
+    return {
+        "n_normal": n_normal, "n_anomaly": n_anomaly,
+        "confusion": {"TP": TP, "TN": TN, "FP": FP, "FN": FN},
+        "metrics": {
+            "accuracy": round(accuracy, 4) if accuracy is not None else None,
+            "recall": round(recall, 4) if recall is not None else None,
+            "precision": round(precision, 4) if precision is not None else None,
+        },
+    }
+
+
 def build_report(manifest_path: Path) -> dict:
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
@@ -51,45 +103,39 @@ def build_report(manifest_path: Path) -> dict:
     for inst in manifest["instances"]:
         instance_id = inst["instance_id"]
         true_label = inst["true_label"]
+        launch_time = datetime.fromisoformat(inst["launch_time_utc"].replace("Z", "+00:00"))
+        age_seconds = (now - launch_time).total_seconds()
 
         usage = fetch_metrics("EC2", instance_id)
         usage["cost"] = estimate_cost_series("EC2", instance_id, usage)
 
-        iforest_score, iforest_triggered = da._iforest_score_and_trigger("EC2", usage)
+        signals = compute_all_signals("EC2", usage, resource_age_seconds=age_seconds)
 
         windows.append({
             "id": instance_id,
             "true_label": true_label,
             "profile": inst.get("profile"),
-            "predicted": iforest_triggered,
-            "iforest_score": round(iforest_score, 4),
+            "age_seconds": round(age_seconds, 1),
+            "z_score": signals["z_score"],
+            "iforest": signals["iforest"],
+            "iforest_score": signals["iforest_score"],
+            "absolute_idle": signals["absolute"],
+            "or_gate": signals["or_gate"],
             "last_cpu": usage["cpu_utilization"][-3:],
             "last_network_in": usage["network_in"][-3:],
         })
 
-    TP = sum(1 for w in windows if w["true_label"] == "anomaly" and w["predicted"])
-    FN = sum(1 for w in windows if w["true_label"] == "anomaly" and not w["predicted"])
-    FP = sum(1 for w in windows if w["true_label"] == "normal" and w["predicted"])
-    TN = sum(1 for w in windows if w["true_label"] == "normal" and not w["predicted"])
-
-    n_anomaly = TP + FN
-    n_normal = TN + FP
-    accuracy = (TP + TN) / len(windows) if windows else None
-    recall = TP / n_anomaly if n_anomaly else None
-    precision = TP / (TP + FP) if (TP + FP) else None
+    per_mechanism = {
+        "z_score": _confusion_and_metrics(windows, "z_score"),
+        "iforest": _confusion_and_metrics(windows, "iforest"),
+        "absolute_idle": _confusion_and_metrics(windows, "absolute_idle"),
+        "or_gate(detection_node 전체)": _confusion_and_metrics(windows, "or_gate"),
+    }
 
     return {
         "scenario": "EC2 좀비 (실 AWS)",
-        "mechanism": "IForest 단독 (_iforest_score_and_trigger)",
-        "n_normal": n_normal,
-        "n_anomaly": n_anomaly,
         "windows": windows,
-        "confusion": {"TP": TP, "TN": TN, "FP": FP, "FN": FN},
-        "metrics": {
-            "accuracy": round(accuracy, 4) if accuracy is not None else None,
-            "recall": round(recall, 4) if recall is not None else None,
-            "precision": round(precision, 4) if precision is not None else None,
-        },
+        "per_mechanism": per_mechanism,
     }
 
 
@@ -101,18 +147,21 @@ def main():
 
     report = build_report(manifest_path)
 
-    print(f"{'instance_id':<22} {'true_label':<10} {'profile':<14} {'predicted':<10} {'iforest_score':<14}")
-    print("-" * 74)
+    print(f"{'instance_id':<22} {'true_label':<10} {'profile':<14} {'z':<6} {'IF':<6} {'abs(idle)':<10} {'OR게이트':<8} {'iforest_score':<14}")
+    print("-" * 100)
     for w in report["windows"]:
-        print(f"{w['id']:<22} {w['true_label']:<10} {str(w.get('profile')):<14} {str(w['predicted']):<10} {w['iforest_score']:<14}")
+        print(f"{w['id']:<22} {w['true_label']:<10} {str(w.get('profile')):<14} "
+              f"{str(w['z_score']):<6} {str(w['iforest']):<6} {str(w['absolute_idle']):<10} "
+              f"{str(w['or_gate']):<8} {w['iforest_score']:<14}")
 
     print()
-    c = report["confusion"]
-    m = report["metrics"]
-    print(f"n_normal={report['n_normal']} n_anomaly={report['n_anomaly']}")
-    print(f"TP={c['TP']} TN={c['TN']} FP={c['FP']} FN={c['FN']}")
-    print(f"accuracy={m['accuracy']:.1%}  recall={m['recall']:.1%}"
-          + (f"  precision={m['precision']:.1%}" if m['precision'] is not None else "  precision=N/A(FP+TP=0)"))
+    print(f"{'메커니즘':<25} {'n_normal':<10} {'n_anomaly':<10} {'TP':<4} {'TN':<4} {'FP':<4} {'FN':<4} {'accuracy':<10} {'recall':<10}")
+    print("-" * 95)
+    for name, r in report["per_mechanism"].items():
+        c, m = r["confusion"], r["metrics"]
+        acc = f"{m['accuracy']:.1%}" if m['accuracy'] is not None else "N/A"
+        rec = f"{m['recall']:.1%}" if m['recall'] is not None else "N/A"
+        print(f"{name:<25} {r['n_normal']:<10} {r['n_anomaly']:<10} {c['TP']:<4} {c['TN']:<4} {c['FP']:<4} {c['FN']:<4} {acc:<10} {rec:<10}")
 
     out_path = PROJECT_ROOT / "playground" / "eval_outputs" / "ec2_zombie_real_aws_iforest_report.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
