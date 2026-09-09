@@ -72,7 +72,6 @@ from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
 import boto3
-import numpy as np
 from scipy.stats import beta as _beta_dist
 
 import pipeline.detection_agent as da
