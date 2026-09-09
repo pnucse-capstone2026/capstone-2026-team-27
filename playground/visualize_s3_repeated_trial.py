@@ -42,12 +42,21 @@ matplotlib.rcParams["font.family"] = "Malgun Gothic"
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 
+_DERIVED_SUFFIXES = ("_analysis.json", "_accuracy.json")
+
+
 def find_latest_result() -> Path:
-    candidates = sorted(glob.glob(str(EVAL_OUTPUTS / "s3_repeated_trial__*.json")))
+    # 접두사를 s3_로 고정하지 않음 — 팀원이 ec2_repeated_trial__*.json처럼 다른
+    # 리소스 타입으로 결과를 저장해도 자동 탐색되게 와일드카드로 둠. 분석 스크립트가
+    # 만드는 파생 파일(_analysis.json/_accuracy.json)은 결과 원본이 아니므로 제외.
+    candidates = sorted(
+        p for p in glob.glob(str(EVAL_OUTPUTS / "*_repeated_trial__*.json"))
+        if not p.endswith(_DERIVED_SUFFIXES)
+    )
     if not candidates:
         raise FileNotFoundError(
-            f"{EVAL_OUTPUTS}에 s3_repeated_trial__*.json 결과 파일이 없음 — "
-            "s3_repeated_trial.py --run을 먼저 실행할 것."
+            f"{EVAL_OUTPUTS}에 *_repeated_trial__*.json 결과 파일이 없음 — "
+            "s3_repeated_trial.py(또는 동일 스키마의 리소스별 반복실험 스크립트) --run을 먼저 실행할 것."
         )
     return Path(candidates[-1])
 
@@ -173,9 +182,12 @@ def main() -> None:
     print(f"결과 파일: {result_path}")
     payload = load_result(result_path)
 
+    # 출력 파일명은 입력 결과 파일명에서 따옴 (s3_ 하드코딩하면 팀원이 다른
+    # 리소스 결과로 돌렸을 때 차트 이름이 실제 내용과 안 맞게 됨)
+    stem = result_path.stem
     date_str = datetime.now().strftime("%Y%m%d")
-    ci_path = EVAL_OUTPUTS / f"s3_repeated_trial_chart_confusion_ci_{date_str}.png"
-    score_path = EVAL_OUTPUTS / f"s3_repeated_trial_chart_scores_errorbar_{date_str}.png"
+    ci_path = EVAL_OUTPUTS / f"{stem}_chart_confusion_ci_{date_str}.png"
+    score_path = EVAL_OUTPUTS / f"{stem}_chart_scores_errorbar_{date_str}.png"
 
     plot_confusion_ci(payload, ci_path)
     print(f"저장: {ci_path}")
