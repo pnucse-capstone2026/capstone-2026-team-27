@@ -51,6 +51,32 @@ DEFAULT_LAMBDA_THROTTLE_LIMIT = 5
 # AutoScaling ScaleDown 시 축소할 최대 인스턴스 수 기본값
 DEFAULT_ASG_SCALEDOWN_MAX_SIZE = 2
 
+# [ADDED] "Action 실행 성공률" 실측 집계용 로그. NoAction/pending_approval은
+# 실행 자체가 없었으므로 기록 안 함 — 실제 boto3 호출이 실제로 시도된 것만 남긴다.
+ACTION_EXECUTION_LOG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "schema", "logs", "action_execution_log.jsonl"
+)
+
+
+def _log_action_execution(state: PipelineState, action: str, result: dict) -> None:
+    from datetime import datetime, timezone
+
+    log_entry = {
+        "trace_id": state.get("trace_id"),
+        "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "resource_id": state.get("resource_id"),
+        "resource_type": state.get("resource_type"),
+        "action": action,
+        "status": result.get("status"),
+        "error": result.get("error"),
+    }
+    try:
+        os.makedirs(os.path.dirname(ACTION_EXECUTION_LOG_PATH), exist_ok=True)
+        with open(ACTION_EXECUTION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("action_execution_log 기록 실패: %s", e)
+
 
 def _get_ec2_client():
     """boto3 EC2 클라이언트 생성. 함수 내부에서 생성해야 테스트 시 mock 주입이 쉽다."""
@@ -453,6 +479,7 @@ def action_node(state: PipelineState) -> PipelineState:
 
     state["action_executed"] = action
     state["action_result"] = result
+    _log_action_execution(state, action, result)
     return state
 
 

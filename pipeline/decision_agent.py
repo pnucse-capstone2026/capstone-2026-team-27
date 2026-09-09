@@ -15,15 +15,20 @@ node_contracts.md Step 3 기준.
     결정론적으로 계산하는 것을 기본으로 한다. 액션별 계산 방식:
       * Stop           : 리소스를 완전히 멈추므로 현재 평균 비용의 100%가 절감된다고 본다.
       * Stop+Schedule  : "업무시간 외 절반 정도 꺼둔다"는 단순화된 가정(50%)을 적용한다.
-      * Resize         : EC2_HOURLY_PRICE_USD 정적 단가표에서 현재 평균 비용과 가장
-                         가까운 tier를 "현재 인스턴스 타입"으로 역추정하고, 한 단계
-                         저렴한 tier로 다운사이즈했을 때의 단가 차이로 계산한다.
+      * Resize         : ec2.describe_instances()로 실제 "현재 인스턴스 타입"을 조회하고,
+                         EC2_HOURLY_PRICE_USD 정적 단가표에서 한 단계 저렴한 tier로
+                         다운사이즈했을 때의 단가 차이로 계산한다. 실제 조회가 실패하거나
+                         (자격증명 없음 등) 타입이 단가표에 없으면 cost 평균 역추정으로
+                         폴백한다.
       * Throttle/ScaleDown : 비용을 0으로 만드는 게 아니라 "급증분만 깎는" 액션이므로,
                          cost 윈도우를 기준선(앞쪽)과 최근 급증 구간(뒤쪽)으로 나눠
                          그 차이(초과분)를 절감 가능액으로 본다.
-      * Block          : 목적이 비용 절감이 아니라 보안 위협 차단이므로 saving_rate를
-                         인위적으로 만들지 않고 0.0으로 고정한다. Block의 실행 여부는
-                         impact_score/stability_score와 risk_level 승인 게이트로 판단한다.
+      * Block          : [수정] 원래는 보안 위협 차단이 목적이라 saving_rate를 0.0으로
+                         고정했었으나, S3 대량다운로드를 risk_security가 아니라
+                         cost_spike(비용 급증)로 재분류하면서 성격이 바뀌었다. public
+                         접근을 막으면 그로 인한 초과 다운로드 비용이 실제로 없어지므로,
+                         Throttle/ScaleDown과 동일하게 기준선 대비 급증분을 절감액으로
+                         계산한다.
       * NoAction       : 항상 (0.0, 0.0, 1.0) 룰 기반 더미 값.
   - cost 데이터가 없거나 너무 짧아 위 결정론적 계산이 불가능한 예외 상황에서만
     LLM에게 saving_rate 추정을 맡긴다 (_estimate_saving_rate_with_llm).
@@ -46,9 +51,8 @@ node_contracts.md Step 3 기준.
 한계 / 다음 단계 과제:
   - EC2_HOURLY_PRICE_USD는 ap-northeast-2 리전 온디맨드 기준 정적 근사치이며
     실제로는 AWS Pricing API로 대체해야 한다.
-  - Resize의 "현재 인스턴스 타입"은 실제 타입을 조회하는 것이 아니라 cost 평균으로
-    역추정한 근사치다. AWS 연동 후에는 Action Agent의 스냅샷처럼 실제 타입을
-    그대로 사용하는 방향으로 교체해야 한다.
+  - [해결됨] Resize의 "현재 인스턴스 타입"은 이제 ec2.describe_instances()로 실제 조회한다
+    (cost 역추정은 조회 실패 시 폴백으로만 남아 있음).
   - Stop+Schedule의 50% 가정은 실제 스케줄 정책(오프 시간 비율)이 정해지면
     정교화해야 한다.
 """
@@ -61,6 +65,7 @@ import os
 from datetime import datetime, timezone
 
 from config.decision_policy import get_priority_weight
+from pipeline.cost_estimator import _get_ec2_instance_type
 from pipeline.rule_engine import get_rule_engine, reload_rules
 from schema.state import (
     PipelineState,
@@ -79,6 +84,63 @@ logger = logging.getLogger(__name__)
 LLM_DECISION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "llm_decision_log.jsonl"
 )
+
+# [ADDED] "예측 절감액 vs 실측 절감액" 사후 검증(playground/verify_cost_predictions.py)
+# 전용 로그. llm_decision_log.jsonl에도 비용 숫자가 들어있긴 하지만 decision_reasoning
+# 문자열 안에 파묻혀 있어서(예: "cost 1.07 -> 0.99 USD/hr") 파싱하기 번거롭고, 그 로그는
+# QA_agent가 used_llm=True(LLM 판단)인 경우에만 qa_result를 채워줘서 Rule Book 매칭
+# 케이스는 사후 추적이 어렵다. 여기는 action_executed 여부와 무관하게 매 결정마다
+# resource_id/current_cost_usd/estimated_saving_usd를 구조화된 필드로 그대로 남겨서,
+# 나중에 실제 CloudWatch를 재조회해 "예측이 얼마나 맞았는지" 계산할 수 있게 한다.
+COST_PREDICTION_LOG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "schema", "logs", "cost_prediction_log.jsonl"
+)
+
+
+def _log_cost_prediction(
+    state: PipelineState,
+    selected_action: str,
+    matched_decision_rule_id: str | None,
+    risk_level: str,
+    requires_approval: bool,
+    current_cost_usd: float,
+    after_cost_usd: float,
+    estimated_saving_usd: float,
+) -> None:
+    """결정 시점의 예측 절감액을 한 줄 append. NoAction은 검증할 예측이 없으므로 스킵.
+
+    ⚠️ risk_level/requires_approval은 state.get()이 아니라 인자로 직접 받는다 —
+    이 함수가 decision_node 안에서 state["risk_level"]을 실제로 대입하기 *전에*
+    호출되기 때문에, state에서 읽으면 이전 호출의 값(또는 초기값 None)이 찍히는
+    버그가 있었다.
+    """
+    if selected_action == "NoAction":
+        return
+
+    log_entry = {
+        "trace_id": state.get("trace_id"),
+        "decided_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "resource_id": state.get("resource_id"),
+        "resource_type": state.get("resource_type"),
+        "anomaly_type": state.get("anomaly_type"),
+        "selected_action": selected_action,
+        "matched_decision_rule_id": matched_decision_rule_id,  # None이면 LLM 판단
+        "risk_level": risk_level,
+        "requires_approval": requires_approval,
+        "current_cost_usd": round(current_cost_usd, 6),
+        "predicted_after_cost_usd": round(after_cost_usd, 6),
+        "estimated_saving_usd": round(estimated_saving_usd, 6),
+        # verify_cost_predictions.py가 채워 넣는 필드 (초기값 None) — 이미 검증된
+        # 항목을 중복 검증하지 않기 위한 마커.
+        "verified": None,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(COST_PREDICTION_LOG_PATH), exist_ok=True)
+        with open(COST_PREDICTION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("cost_prediction_log 기록 실패: %s", e)
 
 # 1. 설정값
 # JSON 파싱 재시도 최대 횟수
@@ -230,32 +292,63 @@ def _cost_based_full_removal_saving(
     return saving_rate, estimated_saving_usd
 
 
-def _ec2_resize_saving(raw_metrics: dict) -> tuple[float, float, str]:
+def _get_ec2_price_index(instance_type: str) -> int | None:
+    """EC2_HOURLY_PRICE_USD에서 instance_type과 이름이 일치하는 인덱스. 없으면 None."""
+    for i, (name, _) in enumerate(EC2_HOURLY_PRICE_USD):
+        if name == instance_type:
+            return i
+    return None
+
+
+def _ec2_resize_saving(raw_metrics: dict, resource_id: str | None = None) -> tuple[float, float, str]:
     """
-    입력: raw_metrics (EC2Metrics, cost 리스트 포함)
+    입력: raw_metrics (EC2Metrics, cost 리스트 포함), resource_id (EC2 인스턴스 ID)
     출력: (saving_rate, estimated_saving_usd, target_instance_type)
 
-    cost 평균을 EC2_HOURLY_PRICE_USD 표에서 가장 가까운 단가와 매칭해
-    "현재 인스턴스 타입"을 역추정하고, 한 단계 저렴한 타입으로 Resize했을 때의
-    절감액을 계산한다. (raw_metrics에 실제 instance_type이 없어 cost로
-    역추정하는 근사치이며, AWS 연동 후에는 실제 타입을 그대로 쓰는 방향으로
-    교체해야 한다 — 파일 상단 "한계" 참고)
+    "현재 인스턴스 타입"은 우선 ec2.describe_instances()로 실제 조회한다
+    (action_agent._take_ec2_snapshot과 동일한 근거 — cost로 역추정할 필요가 없어짐).
+    실제 타입이 EC2_HOURLY_PRICE_USD 표에 없는 계열(m5, c5 등)이거나 조회가
+    실패하면(자격증명 없음, 테스트용 더미 resource_id 등) cost 평균 역추정으로
+    폴백한다 — 이 경우는 여전히 근사치임에 유의.
     """
     cost_values = raw_metrics.get("cost", [])
-    if not cost_values:
-        return 0.0, 0.0, DEFAULT_TARGET_INSTANCE_TYPE
 
-    avg_cost = _mean(cost_values)
+    current_idx: int | None = None
+    current_type: str | None = None
 
-    # 평균 비용과 가장 가까운 단가 tier를 "현재 타입"으로 역추정
-    current_idx = min(
-        range(len(EC2_HOURLY_PRICE_USD)),
-        key=lambda i: abs(EC2_HOURLY_PRICE_USD[i][1] - avg_cost),
-    )
-    current_type, current_price = EC2_HOURLY_PRICE_USD[current_idx]
+    if resource_id:
+        try:
+            real_type = _get_ec2_instance_type(resource_id)
+            idx = _get_ec2_price_index(real_type)
+            if idx is not None:
+                current_idx, current_type = idx, real_type
+            else:
+                logger.warning(
+                    "[decision_agent] EC2 실제 타입 '%s'이 EC2_HOURLY_PRICE_USD 표에 없어 "
+                    "cost 역추정으로 폴백 (resource_id=%s)", real_type, resource_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "[decision_agent] describe_instances 실패, cost 역추정으로 폴백 "
+                "(resource_id=%s): %s", resource_id, exc,
+            )
+
+    if current_idx is None:
+        # 폴백: cost 평균과 가장 가까운 단가 tier를 "현재 타입"으로 역추정
+        if not cost_values:
+            return 0.0, 0.0, DEFAULT_TARGET_INSTANCE_TYPE
+
+        avg_cost = _mean(cost_values)
+        current_idx = min(
+            range(len(EC2_HOURLY_PRICE_USD)),
+            key=lambda i: abs(EC2_HOURLY_PRICE_USD[i][1] - avg_cost),
+        )
+        current_type = EC2_HOURLY_PRICE_USD[current_idx][0]
+
+    current_price = EC2_HOURLY_PRICE_USD[current_idx][1]
 
     if current_idx == 0 or current_price <= 0:
-        # 이미 최저 tier로 추정됨 → 더 다운사이즈해도 절감 없음
+        # 이미 최저 tier → 더 다운사이즈해도 절감 없음
         return 0.0, 0.0, current_type
 
     target_type, target_price = EC2_HOURLY_PRICE_USD[current_idx - 1]
@@ -633,9 +726,18 @@ def _score_components(action: str, state: PipelineState) -> tuple[float, float, 
     estimated_saving_usd = 0.0
 
     if action == "Block":
-        # 보안 조치이지 비용 절감 조치가 아니므로 saving_rate를 인위적으로
-        # 산정하지 않고 0으로 고정한다 (파일 상단 설계 설명 참고).
-        saving_rate = 0.0
+        # [수정] S3 대량다운로드를 risk_security(보안)가 아니라 cost_spike(비용)로
+        # 재분류하면서, Block도 "비용 급증분을 차단하는 조치"로 성격이 바뀌었다.
+        # public 접근을 막으면 그로 인한 초과 다운로드(=비용 유발분)가 실제로
+        # 없어지므로, Throttle/ScaleDown과 동일하게 "기준선 대비 급증분"을
+        # 절감액으로 계산한다 (예전엔 보안 목적이라 인위적으로 0 고정했었음).
+        result = _trend_based_partial_saving(raw_metrics)
+        if result is not None:
+            saving_rate, estimated_saving_usd, _ = result
+        else:
+            saving_rate = _estimate_saving_rate_with_llm(
+                action, anomaly_type, resource_type, raw_metrics
+            )
     elif action in ("Stop", "Stop+Schedule"):
         fraction = 1.0 if action == "Stop" else STOP_SCHEDULE_DUTY_CYCLE_ASSUMPTION
         result = _cost_based_full_removal_saving(raw_metrics, fraction)
@@ -646,7 +748,7 @@ def _score_components(action: str, state: PipelineState) -> tuple[float, float, 
                 action, anomaly_type, resource_type, raw_metrics
             )
     elif action == "Resize":
-        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(raw_metrics)
+        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(raw_metrics, state.get("resource_id"))
     elif action in ("Throttle", "ScaleDown"):
         result = _trend_based_partial_saving(raw_metrics)
         if result is not None:
@@ -750,7 +852,7 @@ def decision_node(state: PipelineState) -> PipelineState:
     # (saving_rate 계산과 동일한 로직 재사용, EC2 전용).
     target_instance_type = None
     if selected["action"] == "Resize":
-        _, _, target_instance_type = _ec2_resize_saving(raw_metrics)
+        _, _, target_instance_type = _ec2_resize_saving(raw_metrics, state.get("resource_id"))
 
     # [ADDED] "비용이 얼마에서 얼마로 줄었는지"를 decision_reasoning에서 바로 확인할 수 있도록
     # 현재 비용(before)과 절감 적용 후 예상 비용(after)을 함께 계산한다.
@@ -758,12 +860,18 @@ def decision_node(state: PipelineState) -> PipelineState:
     # "최근 급증 구간 평균 대비 기준선" 기준으로 계산되므로(_trend_based_partial_saving),
     # before 비용도 전체 평균이 아니라 같은 최근 급증 구간 평균을 써야 앞뒤가 맞는다
     # (target_instance_type을 위해 _ec2_resize_saving을 다시 부르는 것과 같은 패턴).
-    if selected["action"] in ("Throttle", "ScaleDown"):
+    if selected["action"] in ("Throttle", "ScaleDown", "Block"):
         trend_result = _trend_based_partial_saving(raw_metrics)
         current_cost_usd = trend_result[2] if trend_result is not None else _mean(raw_metrics.get("cost", []))
     else:
         current_cost_usd = _mean(raw_metrics.get("cost", []))
     after_cost_usd = max(0.0, current_cost_usd - estimated_saving_usd)
+
+    _log_cost_prediction(
+        state, selected["action"], state.get("matched_decision_rule_id"),
+        risk, risk in ("MED", "HIGH"),
+        current_cost_usd, after_cost_usd, estimated_saving_usd,
+    )
 
     state["candidate_actions"] = candidates
     state["selected_action"] = selected["action"]
