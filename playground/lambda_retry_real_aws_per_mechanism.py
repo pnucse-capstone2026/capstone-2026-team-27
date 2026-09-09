@@ -67,20 +67,30 @@ def main():
 
     report = {"scenario": "Lambda 재시도폭증 (실 AWS, 13개 함수 병렬)", "windows": windows, "per_mechanism": per_mechanism}
 
-    print(f"{'function':<35} {'true_label':<10} {'z':<6} {'IF':<6} {'abs(err_surge)':<15} {'OR게이트':<8} {'iforest_score':<14}")
-    print("-" * 105)
+    print(f"{'function':<35} {'true_label':<10} {'IF단독':<8} {'OR게이트(전체)':<14} {'iforest_score':<14}")
+    print("-" * 90)
     for w in windows:
-        print(f"{w['id']:<35} {w['true_label']:<10} {str(w['z_score']):<6} {str(w['iforest']):<6} "
-              f"{str(w['absolute_error_surge']):<15} {str(w['or_gate']):<8} {w['iforest_score']:<14}")
+        print(f"{w['id']:<35} {w['true_label']:<10} {str(w['iforest']):<8} {str(w['or_gate']):<14} {w['iforest_score']:<14}")
 
-    print()
-    print(f"{'메커니즘':<25} {'n_normal':<10} {'n_anomaly':<10} {'TP':<4} {'TN':<4} {'FP':<4} {'FN':<4} {'accuracy':<10} {'recall':<10}")
-    print("-" * 95)
-    for name, r in per_mechanism.items():
+    def _print_row(name, r):
         c, m = r["confusion"], r["metrics"]
         acc = f"{m['accuracy']:.1%}" if m['accuracy'] is not None else "N/A"
         rec = f"{m['recall']:.1%}" if m['recall'] is not None else "N/A"
         print(f"{name:<25} {r['n_normal']:<10} {r['n_anomaly']:<10} {c['TP']:<4} {c['TN']:<4} {c['FP']:<4} {c['FN']:<4} {acc:<10} {rec:<10}")
+
+    header = f"{'메커니즘':<25} {'n_normal':<10} {'n_anomaly':<10} {'TP':<4} {'TN':<4} {'FP':<4} {'FN':<4} {'accuracy':<10} {'recall':<10}"
+
+    print("\n[핵심] IForest 단독 vs OR게이트(detection_node 전체)")
+    print(header)
+    print("-" * 95)
+    _print_row("iforest", per_mechanism["iforest"])
+    _print_row("or_gate(detection_node 전체)", per_mechanism["or_gate(detection_node 전체)"])
+
+    print("\n[참고] z-score 단독 / 절대체크 단독")
+    print(header)
+    print("-" * 95)
+    _print_row("z_score", per_mechanism["z_score"])
+    _print_row("absolute_error_surge", per_mechanism["absolute_error_surge"])
 
     out_path = PROJECT_ROOT / "playground" / "eval_outputs" / "lambda_retry_real_aws_per_mechanism.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)

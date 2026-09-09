@@ -147,21 +147,31 @@ def main():
 
     report = build_report(manifest_path)
 
-    print(f"{'instance_id':<22} {'true_label':<10} {'profile':<14} {'z':<6} {'IF':<6} {'abs(idle)':<10} {'OR게이트':<8} {'iforest_score':<14}")
-    print("-" * 100)
+    print(f"{'instance_id':<22} {'true_label':<10} {'profile':<14} {'IF단독':<8} {'OR게이트(전체)':<14} {'iforest_score':<14}")
+    print("-" * 90)
     for w in report["windows"]:
         print(f"{w['id']:<22} {w['true_label']:<10} {str(w.get('profile')):<14} "
-              f"{str(w['z_score']):<6} {str(w['iforest']):<6} {str(w['absolute_idle']):<10} "
-              f"{str(w['or_gate']):<8} {w['iforest_score']:<14}")
+              f"{str(w['iforest']):<8} {str(w['or_gate']):<14} {w['iforest_score']:<14}")
 
-    print()
-    print(f"{'메커니즘':<25} {'n_normal':<10} {'n_anomaly':<10} {'TP':<4} {'TN':<4} {'FP':<4} {'FN':<4} {'accuracy':<10} {'recall':<10}")
-    print("-" * 95)
-    for name, r in report["per_mechanism"].items():
+    def _print_row(name, r):
         c, m = r["confusion"], r["metrics"]
         acc = f"{m['accuracy']:.1%}" if m['accuracy'] is not None else "N/A"
         rec = f"{m['recall']:.1%}" if m['recall'] is not None else "N/A"
         print(f"{name:<25} {r['n_normal']:<10} {r['n_anomaly']:<10} {c['TP']:<4} {c['TN']:<4} {c['FP']:<4} {c['FN']:<4} {acc:<10} {rec:<10}")
+
+    header = f"{'메커니즘':<25} {'n_normal':<10} {'n_anomaly':<10} {'TP':<4} {'TN':<4} {'FP':<4} {'FN':<4} {'accuracy':<10} {'recall':<10}"
+
+    print("\n[핵심] IForest 단독 vs OR게이트(detection_node 전체)")
+    print(header)
+    print("-" * 95)
+    _print_row("iforest", report["per_mechanism"]["iforest"])
+    _print_row("or_gate(detection_node 전체)", report["per_mechanism"]["or_gate(detection_node 전체)"])
+
+    print("\n[참고] z-score 단독 / 절대체크 단독")
+    print(header)
+    print("-" * 95)
+    _print_row("z_score", report["per_mechanism"]["z_score"])
+    _print_row("absolute_idle", report["per_mechanism"]["absolute_idle"])
 
     out_path = PROJECT_ROOT / "playground" / "eval_outputs" / "ec2_zombie_real_aws_iforest_report.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
