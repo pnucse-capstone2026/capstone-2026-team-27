@@ -10,8 +10,8 @@ node_contracts.md Step 4 기준.
   - pre_action_snapshot, action_executed, action_result
 
 설계:
-  - EC2(Stop, Resize), Lambda(Throttle), AutoScaling(ScaleDown) 구현.
-    S3/RDS는 NotImplementedAction 으로 표시해두고 추후 각자 확장.
+  - EC2(Stop, Resize), Lambda(Throttle), AutoScaling(ScaleDown), S3(Block) 구현.
+    RDS는 NotImplementedAction 으로 표시해두고 추후 각자 확장.
   - boto3 클라이언트는 모듈 레벨에서 만들지 않고 함수 안에서 생성
     (테스트 시 monkeypatch/mock 주입하기 쉽도록).
   - 리전은 항상 환경변수 AWS_DEFAULT_REGION에서 읽는다 (하드코딩 금지).
@@ -31,7 +31,11 @@ import logging
 import boto3
 from botocore.exceptions import ClientError, WaiterError
 
-from schema.state import PipelineState, EC2Snapshot, LambdaSnapshot, AutoScalingSnapshot
+import json
+
+from schema.state import (
+    PipelineState, EC2Snapshot, LambdaSnapshot, AutoScalingSnapshot, S3Snapshot,
+)
 from pipeline.inbound_handlers import (
     throttle_lambda_concurrency,
     scale_down_with_rate_limit,
@@ -42,7 +46,7 @@ from pipeline.inbound_handlers import (
 logger = logging.getLogger(__name__)
 
 # Lambda Throttle 시 제한할 동시성 기본값
-DEFAULT_LAMBDA_THROTTLE_LIMIT = 10
+DEFAULT_LAMBDA_THROTTLE_LIMIT = 5
 
 # AutoScaling ScaleDown 시 축소할 최대 인스턴스 수 기본값
 DEFAULT_ASG_SCALEDOWN_MAX_SIZE = 2
@@ -61,6 +65,11 @@ def _get_lambda_client():
 def _get_autoscaling_client():
     """boto3 AutoScaling 클라이언트 생성. 함수 내부에서 생성해야 테스트 시 mock 주입이 쉽다."""
     return boto3.client("autoscaling", region_name=os.getenv("AWS_DEFAULT_REGION"))
+
+
+def _get_s3_client():
+    """boto3 S3 클라이언트 생성. 함수 내부에서 생성해야 테스트 시 mock 주입이 쉽다."""
+    return boto3.client("s3", region_name=os.getenv("AWS_DEFAULT_REGION"))
 
 
 # ── 스냅샷 ────────────────────────────────────────────────────────────────────
@@ -110,6 +119,53 @@ def _take_autoscaling_snapshot(resource_id: str) -> AutoScalingSnapshot:
     return snapshot
 
 
+def _take_s3_snapshot(resource_id: str) -> S3Snapshot:
+    """
+    입력: resource_id (S3 버킷명)
+    출력: S3Snapshot (bucket_policy, public_access_block) — Block 롤백용 원복 기준점.
+
+    버킷 정책이 아예 없거나(NoSuchBucketPolicy) Public Access Block이 설정된 적
+    없으면(NoSuchPublicAccessBlockConfiguration) boto3가 ClientError를 던진다.
+    "설정 안 됨" 자체가 유효한 원래 상태이므로 예외를 삼키고 빈/기본값으로 기록한다
+    (roll back 시 이 상태를 보고 delete_* 로 되돌릴지 판단).
+    """
+    s3 = _get_s3_client()
+
+    try:
+        policy_resp = s3.get_bucket_policy(Bucket=resource_id)
+        bucket_policy = json.loads(policy_resp["Policy"])
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "NoSuchBucketPolicy":
+            raise
+        bucket_policy = {"Version": "", "Statement": []}
+
+    try:
+        pab_resp = s3.get_public_access_block(Bucket=resource_id)
+        pab = pab_resp["PublicAccessBlockConfiguration"]
+        public_access_block = {
+            "BlockPublicAcls": pab.get("BlockPublicAcls", False),
+            "IgnorePublicAcls": pab.get("IgnorePublicAcls", False),
+            "BlockPublicPolicy": pab.get("BlockPublicPolicy", False),
+            "RestrictPublicBuckets": pab.get("RestrictPublicBuckets", False),
+        }
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "NoSuchPublicAccessBlockConfiguration":
+            raise
+        # 설정 자체가 없었다는 뜻 -> AWS 기본값(전부 차단 안 함)과 동일하게 취급
+        public_access_block = {
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        }
+
+    snapshot: S3Snapshot = {
+        "bucket_policy": bucket_policy,  # type: ignore[typeddict-item]
+        "public_access_block": public_access_block,  # type: ignore[typeddict-item]
+    }
+    return snapshot
+
+
 def take_snapshot(resource_type: str, resource_id: str) -> dict | None:
     """
     입력: resource_type, resource_id
@@ -121,6 +177,8 @@ def take_snapshot(resource_type: str, resource_id: str) -> dict | None:
         return _take_lambda_snapshot(resource_id)
     if resource_type == "AutoScaling":
         return _take_autoscaling_snapshot(resource_id)
+    if resource_type == "S3":
+        return _take_s3_snapshot(resource_id)
 
     logger.warning("스냅샷 미구현 리소스 타입: %s — 빈 스냅샷 처리", resource_type)
     return None
@@ -239,6 +297,30 @@ def _execute_autoscaling_scaledown(
         return {"status": "failed", "error": str(exc)}
 
 
+def _execute_s3_block(resource_id: str) -> dict:
+    """
+    입력: resource_id (S3 버킷명)
+    출력: {"status": "success"/"failed", ...}
+
+    decision_agent.BOTO3_SPEC["Block"] 기준: 4개 설정 전부 True로 퍼블릭 접근 완전 차단.
+    """
+    s3 = _get_s3_client()
+    try:
+        s3.put_public_access_block(
+            Bucket=resource_id,
+            PublicAccessBlockConfiguration={
+                "BlockPublicAcls": True,
+                "IgnorePublicAcls": True,
+                "BlockPublicPolicy": True,
+                "RestrictPublicBuckets": True,
+            },
+        )
+        return {"status": "success"}
+    except ClientError as exc:
+        logger.error("S3 Block 실패 (%s): %s", resource_id, exc)
+        return {"status": "failed", "error": str(exc)}
+
+
 def execute_action(
     action: str,
     resource_type: str,
@@ -310,7 +392,13 @@ def execute_action(
         logger.warning("AutoScaling 액션 미구현: %s", action)
         return {"status": "not_implemented", "action": action}
 
-    # S3 / RDS 는 추후 각자 확장
+    if resource_type == "S3":
+        if action == "Block":
+            return _execute_s3_block(resource_id)
+        logger.warning("S3 액션 미구현: %s", action)
+        return {"status": "not_implemented", "action": action}
+
+    # RDS 는 추후 각자 확장
     logger.warning("리소스 타입 미구현: %s (action=%s)", resource_type, action)
     return {"status": "not_implemented", "resource_type": resource_type, "action": action}
 
@@ -463,6 +551,45 @@ def _rollback_autoscaling(resource_id: str, snapshot: AutoScalingSnapshot) -> di
         return {"status": "failed", "error": str(exc)}
 
 
+def _rollback_s3(resource_id: str, snapshot: S3Snapshot) -> dict:
+    """
+    입력: resource_id (S3 버킷명), snapshot (S3Snapshot)
+    출력: {"status": "success"/"failed", ...}
+
+    public_access_block은 스냅샷 값 그대로 put (전부 False였다면 그 상태로 복원 —
+    delete_public_access_block도 결과적으로 동일하지만 put이 더 명시적).
+    bucket_policy는 원래 정책이 없었으면(Version=="") delete_bucket_policy로 제거,
+    있었으면 그대로 put_bucket_policy로 복원.
+    """
+    s3 = _get_s3_client()
+    try:
+        pab = snapshot["public_access_block"]
+        s3.put_public_access_block(
+            Bucket=resource_id,
+            PublicAccessBlockConfiguration={
+                "BlockPublicAcls": pab["BlockPublicAcls"],
+                "IgnorePublicAcls": pab["IgnorePublicAcls"],
+                "BlockPublicPolicy": pab["BlockPublicPolicy"],
+                "RestrictPublicBuckets": pab["RestrictPublicBuckets"],
+            },
+        )
+
+        bucket_policy = snapshot["bucket_policy"]
+        if bucket_policy.get("Version"):
+            s3.put_bucket_policy(Bucket=resource_id, Policy=json.dumps(bucket_policy))
+        else:
+            try:
+                s3.delete_bucket_policy(Bucket=resource_id)
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "NoSuchBucketPolicy":
+                    raise
+
+        return {"status": "success"}
+    except ClientError as exc:
+        logger.error("S3 롤백 실패 (%s): %s", resource_id, exc)
+        return {"status": "failed", "error": str(exc)}
+
+
 def rollback_action(resource_type: str, resource_id: str, snapshot: dict | None) -> dict:
     """
     입력: resource_type, resource_id, snapshot (take_snapshot 결과, 없으면 None)
@@ -480,6 +607,8 @@ def rollback_action(resource_type: str, resource_id: str, snapshot: dict | None)
         return _rollback_lambda(resource_id, snapshot)  # type: ignore[arg-type]
     if resource_type == "AutoScaling":
         return _rollback_autoscaling(resource_id, snapshot)  # type: ignore[arg-type]
+    if resource_type == "S3":
+        return _rollback_s3(resource_id, snapshot)  # type: ignore[arg-type]
 
     logger.warning("롤백 미구현 리소스 타입: %s", resource_type)
     return {"status": "not_implemented", "resource_type": resource_type}
