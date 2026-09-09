@@ -53,6 +53,14 @@ S3_STORAGE_PRICE_PER_GB_MONTH = 0.025   # 첫 50TB 구간
 S3_REQUEST_PRICE_WRITE = 0.0000045      # PUT/COPY/POST/LIST (1,000건당 $0.0045)
 S3_REQUEST_PRICE_READ = 0.00000035      # GET 등 (10,000건당 $0.0035)
 
+# 데이터 전송(Data Transfer OUT to internet) — AWS Pricing Calculator로 직접 확인
+# (ap-northeast-2/Seoul, 첫 10TB/월 구간 기준, 확인일 2026-09-09).
+# 무료 티어(매월 100GB)는 이 프로젝트가 5분 단위 구간만 다뤄서 월 누적 사용량을
+# 추적하지 않으므로, period_fraction_of_month 비율만큼 매 구간에 비례 배분한다
+# (storage_cost와 동일한 방식) — 정확한 월간 누적 무료 티어 소진 여부는 반영 못 함.
+S3_DATA_TRANSFER_OUT_FREE_GB_PER_MONTH = 100
+S3_DATA_TRANSFER_OUT_PRICE_PER_GB = 0.126
+
 
 # ── 순수 계산 함수 (AWS 호출 없음 — 테스트하기 쉽게 분리) ──────────────────────
 
@@ -77,11 +85,21 @@ def estimate_lambda_cost(invocations: float, avg_duration_ms: float, memory_mb: 
 
 
 def estimate_s3_cost(
-    storage_gb: float, get_requests: float, put_requests: float, period_fraction_of_month: float
+    storage_gb: float,
+    get_requests: float,
+    put_requests: float,
+    period_fraction_of_month: float,
+    bytes_downloaded: float = 0.0,
 ) -> float:
     storage_cost = storage_gb * S3_STORAGE_PRICE_PER_GB_MONTH * period_fraction_of_month
     request_cost = get_requests * S3_REQUEST_PRICE_READ + put_requests * S3_REQUEST_PRICE_WRITE
-    return storage_cost + request_cost
+
+    downloaded_gb = bytes_downloaded / (1024 ** 3)
+    free_gb_this_period = S3_DATA_TRANSFER_OUT_FREE_GB_PER_MONTH * period_fraction_of_month
+    billable_gb = max(0.0, downloaded_gb - free_gb_this_period)
+    transfer_cost = billable_gb * S3_DATA_TRANSFER_OUT_PRICE_PER_GB
+
+    return storage_cost + request_cost + transfer_cost
 
 
 def estimate_autoscaling_cost(instance_type: str, desired_capacity: float, hours: float) -> float:
@@ -247,11 +265,12 @@ def estimate_cost_series(
         # 저장 용량(BucketSizeBytes)은 이 프로젝트의 fetch_metrics 대상에 없어서(일 단위 지표라
         # 5분 윈도우와 안 맞음) 요청 비용만 반영. storage_gb=0으로 근사.
         requests = usage_metrics.get("number_of_requests", [])
+        bytes_downloaded = usage_metrics.get("bytes_downloaded", [0.0] * len(requests))
         period_fraction = period_seconds / (30 * 24 * 3600)
         return [
             estimate_s3_cost(storage_gb=0.0, get_requests=r, put_requests=0.0,
-                              period_fraction_of_month=period_fraction)
-            for r in requests
+                              period_fraction_of_month=period_fraction, bytes_downloaded=b)
+            for r, b in zip(requests, bytes_downloaded)
         ]
 
     raise ValueError(f"지원하지 않는 resource_type: {resource_type}")
