@@ -55,8 +55,12 @@ TRAFFIC_MULTIPLIER = {
     "night_late": 0.6,
 }
 
-# 요청 1건당 평균 다운로드 바이트 (1건당 대략 1MB짜리 정적 파일 가정)
-AVG_BYTES_PER_REQUEST = 1_000_000.0
+# 요청 1건당 평균 다운로드 바이트. 원래는 1MB(정적 파일 가정)였는데, 실측 검증
+# 스크립트(s3_repeated_trial.py)가 실제 GET 트래픽을 발생시켜야 해서 그 크기 그대로
+# 무료 티어(월 100GB) 안에서 반복실험이 가능하도록 50KB로 맞춤 — mock 학습/평가
+# 데이터와 실측 트래픽의 bytes_downloaded 스케일을 일치시키기 위함 (1MB로 실측하면
+# 13개 버킷 x 2.5시간 반복실험 시 총 전송량이 165GB로 무료 티어를 넘어 실비용 발생).
+AVG_BYTES_PER_REQUEST = 50_000.0
 
 # S3 실제 요금(cost_estimator.py와 동일한 단가 — GET 요청 기준)
 S3_REQUEST_PRICE_READ = 0.00000035  # USD/요청 (10,000건당 $0.0035)
