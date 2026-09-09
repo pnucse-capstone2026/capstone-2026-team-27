@@ -199,6 +199,11 @@ class PipelineState(TypedDict):
     rollback_count:   int  # 기본값 0, 최대 2
     qa_matched_rule_id: Optional[str]  # 매칭된 QA 규칙 ID (예: "QA-001")
     whitelisted: bool  # 화이트리스트에 의해 스킵되었는지
+    # [ADDED] QA가 액션 후 실측 재조회로 raw_metrics를 덮어쓰기 전, 액션 *전*
+    # 원본을 보존해둔 것 (팀원 B 승인 후 적용 — QA_agent._refresh_metrics_after_action).
+    pre_action_raw_metrics: Optional[
+        EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
+    ]
 
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────
     log_entries: list[str]

@@ -23,14 +23,27 @@ QA Agent
 """
 
 import json
+import logging
 import os
+import time
 from datetime import datetime
 from typing import Optional
 
 from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
+from pipeline.orchestrator import assemble_resource
 from pipeline.rule_engine import get_rule_engine
 from utils.slack_notifier import send_slack_alert
+
+logger = logging.getLogger(__name__)
+
+# [ADDED] 액션 직후 QA가 판단에 쓰던 raw_metrics는 원래 Detection 때(액션 *전*)
+# 가져온 것 그대로였다 — cost_ok/cpu_ok 체크가 "액션 후 실제 효과"가 아니라
+# "액션 전 트렌드"만 보고 있었던 구조적 문제(세션에서 확인, 팀원 B 승인 후 적용).
+# CloudWatch가 5분 단위 구간이라 액션 직후 조회해도 새 구간이 안 잡혀서, 짧게라도
+# 기다렸다가 재조회해야 의미가 있다. 300초(5분)는 최소 한 구간이 지나가는 시간 —
+# 더 길게 주면 더 안정적인 데이터를 얻지만 파이프라인이 그만큼 느려지는 트레이드오프.
+POST_ACTION_WAIT_SECONDS = 300
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
 LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
@@ -152,24 +165,66 @@ def _metrics_summary(raw_metrics: dict) -> dict:
     return summary
 
 
+# [수정] 원래 이름은 _check_cpu_sla였고 항상 cpu_utilization만 봤다 — Lambda/S3/
+# AutoScaling처럼 CPU 지표 자체가 없는 리소스는 사실상 이 체크가 전부 통과 처리돼서,
+# "액션 후 원래 튀었던 지표가 진짜 가라앉았는지"를 전혀 검증 못 하고 있었다(예: S3
+# 대량다운로드 Block 후에도 bytes_downloaded가 여전히 높으면 못 잡음). CPU 하드코딩
+# 대신 detection 단계에서 실제로 이상을 트리거했던 지표(triggered_metrics)를 그대로
+# 재검사하도록 일반화 — 리소스 타입별 하드코딩 없이 자동으로 맞는 지표를 본다.
+# SlaCheckResult 스키마 호환을 위해 반환 키 이름(cpu_ok)은 그대로 유지.
+
+# CPU처럼 절대 임계값(%)이 있는 지표. 그 외(bytes_downloaded, invocation_count 등)는
+# 절대 임계값 개념이 없어서 "액션 전 기준선 대비 얼마나 높아졌는지" 상대 비교로 판단.
+_ABSOLUTE_THRESHOLD_METRICS = {"cpu_utilization": SLA_THRESHOLDS["cpu_utilization_max"]}
+_RELATIVE_SPIKE_RATIO = 1.5  # 기준선(초반 평균) 대비 1.5배 넘으면 아직 안 가라앉은 것으로 판단
+
+
 def _check_cpu_sla(state: PipelineState) -> tuple[bool, str]:
-    """CPU SLA 검증: 최근 CPU 사용률이 임계값 이하인지 확인."""
+    """관련 지표 SLA 검증: 액션 후에도 '원래 이상을 트리거했던 지표'가 여전히
+    튀어 있으면 위반으로 본다 (이름은 호환을 위해 cpu_sla로 유지, 실제로는
+    CPU 전용이 아니라 triggered_metrics 기반 범용 체크)."""
     raw_metrics = state.get("raw_metrics", {})
+    triggered_metrics = state.get("triggered_metrics") or []
 
-    # CPU 지표 추출 (EC2, RDS)
-    cpu_values = raw_metrics.get("cpu_utilization", [])
+    # detection 단계에서 특정 지표가 안 짚혔으면(IForest만으로 잡힌 경우 등)
+    # 리소스에 cpu_utilization이 있으면 그거라도 폴백으로 체크.
+    if not triggered_metrics:
+        if raw_metrics.get("cpu_utilization"):
+            triggered_metrics = ["cpu_utilization"]
+        else:
+            return True, "체크할 트리거 지표 없음 (해당 리소스 타입에 적용되지 않음)"
 
-    if not cpu_values:
-        # CPU 지표가 없는 리소스 (Lambda, S3, AutoScaling)는 통과
-        return True, "CPU 지표 없음 (해당 리소스 타입에 적용되지 않음)"
+    violations = []
+    details = []
+    for metric in triggered_metrics:
+        values = raw_metrics.get(metric, [])
+        if not values:
+            continue
+        latest = values[-1]
 
-    latest_cpu = cpu_values[-1] if cpu_values else 0.0
-    threshold = SLA_THRESHOLDS["cpu_utilization_max"]
+        if metric in _ABSOLUTE_THRESHOLD_METRICS:
+            threshold = _ABSOLUTE_THRESHOLD_METRICS[metric]
+            ok = latest <= threshold
+            details.append(f"{metric} {latest:.1f} <= {threshold}%" if ok
+                            else f"{metric} {latest:.1f} > {threshold}%")
+        else:
+            # 절대 임계값이 없는 지표(bytes_downloaded, invocation_count 등)는
+            # 액션 전 구간(마지막 몇 개 제외) 평균을 기준선으로 상대 비교.
+            baseline_part = values[:-3] if len(values) > 3 else values
+            baseline = sum(baseline_part) / len(baseline_part) if baseline_part else 0.0
+            ok = latest <= baseline * _RELATIVE_SPIKE_RATIO if baseline > 0 else True
+            details.append(
+                f"{metric} {latest:.1f} <= 기준선 {baseline:.1f}*{_RELATIVE_SPIKE_RATIO}"
+                if ok else
+                f"{metric} {latest:.1f} > 기준선 {baseline:.1f}*{_RELATIVE_SPIKE_RATIO} (아직 안 가라앉음)"
+            )
 
-    if latest_cpu <= threshold:
-        return True, f"CPU {latest_cpu:.1f}% <= {threshold}% (정상)"
-    else:
-        return False, f"CPU {latest_cpu:.1f}% > {threshold}% (SLA 위반)"
+        if not ok:
+            violations.append(metric)
+
+    passed = len(violations) == 0
+    detail_str = ", ".join(details) if details else "체크할 값 없음"
+    return passed, detail_str
 
 
 def _check_cost_sla(state: PipelineState) -> tuple[bool, str]:
@@ -312,7 +367,7 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
             "detail": detail,
         },
         all_ok,
-        f"[Rule] CPU: {cpu_detail}, Cost: {cost_detail}, Availability: {avail_detail}",
+        f"[Rule] Metric: {cpu_detail}, Cost: {cost_detail}, Availability: {avail_detail}",
         None,
     )
 
@@ -450,6 +505,47 @@ def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
     )
 
 
+def _refresh_metrics_after_action(state: PipelineState) -> None:
+    """액션 실행 후 POST_ACTION_WAIT_SECONDS만큼 대기했다가 CloudWatch를 실제로
+    재조회해서 state["raw_metrics"]를 액션 *후* 데이터로 갱신한다.
+
+    - NoAction/미실행(action_executed가 None/"NoAction")이면 검증할 변화 자체가
+      없으므로 대기·재조회를 스킵한다 (불필요한 지연 방지).
+    - 재조회는 assemble_resource()로 실제 프로덕션 경로(fetch_metrics +
+      estimate_cost_series)를 그대로 타서, decision_agent가 쓰는 것과 동일한
+      cost 계산 로직을 그대로 재사용한다.
+    - 원래(액션 전) raw_metrics는 pre_action_raw_metrics에 보존한다 — 재조회한
+      배열도 결국 대부분(2.5시간 창 중 몇 분 빼고는) 액션 전 이력과 겹치므로,
+      기존 _check_cost_sla/_check_cpu_sla의 "최근값 vs 배열 나머지 평균" 비교가
+      "실측 후 -vs- 실측 전 기준선" 비교로 자연스럽게 성립한다.
+    - 재조회 실패(권한 없음/리소스 삭제 등) 시 기존 raw_metrics를 그대로 유지하고
+      경고만 남긴다 — QA가 죽지 않고 기존(액션 전) 데이터 기준으로라도 판단한다.
+    """
+    action_executed = state.get("action_executed")
+    if action_executed in (None, "NoAction"):
+        return
+
+    resource_id = state.get("resource_id", "")
+    resource_type = state.get("resource_type", "")
+
+    logger.info(
+        "[QA] 액션(%s) 후 실측을 위해 %d초 대기 중... (%s:%s)",
+        action_executed, POST_ACTION_WAIT_SECONDS, resource_type, resource_id,
+    )
+    time.sleep(POST_ACTION_WAIT_SECONDS)
+
+    try:
+        assembled = assemble_resource(resource_id, resource_type)
+        state["pre_action_raw_metrics"] = state.get("raw_metrics")
+        state["raw_metrics"] = assembled["raw_metrics"]
+        logger.info("[QA] 실측 재조회 완료 (%s:%s)", resource_type, resource_id)
+    except Exception as exc:
+        logger.warning(
+            "[QA] 실측 재조회 실패, 액션 전 데이터로 판단 유지 (%s:%s): %s",
+            resource_type, resource_id, exc,
+        )
+
+
 def qa_node(state: PipelineState) -> PipelineState:
     """
     QA Agent 메인 노드 함수.
@@ -493,6 +589,9 @@ def qa_node(state: PipelineState) -> PipelineState:
         log_entries.append(f"[QA] qa_passed=True (화이트리스트), rollback_count={state.get('rollback_count', 0)}")
         state["log_entries"] = log_entries
         return state
+
+    # 1.5. 액션 후 실측 재조회 (whitelist 스킵된 경우는 위에서 이미 return돼서 안 탐)
+    _refresh_metrics_after_action(state)
 
     # 2. Rule Book 기반 검증 시도
     rule_result = _apply_rule_based_qa(state)

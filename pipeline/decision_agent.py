@@ -85,6 +85,63 @@ LLM_DECISION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "llm_decision_log.jsonl"
 )
 
+# [ADDED] "예측 절감액 vs 실측 절감액" 사후 검증(playground/verify_cost_predictions.py)
+# 전용 로그. llm_decision_log.jsonl에도 비용 숫자가 들어있긴 하지만 decision_reasoning
+# 문자열 안에 파묻혀 있어서(예: "cost 1.07 -> 0.99 USD/hr") 파싱하기 번거롭고, 그 로그는
+# QA_agent가 used_llm=True(LLM 판단)인 경우에만 qa_result를 채워줘서 Rule Book 매칭
+# 케이스는 사후 추적이 어렵다. 여기는 action_executed 여부와 무관하게 매 결정마다
+# resource_id/current_cost_usd/estimated_saving_usd를 구조화된 필드로 그대로 남겨서,
+# 나중에 실제 CloudWatch를 재조회해 "예측이 얼마나 맞았는지" 계산할 수 있게 한다.
+COST_PREDICTION_LOG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "schema", "logs", "cost_prediction_log.jsonl"
+)
+
+
+def _log_cost_prediction(
+    state: PipelineState,
+    selected_action: str,
+    matched_decision_rule_id: str | None,
+    risk_level: str,
+    requires_approval: bool,
+    current_cost_usd: float,
+    after_cost_usd: float,
+    estimated_saving_usd: float,
+) -> None:
+    """결정 시점의 예측 절감액을 한 줄 append. NoAction은 검증할 예측이 없으므로 스킵.
+
+    ⚠️ risk_level/requires_approval은 state.get()이 아니라 인자로 직접 받는다 —
+    이 함수가 decision_node 안에서 state["risk_level"]을 실제로 대입하기 *전에*
+    호출되기 때문에, state에서 읽으면 이전 호출의 값(또는 초기값 None)이 찍히는
+    버그가 있었다.
+    """
+    if selected_action == "NoAction":
+        return
+
+    log_entry = {
+        "trace_id": state.get("trace_id"),
+        "decided_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "resource_id": state.get("resource_id"),
+        "resource_type": state.get("resource_type"),
+        "anomaly_type": state.get("anomaly_type"),
+        "selected_action": selected_action,
+        "matched_decision_rule_id": matched_decision_rule_id,  # None이면 LLM 판단
+        "risk_level": risk_level,
+        "requires_approval": requires_approval,
+        "current_cost_usd": round(current_cost_usd, 6),
+        "predicted_after_cost_usd": round(after_cost_usd, 6),
+        "estimated_saving_usd": round(estimated_saving_usd, 6),
+        # verify_cost_predictions.py가 채워 넣는 필드 (초기값 None) — 이미 검증된
+        # 항목을 중복 검증하지 않기 위한 마커.
+        "verified": None,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(COST_PREDICTION_LOG_PATH), exist_ok=True)
+        with open(COST_PREDICTION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("cost_prediction_log 기록 실패: %s", e)
+
 # 1. 설정값
 # JSON 파싱 재시도 최대 횟수
 MAX_LLM_RETRIES = 2
@@ -809,6 +866,12 @@ def decision_node(state: PipelineState) -> PipelineState:
     else:
         current_cost_usd = _mean(raw_metrics.get("cost", []))
     after_cost_usd = max(0.0, current_cost_usd - estimated_saving_usd)
+
+    _log_cost_prediction(
+        state, selected["action"], state.get("matched_decision_rule_id"),
+        risk, risk in ("MED", "HIGH"),
+        current_cost_usd, after_cost_usd, estimated_saving_usd,
+    )
 
     state["candidate_actions"] = candidates
     state["selected_action"] = selected["action"]
