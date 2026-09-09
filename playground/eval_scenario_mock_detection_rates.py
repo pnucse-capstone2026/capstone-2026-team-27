@@ -120,47 +120,6 @@ def main():
                 entry.setdefault("diagnosis", {})[lbl] = DIAGNOSES[key]
         results.append(entry)
 
-    # ── 보충: lambda_eval_retry.json엔 normal이 없어서(팀원 데이터 재사용 결정),
-    # 팀원 제공 정상 Lambda 윈도우로 전체 파이프라인 기준 오탐률을 재확인해야 함.
-    # ⚠️ lambda_train.json의 정상 윈도우 중 앞 MAX_WINDOWS_PER_TYPE(30)개는 실제로
-    # 이 모델을 학습시키는 데 쓰였다(seed_iforest_from_scenario_mock.py 참고) - 그
-    # 데이터로 오탐률을 재면 모델이 이미 본 데이터를 채점하는 셈이라 무효하다.
-    # held-out(학습에 전혀 안 쓰인) 데이터만으로 다시 계산한다.
-    with open(MOCK_DATA_DIR / "lambda_train.json", encoding="utf-8") as f:
-        train_data = json.load(f)
-    with open(MOCK_DATA_DIR / "lambda_eval.json", encoding="utf-8") as f:
-        eval_data = json.load(f)
-
-    train_normal = [w for w in train_data if w["label"] == "normal"]
-    used_in_training_ids = {w["window_id"] for w in train_normal[: da.MAX_WINDOWS_PER_TYPE]}
-    held_out = [w for w in train_normal if w["window_id"] not in used_in_training_ids]
-    held_out += [w for w in eval_data if w["label"] == "normal"]
-
-    outcomes = [(w["window_id"], run_window("Lambda", w)) for w in held_out]
-    triggered = [wid for wid, t in outcomes if t]
-    rate = len(triggered) / len(held_out)
-    print(f"\n[보충] Lambda 정상 held-out({len(held_out)}개, 학습에 안 쓰인 것만), "
-          f"전체 파이프라인 기준: {len(triggered)}/{len(held_out)} ({rate:.1%})")
-    results.append({
-        "scenario_label": "Lambda 정상 held-out (팀원 제공, 학습 미사용분만, 보충 검증)",
-        "resource_type": "Lambda",
-        "eval_file": "lambda_train.json(뒤 20개, 학습 미사용) + lambda_eval.json (label=normal만)",
-        "stats": {"normal": {"triggered": len(triggered), "total": len(held_out), "rate": round(rate, 4)}},
-        "details": {
-            "normal_false_positive_window_ids": triggered,
-            "excluded_used_in_training_ids": sorted(used_in_training_ids),
-        },
-        "diagnosis": {
-            "normal": (
-                "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 Lambda로 재확인. "
-                "처음엔 train+eval 70개를 그대로 합쳐 2/70(2.9%)로 보고했으나, 걸린 두 "
-                "윈도우(lambda_train_003/027)가 실제로 이 모델 학습에 쓰인 30개 안에 "
-                "포함돼 있어 무효한 측정이었음(모델이 이미 본 데이터를 채점한 셈). "
-                "학습에 전혀 안 쓰인 held-out 40개로 다시 재니 오탐 0/40(0%)."
-            )
-        },
-    })
-
     out_path = PROJECT_ROOT / "playground" / "eval_outputs" / "scenario_mock_detection_rates.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:

@@ -35,7 +35,11 @@
       "resource_type": "Lambda",
       "eval_file": "lambda_eval_retry.json",
       "stats": {
-        "normal": null,
+        "normal": {
+          "triggered": 3,
+          "total": 20,
+          "rate": 0.15
+        },
         "anomaly": {
           "triggered": 10,
           "total": 10,
@@ -48,6 +52,11 @@
         }
       },
       "details": {
+        "normal_false_positive_window_ids": [
+          "lambda_eval_retry_normal_002",
+          "lambda_eval_retry_normal_011",
+          "lambda_eval_retry_normal_016"
+        ],
         "missed_window_ids": [],
         "edge_normal_false_positive_window_ids": [
           "lambda_eval_retry_edge_000",
@@ -146,56 +155,6 @@
         "normal_false_positive_window_ids": [],
         "missed_window_ids": [],
         "edge_normal_false_positive_window_ids": []
-      }
-    },
-    {
-      "scenario_label": "Lambda 정상 held-out (팀원 제공, 학습 미사용분만, 보충 검증)",
-      "resource_type": "Lambda",
-      "eval_file": "lambda_train.json(뒤 20개, 학습 미사용) + lambda_eval.json (label=normal만)",
-      "stats": {
-        "normal": {
-          "triggered": 0,
-          "total": 40,
-          "rate": 0.0
-        }
-      },
-      "details": {
-        "normal_false_positive_window_ids": [],
-        "excluded_used_in_training_ids": [
-          "lambda_train_000",
-          "lambda_train_001",
-          "lambda_train_002",
-          "lambda_train_003",
-          "lambda_train_004",
-          "lambda_train_005",
-          "lambda_train_006",
-          "lambda_train_007",
-          "lambda_train_008",
-          "lambda_train_009",
-          "lambda_train_010",
-          "lambda_train_011",
-          "lambda_train_012",
-          "lambda_train_013",
-          "lambda_train_014",
-          "lambda_train_015",
-          "lambda_train_016",
-          "lambda_train_017",
-          "lambda_train_018",
-          "lambda_train_019",
-          "lambda_train_020",
-          "lambda_train_021",
-          "lambda_train_022",
-          "lambda_train_023",
-          "lambda_train_024",
-          "lambda_train_025",
-          "lambda_train_026",
-          "lambda_train_027",
-          "lambda_train_028",
-          "lambda_train_029"
-        ]
-      },
-      "diagnosis": {
-        "normal": "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 Lambda로 재확인. 처음엔 train+eval 70개를 그대로 합쳐 2/70(2.9%)로 보고했으나, 걸린 두 윈도우(lambda_train_003/027)가 실제로 이 모델 학습에 쓰인 30개 안에 포함돼 있어 무효한 측정이었음(모델이 이미 본 데이터를 채점한 셈). 학습에 전혀 안 쓰인 held-out 40개로 다시 재니 오탐 0/40(0%)."
       }
     }
   ]

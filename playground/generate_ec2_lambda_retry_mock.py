@@ -6,12 +6,13 @@ mock 데이터를 생성한다.
 생성 파일:
   - ec2_train.json          : label="normal" 50개
   - ec2_eval.json            : normal 20 + anomaly(좀비) 10 + edge_normal 5
-  - lambda_eval_retry.json   : anomaly(재시도 폭증) 10 + edge_normal 5
+  - lambda_eval_retry.json   : normal 20 + anomaly(재시도 폭증) 10 + edge_normal 5
     (친구의 lambda_eval.json anomaly_type="cost_spike"는 실측 결과 마지막 3포인트
     error_rate가 4.9~6.7%로 50% 문턱과 무관한 "호출량/비용 폭증" 시나리오였음 —
-    담당 체크(_lambda_error_rate_check)용 정상 데이터는 기존 lambda_train.json/
-    lambda_eval.json의 normal 윈도우를 그대로 재사용하면 되므로 이 파일엔
-    normal을 다시 만들지 않는다.)
+    처음엔 담당 체크용 정상 데이터를 기존 lambda_train.json/lambda_eval.json에서
+    재사용했는데, 그중 일부가 실제로 모델 학습에 쓰인 윈도우라 오탐률 재검증 때
+    "학습에 쓰인 데이터로 채점"하는 무효한 측정이 나온 적이 있어 — 다른 eval
+    파일들과 동일하게 이 파일 안에 전용 normal 20개를 따로 생성하는 것으로 변경.)
 
 각 윈도우는 생성 직후 실제 pipeline/detection_agent.py의 체크 함수로 재검증해서
 의도한 라벨과 실제 판정이 일치하는지 assert한다 — "설계상 이래야 한다"가 아니라
@@ -261,6 +262,25 @@ def build_ec2_files(rng: np.random.Generator):
 # Lambda 재시도 폭증
 # ══════════════════════════════════════════════════════════════════
 
+def make_lambda_normal(rng: np.random.Generator) -> dict:
+    """정상 Lambda: 팀원 lambda_train.json과 같은 스타일(호출량 3단계 x 낮은
+    베이스라인 에러율). 30포인트 전부 연속적인 노이즈로 생성 - edge_normal
+    설계에서 발견한 "꼬리만 인위적으로 일정한 값" 문제(IForest가 절대 수치
+    급변으로 오탐)를 피하려고 끝부분도 나머지와 같은 방식으로 흔든다."""
+    inv_level = rng.choice([20.0, 80.0, 150.0])
+    invocation = np.clip(inv_level + rng.uniform(-inv_level * 0.25, inv_level * 0.25, size=N), 1, None)
+    error_rate = rng.uniform(0.0, 0.03, size=N)
+    error = np.round(invocation * error_rate)
+    duration = rng.uniform(90, 200, size=N)
+    cost = invocation * 0.0000002 + (duration / 1000) * (128 / 1024) * invocation * 0.0000166667
+    return {
+        "invocation_count": invocation.tolist(),
+        "error_count": error.tolist(),
+        "duration_avg": duration.tolist(),
+        "cost": cost.tolist(),
+    }
+
+
 def make_lambda_retry_anomaly(rng: np.random.Generator) -> dict:
     """마지막 3포인트: invocation>=10 AND error_rate>=50% 동시 만족.
     앞부분은 정상 베이스라인(에러율 낮음)."""
@@ -357,14 +377,17 @@ def make_lambda_edge_cases(rng: np.random.Generator) -> list[dict]:
 
 def build_lambda_retry_file(rng: np.random.Generator):
     windows = []
+    for i in range(20):
+        windows.append(_window(f"lambda_eval_retry_normal_{i:03d}", "Lambda", "mock-lambda-function", "normal",
+                                i, make_lambda_normal(rng)))
     for i in range(10):
         windows.append(_window(f"lambda_eval_retry_anomaly_{i:03d}", "Lambda", "mock-lambda-function", "anomaly",
-                                i, make_lambda_retry_anomaly(rng),
+                                20 + i, make_lambda_retry_anomaly(rng),
                                 anomaly_type="error_retry_surge"))
     edge_cases = make_lambda_edge_cases(rng)
     for i, (metrics, extra) in enumerate(edge_cases):
         windows.append(_window(f"lambda_eval_retry_edge_{i:03d}", "Lambda", "mock-lambda-function", "edge_normal",
-                                10 + i, metrics, **extra))
+                                30 + i, metrics, **extra))
     return windows
 
 
@@ -416,7 +439,8 @@ def main():
           f"anomaly={sum(1 for w in ec2_eval if w['label']=='anomaly')}, "
           f"edge_normal={sum(1 for w in ec2_eval if w['label']=='edge_normal')})")
     print(f"lambda_eval_retry.json: {len(lambda_retry)}개 "
-          f"(anomaly={sum(1 for w in lambda_retry if w['label']=='anomaly')}, "
+          f"(normal={sum(1 for w in lambda_retry if w['label']=='normal')}, "
+          f"anomaly={sum(1 for w in lambda_retry if w['label']=='anomaly')}, "
           f"edge_normal={sum(1 for w in lambda_retry if w['label']=='edge_normal')})")
     print(f"\n저장 위치: {OUT_DIR}")
 
