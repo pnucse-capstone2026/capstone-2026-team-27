@@ -1,0 +1,161 @@
+{
+  "model_source": "playground/seed_iforest_from_scenario_mock.py (EC2/Lambda/AutoScaling/S3, RDS 제외)",
+  "results": [
+    {
+      "scenario_label": "EC2 (좀비, 담당)",
+      "resource_type": "EC2",
+      "eval_file": "ec2_eval.json",
+      "stats": {
+        "normal": {
+          "triggered": 1,
+          "total": 20,
+          "rate": 0.05
+        },
+        "anomaly": {
+          "triggered": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "edge_normal": {
+          "triggered": 0,
+          "total": 5,
+          "rate": 0.0
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [
+          "ec2_eval_normal_008"
+        ],
+        "missed_window_ids": [],
+        "edge_normal_false_positive_window_ids": []
+      }
+    },
+    {
+      "scenario_label": "Lambda (재시도폭증, 담당)",
+      "resource_type": "Lambda",
+      "eval_file": "lambda_eval_retry.json",
+      "stats": {
+        "normal": {
+          "triggered": 3,
+          "total": 20,
+          "rate": 0.15
+        },
+        "anomaly": {
+          "triggered": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "edge_normal": {
+          "triggered": 5,
+          "total": 5,
+          "rate": 1.0
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [
+          "lambda_eval_retry_normal_002",
+          "lambda_eval_retry_normal_011",
+          "lambda_eval_retry_normal_016"
+        ],
+        "missed_window_ids": [],
+        "edge_normal_false_positive_window_ids": [
+          "lambda_eval_retry_edge_000",
+          "lambda_eval_retry_edge_001",
+          "lambda_eval_retry_edge_002",
+          "lambda_eval_retry_edge_003",
+          "lambda_eval_retry_edge_004"
+        ]
+      },
+      "diagnosis": {
+        "edge_normal": "_lambda_error_rate_check 단독으로는 5개 전부 정확히 False(설계대로 통과). 하지만 IForest가 별도로 트리거함 - 에러율은 문턱(50%) 아래지만 error_count 절대값이 베이스라인 대비 8~18배 뛰어서, 다변량 이상탐지 기준으로는 정당하게 이상치로 반응한 것. 규칙 기반 체크의 버그가 아니라 '비율 기준 vs 절대 수치 기준'이 다른 데서 오는 구조적 결과. detection_node의 triggered_metrics에는 error_count/invocation_count가 안 들어가므로(내 체크는 False), 다운스트림 분류 단계에서 재시도폭증(CLF-002)과 다르게 처리될 가능성이 있음(미검증)."
+      }
+    },
+    {
+      "scenario_label": "Lambda (cost_spike, 팀원)",
+      "resource_type": "Lambda",
+      "eval_file": "lambda_eval.json",
+      "stats": {
+        "normal": {
+          "triggered": 0,
+          "total": 20,
+          "rate": 0.0
+        },
+        "anomaly": {
+          "triggered": 8,
+          "total": 10,
+          "rate": 0.8
+        },
+        "edge_normal": {
+          "triggered": 0,
+          "total": 5,
+          "rate": 0.0
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [],
+        "missed_window_ids": [
+          "lambda_eval_anomaly_002",
+          "lambda_eval_anomaly_009"
+        ],
+        "edge_normal_false_positive_window_ids": []
+      },
+      "diagnosis": {
+        "anomaly": "8/10(80%) 탐지, 2개 미탐. 4타입 통합 재학습(타입당 30윈도우, 방금 교체) 직후 측정이라 표본이 작아서 나온 결과일 가능성 - 구조적 결함으로 단정하기엔 이름."
+      }
+    },
+    {
+      "scenario_label": "AutoScaling (EDoS, 팀원)",
+      "resource_type": "AutoScaling",
+      "eval_file": "autoscaling_eval.json",
+      "stats": {
+        "normal": {
+          "triggered": 0,
+          "total": 20,
+          "rate": 0.0
+        },
+        "anomaly": {
+          "triggered": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "edge_normal": {
+          "triggered": 0,
+          "total": 5,
+          "rate": 0.0
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [],
+        "missed_window_ids": [],
+        "edge_normal_false_positive_window_ids": []
+      }
+    },
+    {
+      "scenario_label": "S3 (대량다운로드, 팀원)",
+      "resource_type": "S3",
+      "eval_file": "s3_eval.json",
+      "stats": {
+        "normal": {
+          "triggered": 0,
+          "total": 20,
+          "rate": 0.0
+        },
+        "anomaly": {
+          "triggered": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "edge_normal": {
+          "triggered": 0,
+          "total": 5,
+          "rate": 0.0
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [],
+        "missed_window_ids": [],
+        "edge_normal_false_positive_window_ids": []
+      }
+    }
+  ]
+}

@@ -381,3 +381,367 @@ def test_detection_node_clears_after_spike_recovers():
         shutil.rmtree(IFOREST_MODEL_DIR)
 
 test_detection_node_clears_after_spike_recovers()
+
+
+from pipeline.detection_agent import (
+    _low_utilization_check,
+    EC2_IDLE_CPU_THRESHOLD_PCT,
+    EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD,
+    EC2_IDLE_TARGET_METRICS,
+)
+
+
+def test_low_utilization_check_flags_flat_idle_ec2():
+    """시나리오 1 (좀비 EC2): 윈도우 내내 CPU/네트워크 둘 다 낮고 변동이 없는 케이스.
+    z-score는 window 내부 평균/표준편차 기준이라 이런 무변동 저사용 패턴을 못 잡는데
+    (z≈0), 이 절대임계값 체크는 window 전체의 peak CPU/합산 network I/O를 직접
+    보므로 잡아야 한다."""
+    metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+        "cost":             [0.05] * 30,
+    }
+    triggered, is_idle = _low_utilization_check("EC2", metrics)
+
+    assert is_idle is True, "CPU/네트워크 둘 다 임계값 이하로 지속되면 유휴로 판정되어야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS), (
+        f"트리거 시 cpu_utilization/network_in/network_out이 함께 반환되어야 함: {triggered}"
+    )
+    print("✅ 완전 평평한 저사용률 EC2 윈도우 → 유휴 판정 확인")
+
+test_low_utilization_check_flags_flat_idle_ec2()
+
+
+def test_low_utilization_check_requires_both_cpu_and_network_low():
+    """AWS Compute Optimizer 기준은 CPU AND network I/O 둘 다 낮아야 idle이다.
+    CPU만 낮고 network_in/out은 정상 범위(예: 트래픽만 통과시키는 인스턴스)면
+    idle이 아니어야 한다 — 이걸 false negative로 오인하지 않도록 회귀 방지용으로
+    남겨둔다 (시나리오 1 케이스 D 논의 참고)."""
+    metrics = {
+        "cpu_utilization": [2.0] * 30,       # 임계값(5%) 이하
+        "network_in":      [50000.0] * 30,   # 임계값을 훨씬 초과하는 정상 트래픽
+        "network_out":     [30000.0] * 30,
+    }
+    triggered, is_idle = _low_utilization_check("EC2", metrics)
+
+    assert is_idle is False, "CPU만 낮고 network는 정상이면 idle로 판정되면 안 됨(AND 조건)"
+    assert triggered == []
+    print("✅ CPU만 낮고 network는 정상인 케이스는 idle로 판정되지 않음을 확인 (AND 시맨틱스)")
+
+test_low_utilization_check_requires_both_cpu_and_network_low()
+
+
+def test_low_utilization_check_boundary_network_io():
+    """network I/O 합계가 임계값과 정확히 같으면(<=) 트리거되고, 아주 조금이라도
+    넘으면 트리거되지 않아야 한다 (경계값 검증)."""
+    n = 30
+    cpu_safe = [1.0] * n  # cpu는 임계값과 충분히 떨어뜨려서 network만 경계 테스트
+
+    at_boundary = {
+        "cpu_utilization": cpu_safe,
+        "network_in": [EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD / n] * n,
+        "network_out": [0.0] * n,
+    }
+    _, is_idle_at = _low_utilization_check("EC2", at_boundary)
+    assert is_idle_at is True, "network I/O 합계가 임계값과 정확히 같으면 트리거되어야 함"
+
+    over_boundary = {
+        "cpu_utilization": cpu_safe,
+        "network_in": [(EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD + n) / n] * n,  # 총합 임계값 + n bytes
+        "network_out": [0.0] * n,
+    }
+    _, is_idle_over = _low_utilization_check("EC2", over_boundary)
+    assert is_idle_over is False, "network I/O 합계가 임계값을 조금이라도 넘으면 트리거되면 안 됨"
+
+    print("✅ network I/O 임계값 경계(<=) 동작 확인")
+
+test_low_utilization_check_boundary_network_io()
+
+
+def test_low_utilization_check_boundary_cpu():
+    """peak CPU가 임계값과 정확히 같으면(<=) 트리거되고, 아주 조금이라도 넘으면
+    트리거되지 않아야 한다."""
+    n = 30
+    network_safe = {"network_in": [0.0] * n, "network_out": [0.0] * n}  # network는 충분히 낮게 고정
+
+    at_boundary = {"cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * n, **network_safe}
+    _, is_idle_at = _low_utilization_check("EC2", at_boundary)
+    assert is_idle_at is True, "peak CPU가 임계값과 정확히 같으면 트리거되어야 함"
+
+    over_boundary = {
+        "cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * (n - 1) + [EC2_IDLE_CPU_THRESHOLD_PCT + 0.01],
+        **network_safe,
+    }
+    _, is_idle_over = _low_utilization_check("EC2", over_boundary)
+    assert is_idle_over is False, "peak CPU가 임계값을 조금이라도 넘으면 트리거되면 안 됨"
+
+    print("✅ CPU 임계값 경계(<=) 동작 확인")
+
+test_low_utilization_check_boundary_cpu()
+
+
+def test_low_utilization_check_scoped_to_ec2_only():
+    """이번 범위는 EC2 전용 — RDS는 cpu_utilization 필드가 있어도(schema/state.py의
+    RDSMetrics 참고) network_in/network_out이 없어 어차피 조건을 못 채우지만,
+    resource_type 게이트 자체도 명시적으로 확인해 향후 회귀를 방지한다."""
+    rds_metrics = {
+        "cpu_utilization": [1.0] * 30,
+        "database_connections": [0.0] * 30,
+        "read_iops": [0.0] * 30,
+        "write_iops": [0.0] * 30,
+    }
+    triggered, is_idle = _low_utilization_check("RDS", rds_metrics)
+    assert (triggered, is_idle) == ([], False), "RDS는 이번 범위에서 제외되어야 함"
+    print("✅ RDS는 이번 범위에서 제외됨을 확인 (resource_type 게이트)")
+
+test_low_utilization_check_scoped_to_ec2_only()
+
+
+def test_detection_node_flags_idle_ec2_via_absolute_threshold():
+    """detection_node 통합 테스트: 완전 평평한 저사용률 윈도우를 넣었을 때
+    anomaly_flag=True가 되고, triggered_metrics에 이번에 추가한 세 지표가
+    포함되는지 확인 (z-score/IForest 콜드스타트 값과 무관하게 절대임계값
+    체크만으로도 탐지가 성립함을 검증)."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    fake_state = {
+        "resource_id": "i-zombie",
+        "resource_type": "EC2",
+        "raw_metrics": {
+            "cpu_utilization": [1.5] * 30,
+            "network_in":      [500.0] * 30,
+            "network_out":     [300.0] * 30,
+            "cost":             [0.05] * 30,
+        },
+        "timestamp": "2026-09-05T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+    }
+
+    result = detection_node(fake_state)
+    print("triggered_metrics:", result["triggered_metrics"])
+    print("anomaly_flag:", result["anomaly_flag"])
+
+    assert result["anomaly_flag"] is True, "저사용률 EC2는 탐지되어야 함"
+    assert set(EC2_IDLE_TARGET_METRICS) <= set(result["triggered_metrics"]), (
+        "triggered_metrics에 cpu_utilization/network_in/network_out이 포함되어야 함"
+    )
+    print("✅ detection_node가 절대임계값 체크로 저사용률 EC2를 탐지함을 확인")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_detection_node_flags_idle_ec2_via_absolute_threshold()
+
+
+_EC2_IDLE_WINDOW_SECONDS = 30 * 300  # n_points × period_seconds 기본값 = 2.5시간(=9000초)
+
+
+def test_low_utilization_check_holds_judgment_for_young_instance():
+    """2026-09-05 실 AWS 테스트에서 발견: 막 생성된 EC2는 윈도우 대부분이 진짜
+    유휴가 아니라 '아직 이력이 없어서 0으로 채워진' 값이라, 부팅 트래픽마저 작았다면
+    즉시 좀비로 오판될 수 있다. 나이가 윈도우 길이보다 어리면 판단을 보류해야 한다."""
+    idle_looking_metrics = {
+        "cpu_utilization": [0.0] * 30,
+        "network_in":      [0.0] * 30,
+        "network_out":     [0.0] * 30,
+    }
+    young_age = _EC2_IDLE_WINDOW_SECONDS - 1  # 윈도우 길이보다 1초 어림
+
+    triggered, is_idle = _low_utilization_check("EC2", idle_looking_metrics, young_age)
+
+    assert (triggered, is_idle) == ([], False), (
+        "생성된 지 윈도우 길이도 안 된 인스턴스는 지표가 idle처럼 보여도 판단을 보류해야 함"
+    )
+    print("✅ 신생 인스턴스(윈도우 길이 미만)는 idle 판단이 보류됨을 확인")
+
+test_low_utilization_check_holds_judgment_for_young_instance()
+
+
+def test_low_utilization_check_still_triggers_for_mature_instance():
+    """가드가 진짜 좀비까지 막아버리면 안 됨 — 나이가 윈도우 길이 이상이면
+    (즉 가드에 안 걸리면) 기존처럼 정상적으로 트리거되어야 한다 (회귀 방지)."""
+    idle_metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+    }
+    mature_age = _EC2_IDLE_WINDOW_SECONDS  # 정확히 윈도우 길이 = 판단 허용 경계
+
+    triggered, is_idle = _low_utilization_check("EC2", idle_metrics, mature_age)
+
+    assert is_idle is True, "나이가 윈도우 길이 이상이면 가드에 안 걸리고 정상 판단돼야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)
+    print("✅ 나이가 윈도우 길이 이상인 진짜 유휴 인스턴스는 여전히 잡힘을 확인")
+
+test_low_utilization_check_still_triggers_for_mature_instance()
+
+
+def test_low_utilization_check_unknown_age_keeps_old_behavior():
+    """resource_age_seconds를 안 주면(None, 기본값) 가드가 작동하지 않고 기존
+    동작(오늘 이전까지의 동작) 그대로 유지되어야 한다 — 하위호환 확인.
+    실제로 오늘 실 AWS 테스트 인스턴스가 이 경로를 탔다(당시엔 나이 정보 자체가 없었음)."""
+    idle_metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+    }
+    triggered, is_idle = _low_utilization_check("EC2", idle_metrics)  # resource_age_seconds 생략
+
+    assert is_idle is True, "나이 정보가 없으면(None) 가드 없이 기존처럼 판단해야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)
+    print("✅ 나이 정보 없음(None)이면 하위호환대로 기존 판단 로직이 그대로 적용됨을 확인")
+
+test_low_utilization_check_unknown_age_keeps_old_behavior()
+
+
+from pipeline.detection_agent import (
+    _lambda_error_rate_check,
+    LAMBDA_ERROR_RATE_THRESHOLD,
+    LAMBDA_ERROR_RATE_MIN_INVOCATIONS,
+)
+
+
+def _lambda_metrics(invocation_last3, error_last3):
+    """최근 3개 포인트만 의미 있고 나머지 27개는 평상시 수준(정상)으로 채운
+    Lambda raw_metrics. 지속성 체크가 '최근 k개'만 보므로 앞부분은 무관."""
+    n_normal = 27
+    return {
+        "invocation_count": [20.0] * n_normal + invocation_last3,
+        "error_count":      [1.0] * n_normal + error_last3,
+        "duration_avg":     [100.0] * 30,
+    }
+
+
+def test_lambda_error_rate_check_flags_sustained_surge():
+    """시나리오 4 핵심 케이스: 최근 3포인트 연속 invocation>=10 & error_rate>=50%."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[10.0, 12.0, 15.0],  # 50%, 60%, 75%
+    )
+    triggered, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is True
+    assert set(triggered) == {"error_count", "invocation_count"}
+    print("✅ 최근 3포인트 연속 error_rate>=50% & invocation>=10 -> 트리거 확인")
+
+test_lambda_error_rate_check_flags_sustained_surge()
+
+
+def test_lambda_error_rate_check_boundary():
+    """error_rate가 정확히 임계값이면 트리거, 아주 조금이라도 못 미치면 트리거 안 됨 (경계값).
+    LAMBDA_ERROR_RATE_THRESHOLD를 하드코딩하지 않고 상수를 그대로 참조해서, 나중에
+    임계값이 조정돼도 이 테스트가 깨지지 않게 한다 (EC2 경계값 테스트와 동일 패턴)."""
+    inv = LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+    at_err = inv * LAMBDA_ERROR_RATE_THRESHOLD  # 정확히 임계값 비율
+
+    at_boundary = _lambda_metrics(
+        invocation_last3=[inv, inv, inv],
+        error_last3=[at_err, at_err, at_err],
+    )
+    _, is_surge_at = _lambda_error_rate_check("Lambda", at_boundary)
+    assert is_surge_at is True, "error_rate가 임계값과 정확히 같으면(>=) 트리거되어야 함"
+
+    under_boundary = _lambda_metrics(
+        invocation_last3=[inv, inv, inv],
+        error_last3=[at_err - 0.01, at_err - 0.01, at_err - 0.01],
+    )
+    _, is_surge_under = _lambda_error_rate_check("Lambda", under_boundary)
+    assert is_surge_under is False, "error_rate가 임계값에 조금이라도 못 미치면 트리거되면 안 됨"
+
+    print(f"✅ error_rate {LAMBDA_ERROR_RATE_THRESHOLD:.0%} 경계(>=) 동작 확인")
+
+test_lambda_error_rate_check_boundary()
+
+
+def test_lambda_error_rate_check_min_invocation_gate():
+    """호출수가 게이트(LAMBDA_ERROR_RATE_MIN_INVOCATIONS) 미만이면 error_rate가 100%여도
+    트리거 안 됨 -- 노이즈 방지 게이트가 실제로 작동하는지 확인 (0으로 나누기 회귀 방지도 겸함)."""
+    under_gate = LAMBDA_ERROR_RATE_MIN_INVOCATIONS - 1
+    metrics = _lambda_metrics(
+        invocation_last3=[under_gate, under_gate, under_gate],
+        error_last3=[under_gate, under_gate, under_gate],  # 100%, 그러나 호출수가 게이트 미달
+    )
+    triggered, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is False, "최소 호출수 게이트 미달이면 error_rate가 100%여도 트리거되면 안 됨"
+    assert triggered == []
+    print(f"✅ 최소 호출수 게이트(포인트당 {LAMBDA_ERROR_RATE_MIN_INVOCATIONS}건) 미달 시 트리거 안 됨을 확인")
+
+test_lambda_error_rate_check_min_invocation_gate()
+
+
+def test_lambda_error_rate_check_ignores_single_blip():
+    """최근 3포인트 중 1개만 폭증하고 나머지 2개는 정상이면(지속성 미충족) 트리거 안 됨
+    -- z-score의 _zscore_check_persistent와 동일한 '순간 노이즈 무시' 철학 회귀 방지."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[1.0, 1.0, 15.0],  # 5%, 5%, 75% -- 마지막 1개만 폭증
+    )
+    _, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is False, "최근 3포인트 중 1개만 튄 순간적 노이즈는 트리거되면 안 됨"
+    print("✅ 순간적 노이즈(최근 3포인트 중 1개만 폭증)는 트리거 안 됨을 확인")
+
+test_lambda_error_rate_check_ignores_single_blip()
+
+
+def test_lambda_error_rate_check_scoped_to_lambda_only():
+    """Lambda 전용 -- 다른 리소스 타입(우연히 같은 필드명을 가진 경우는 없지만
+    resource_type 게이트 자체를 명시적으로 확인)은 항상 제외."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[15.0, 15.0, 15.0],
+    )
+    triggered, is_surge = _lambda_error_rate_check("EC2", metrics)
+    assert (triggered, is_surge) == ([], False)
+    print("✅ Lambda 외 리소스 타입은 항상 제외됨을 확인")
+
+test_lambda_error_rate_check_scoped_to_lambda_only()
+
+
+def test_detection_node_flags_lambda_error_surge_and_activates_clf002():
+    """detection_node 통합 테스트 + CLF-002가 실제로 살아나는지까지 확인.
+    CLF-002(schema/rules/classification_rules.json)는 오늘 이전까지 triggered_metrics에
+    error_count가 절대 안 들어가서 죽어있던 규칙이었다 -- 이번 체크가 그걸 살리는 게
+    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    fake_state = {
+        "resource_id": "func-retry-storm",
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],  # 75%, 80%, 90%
+        ),
+        "timestamp": "2026-09-05T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+    }
+
+    result = detection_node(fake_state)
+    print("triggered_metrics:", result["triggered_metrics"])
+    print("anomaly_flag:", result["anomaly_flag"])
+
+    assert result["anomaly_flag"] is True
+    assert {"error_count", "invocation_count"} <= set(result["triggered_metrics"])
+
+    from pipeline.rule_engine import RuleEngine
+    engine = RuleEngine()
+    matched = engine.match_classification_rules(result)
+    assert matched is not None, "CLF-002가 매칭되어야 하는데 아무 규칙도 안 잡힘"
+    assert matched["rule_id"] == "CLF-002", f"CLF-002가 아니라 {matched['rule_id']}가 매칭됨"
+    assert matched["result"]["anomaly_type"] == "cost_spike"
+    print(f"✅ CLF-002 활성화 확인 -- 매칭된 규칙: {matched['rule_id']} ({matched['description']})")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_detection_node_flags_lambda_error_surge_and_activates_clf002()

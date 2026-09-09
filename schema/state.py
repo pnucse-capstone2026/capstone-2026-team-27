@@ -155,6 +155,14 @@ class PipelineState(TypedDict):
     anomaly_score_iforest: Optional[float]
     triggered_metrics:     list[str]
 
+    # 리소스가 생성(EC2는 LaunchTime)된 지 몇 초 지났는지. detection_agent.py의
+    # 저사용률(유휴) 절대임계값 체크가 "관측 윈도우만큼도 안 된 신생 리소스"를
+    # 판단 보류하는 데 씀 — CloudWatch가 존재 이전 구간을 0으로 채우기 때문에,
+    # 신생 리소스는 진짜 유휴가 아니어도 윈도우 대부분이 0으로 보일 수 있음.
+    # None이면 나이를 모른다는 뜻(EC2 외 타입, 또는 조회 실패) — 이 경우 가드는
+    # 작동하지 않고(판단 보류 안 함) 기존 동작 그대로 유지.
+    resource_age_seconds: Optional[float]
+
     # ── Step 2: Classification Agent ─────────────────────────────────────────
     anomaly_type: Optional[Literal["cost_inefficiency", "cost_spike", "risk_security"]]
     classification_reasoning: Optional[str]

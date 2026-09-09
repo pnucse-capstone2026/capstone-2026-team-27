@@ -250,16 +250,28 @@ pip install -r requirements.txt
 
 ### 5. `.env` 파일 생성
 `.env`는 `.gitignore`에 포함되어 git으로 공유되지 않으므로 직접 생성해야 합니다.
-(AWS 키 등 민감 정보이므로 파일 자체를 공유하지 말고 팀 채널로 값만 전달할 것)
+(AWS 프로필 이름 등은 민감 정보가 아니지만, 그 프로필이 참조하는 실제 키/역할 설정은
+파일 자체를 공유하지 말고 팀 채널로 값만 전달할 것)
 
 ```bash
 # LLM (Classification, Decision, QA Agent)
 GEMINI_API_KEY=your_gemini_api_key
 
 # AWS (Action Agent)
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_DEFAULT_REGION=ap-northeast-2
+# 장기 액세스 키를 직접 넣지 않고, ~/.aws/config에 등록한 프로필 이름을 씁니다.
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY를 여기 넣으면 AWS_PROFILE보다 우선 적용되어
+#  아래 프로필 설정이 무시되므로 절대 같이 넣지 말 것)
+#
+# ~/.aws/config 예시:
+#   [profile detection-runtime]
+#   role_arn = arn:aws:iam::<account-id>:role/DetectionRuntimeRole
+#   source_profile = default   # 본인의 IAM 사용자 프로필 (assume-role만 위임)
+#   region = ap-northeast-2
+#
+# - detection-runtime : DetectionRuntimeRole로 assume-role, 액션 범위 제한됨 (평소 파이프라인 실행용)
+# - default           : 본인 IAM 사용자 원본 권한 (playground/phase_g_real_world_validation.py 같은
+#                        SSM 등 범위 밖 액션이 필요한 검증 스크립트 돌릴 때만 임시로 바꿔서 사용)
+AWS_PROFILE=detection-runtime
 
 # 테스트 대상 리소스 (playground/test_scenarios.py에서 사용)
 INSTANCE_ID=i-0abc123def456
