@@ -121,32 +121,42 @@ def main():
         results.append(entry)
 
     # ── 보충: lambda_eval_retry.json엔 normal이 없어서(팀원 데이터 재사용 결정),
-    # 팀원 제공 정상 Lambda 윈도우 전체(train 50 + eval 20 = 70)를 전체 파이프라인
-    # 기준으로 재확인. 앞서 개별 함수(_lambda_error_rate_check) 단독 검증(0/70)과
-    # 달리, IForest까지 포함하면 오탐이 생길 수 있음을 실측으로 확인.
-    all_normal = []
-    for fname in ("lambda_train.json", "lambda_eval.json"):
-        with open(MOCK_DATA_DIR / fname, encoding="utf-8") as f:
-            all_normal += [w for w in json.load(f) if w["label"] == "normal"]
+    # 팀원 제공 정상 Lambda 윈도우로 전체 파이프라인 기준 오탐률을 재확인해야 함.
+    # ⚠️ lambda_train.json의 정상 윈도우 중 앞 MAX_WINDOWS_PER_TYPE(30)개는 실제로
+    # 이 모델을 학습시키는 데 쓰였다(seed_iforest_from_scenario_mock.py 참고) - 그
+    # 데이터로 오탐률을 재면 모델이 이미 본 데이터를 채점하는 셈이라 무효하다.
+    # held-out(학습에 전혀 안 쓰인) 데이터만으로 다시 계산한다.
+    with open(MOCK_DATA_DIR / "lambda_train.json", encoding="utf-8") as f:
+        train_data = json.load(f)
+    with open(MOCK_DATA_DIR / "lambda_eval.json", encoding="utf-8") as f:
+        eval_data = json.load(f)
 
-    outcomes = [(w["window_id"], run_window("Lambda", w)) for w in all_normal]
+    train_normal = [w for w in train_data if w["label"] == "normal"]
+    used_in_training_ids = {w["window_id"] for w in train_normal[: da.MAX_WINDOWS_PER_TYPE]}
+    held_out = [w for w in train_normal if w["window_id"] not in used_in_training_ids]
+    held_out += [w for w in eval_data if w["label"] == "normal"]
+
+    outcomes = [(w["window_id"], run_window("Lambda", w)) for w in held_out]
     triggered = [wid for wid, t in outcomes if t]
-    rate = len(triggered) / len(all_normal)
-    print(f"\n[보충] Lambda 정상 전체(팀원 제공, train+eval={len(all_normal)}개), "
-          f"전체 파이프라인 기준: {len(triggered)}/{len(all_normal)} ({rate:.1%})")
+    rate = len(triggered) / len(held_out)
+    print(f"\n[보충] Lambda 정상 held-out({len(held_out)}개, 학습에 안 쓰인 것만), "
+          f"전체 파이프라인 기준: {len(triggered)}/{len(held_out)} ({rate:.1%})")
     results.append({
-        "scenario_label": "Lambda 정상 전체 (팀원 제공 train+eval, 보충 검증)",
+        "scenario_label": "Lambda 정상 held-out (팀원 제공, 학습 미사용분만, 보충 검증)",
         "resource_type": "Lambda",
-        "eval_file": "lambda_train.json + lambda_eval.json (label=normal만)",
-        "stats": {"normal": {"triggered": len(triggered), "total": len(all_normal), "rate": round(rate, 4)}},
-        "details": {"normal_false_positive_window_ids": triggered},
+        "eval_file": "lambda_train.json(뒤 20개, 학습 미사용) + lambda_eval.json (label=normal만)",
+        "stats": {"normal": {"triggered": len(triggered), "total": len(held_out), "rate": round(rate, 4)}},
+        "details": {
+            "normal_false_positive_window_ids": triggered,
+            "excluded_used_in_training_ids": sorted(used_in_training_ids),
+        },
         "diagnosis": {
             "normal": (
-                "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 데이터 70개 "
-                "전체를 전체 파이프라인(detection_node)으로 재확인. _lambda_error_rate_check "
-                "단독으로는 0/70이었으나(이전 검증), IForest까지 포함한 전체 파이프라인은 "
-                "2/70(2.9%) - 학습에 쓰인 윈도우(lambda_train_003/027) 안에서도 발생. "
-                "요청 A에서 확인한 IForest 알림 경로의 구조적 오탐 성질과 같은 맥락."
+                "lambda_eval_retry.json에 normal이 없어 팀원 제공 정상 Lambda로 재확인. "
+                "처음엔 train+eval 70개를 그대로 합쳐 2/70(2.9%)로 보고했으나, 걸린 두 "
+                "윈도우(lambda_train_003/027)가 실제로 이 모델 학습에 쓰인 30개 안에 "
+                "포함돼 있어 무효한 측정이었음(모델이 이미 본 데이터를 채점한 셈). "
+                "학습에 전혀 안 쓰인 held-out 40개로 다시 재니 오탐 0/40(0%)."
             )
         },
     })
