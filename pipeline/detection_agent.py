@@ -107,6 +107,23 @@ LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
 RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
+
+# ⚠️ 임시 동결 플래그 (사전학습 mock 시딩 도입, 2026-09-09) ───────────────────
+# playground/seed_mock_iforest_buffer.py로 5개 타입 × 30개씩 mock 윈도우를
+# 미리 채워서 iforest_unified.pkl/버퍼를 만들어둔 직후 상태. 이 시점엔 아직
+# "실제 데이터가 들어오면 FIFO로 mock을 밀어내며 자연 교체"하는 정상 경로를
+# 켜지 않고, 일단 mock 버퍼를 그대로 고정해서 쓴다.
+#
+# True인 동안 _get_or_train_iforest는 버퍼 채택/재학습을 전혀 안 하고 캐시된
+# 모델을 그대로만 반환한다 — 즉 실제 데이터가 버퍼에 못 들어가고 mock 상태가
+# 계속 유지된다.
+#
+# TODO(정상 경로 전환): mock→실데이터 자연 교체를 켜려면 이 값을 False로
+# 바꾸기만 하면 된다 — 그 아래 버퍼 채택/FIFO/재학습 로직은 이미 구현·검증돼
+# 있어서 추가 코드 변경이 필요 없다(단, Stage 2 후보A 확정 후 전환 권장 —
+# 그 전엔 정상운영 판정 자체가 아직 미확정이라 어떤 실데이터를 받아들일지
+# 기준이 없음).
+MOCK_SEED_BUFFER_FROZEN = True
 BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
 BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
                                     # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
@@ -502,6 +519,12 @@ def _get_or_train_iforest(
 
     if cached is not None:
         model, cached_keys = cached
+
+        # MOCK_SEED_BUFFER_FROZEN=True인 동안은 버퍼 채택/재학습을 전부 건너뛰고
+        # mock으로 시딩해둔 모델을 그대로 반환한다 (정상 경로 전환 전 임시 동결).
+        if MOCK_SEED_BUFFER_FROZEN:
+            return model
+
         if cached_keys == ALL_METRICS:
             buffer_by_type, pending_count = _load_training_buffer()
 
