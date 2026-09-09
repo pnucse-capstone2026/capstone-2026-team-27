@@ -8,65 +8,33 @@ TP/TN/FP/FN, accuracy, recall(+ Clopper-Pearson 95% CI)을 계산한다.
 - Lambda 함수를 여러 개(N_ANOMALY + N_NORMAL) 생성해서 병렬로 테스트한다.
   같은 함수에 여러 시행을 동시에 걸면 CloudWatch 지표가 하나로 합쳐지기 때문.
 - anomaly 시행: 에러율 50% 이상으로 호출 (LAMBDA_ERROR_RATE_THRESHOLD 기준)
-- normal 시행: 평상시 수준의 낮은 베이스라인 에러율로 정상 호출
-- 탐지 기준: detection_node가 실제로 쓰는 방식(production) + 옛 방식(teammate_compat)
-  둘 다 기록
+- normal 시행: 에러 없이 정상 호출
+- 탐지 기준: detection_agent.py의 _lambda_error_rate_check + z-score/IForest 앙상블
 
 [실행 방법]
   1단계(Lambda 함수 준비, 최초 1회):
     python playground/lambda_retry_trial.py --setup --n-anomaly 5 --n-normal 8
   2단계(반복 실험 실행):
     python playground/lambda_retry_trial.py --run --n-anomaly 5 --n-normal 8
-  3단계(정리):
-    python playground/lambda_retry_trial.py --teardown --n-anomaly 5 --n-normal 8
 
 [생성 파일]
-  - 결과: playground/eval_outputs/lambda_retry_trial__invpm{N}_errrate{R}_wait{W}s_n{정상}-{이상}_scriptv{V}_{YYYYMMDD}.json
+  - 결과: playground/eval_outputs/lambda_retry_trial__invocations{N}_errorrate{R}_wait{W}s_n{정상}-{이상}_scriptv{V}_{YYYYMMDD}.json
   - 로그: playground/eval_outputs/logs/lambda_retry_trial_{timestamp}.log
-
-[비용] Lambda 프리티어는 월 100만 요청 + 40만 GB-초로 12개월 제한 없이 상시 무료다.
-  이 실험은 함수당 수백~수천 호출이라 비용은 사실상 0. (EC2/EBS와 달리 걱정 없음)
 """
 
 from __future__ import annotations
 
-SCRIPT_VERSION = "2"
-# v1 (2026-09-09): 최초 작성.
-# v2 (2026-09-09): 아래 6가지 수정.
-#   (1) [치명적] --duration-minutes 기본값 5 -> 15. 절대체크(_lambda_error_rate_check)는
-#       PERSISTENCE_WINDOW_POINTS=3, 즉 "최근 3개 5분 구간이 모두" invocation>=10 AND
-#       error_rate>=50%를 만족해야 트리거된다. 5분만 돌리면 5분 구간이 1개만 채워져서
-#       anomaly가 원리상 절대 잡히지 않는다. 15분 미만이면 경고를 띄운다.
-#   (2) [치명적] IAM 역할을 새로 만들지 않고 기존 detection-test-lambda-role을 기본
-#       재사용한다. 이 프로젝트의 terraform-user는 IAM 쓰기 권한이 제한적이어서
-#       (iam:GetInstanceProfile 등도 거부됨) create_role이 AccessDenied로 실패할 수 있다.
-#       --role-arn 으로 지정 가능하고, 없을 때만 생성을 시도하되 실패 시 안내한다.
-#   (3) 판정 로직 교체 — _zscore_max/_iforest_score(옛 phase_g 헬퍼)는 detection_node와
-#       다르다. phase_g는 2026-08-25 작성이고 그 뒤 08-28 persistence가 도입됐지만
-#       그 헬퍼엔 반영되지 않았다. production 방식으로 바꾸고 옛 방식은 teammate_compat으로
-#       함께 기록(과거 수치 비교용). v1이 _lambda_error_rate_check는 이미 호출하고 있었던
-#       점은 유지.
-#   (4) cost 지표 반영 — fetch는 invocation_count/error_count/duration_avg만 준다.
-#       Lambda의 z-score 대상 지표는 cost와 invocation_count인데 cost가 비어 있으면
-#       그만큼 평가가 빠지고, IForest도 학습 때(cost 있음)와 mask가 어긋난다.
-#   (5) 베이스라인 워밍업(--baseline-minutes) 추가 — 함수 생성 직후엔 창(30포인트=2.5시간)의
-#       앞부분이 0으로 채워져서 어떤 호출이든 "0에서 급증"으로 보여 탐지율이 부풀려진다.
-#   (6) 함수별 파라미터 다양화 + 분 내 호출 분산 — v1은 그룹 내 모든 함수가 동일한
-#       에러율/호출량이라 "n번의 독립 시행"이 아니라 "1개 설정의 n개 복제본"이 된다
-#       (Clopper-Pearson CI의 독립 시행 전제가 깨짐). 또 v1은 분 시작에 호출을 몰아서
-#       보내고 60초 쉬는데, 분 안에 고르게 퍼뜨리는 게 실제 트래픽에 가깝다.
-#   그리고 teardown 경로 추가.
+SCRIPT_VERSION = "1"
 
 import argparse
-import io
 import json
 import logging
 import os
-import random
 import sys
 import time
 import traceback
 import zipfile
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -74,46 +42,30 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(PROJECT_ROOT / "playground") not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT / "playground"))
-
-os.environ.setdefault("AWS_PROFILE", "default")
 
 from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
+import random
 import boto3
+from scipy.stats import beta as _beta_dist
 
 import pipeline.detection_agent as da
 from pipeline.cloudwatch_client import METRIC_SPEC, _build_dimensions
-# 판정 로직·통계는 다른 반복시행 스크립트와 공유한다(한 곳에서만 관리)
-from ec2_lambda_repeated_trial import clopper_pearson_ci, compute_metrics, detect_both
 
 # ── 설정값 ────────────────────────────────────────────────────────────────────
 
 LAMBDA_PREFIX = "detection-trial-lambda"
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 
-# 이미 있는 역할을 기본으로 재사용 (IAM 쓰기 권한이 없어도 동작하게)
-DEFAULT_ROLE_ARN = os.environ.get(
-    "LAMBDA_TRIAL_ROLE_ARN", "arn:aws:iam::268140507066:role/detection-test-lambda-role")
-FALLBACK_ROLE_NAME = "detection-trial-lambda-role"
-
 # detection_agent.py 기준
 # - LAMBDA_ERROR_RATE_THRESHOLD = 0.5 (50%)
-# - LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10 (5분 구간당)
-# - PERSISTENCE_WINDOW_POINTS = 3 (최근 3개 구간 전부)
-MIN_DURATION_MINUTES = da.PERSISTENCE_WINDOW_POINTS * 5  # 15분
+# - LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
+ANOMALY_ERROR_RATE = 0.6  # 60% 에러율로 anomaly 유발 (50% 임계값 초과)
+NORMAL_ERROR_RATE = 0.05  # 5% 에러율로 normal 유지
 
-# 함수별로 서로 다른 값을 써서 그룹 내 복제본이 되지 않게 한다.
-# anomaly는 전부 50% 문턱을 넘되 강도를 다르게, normal은 물량/베이스라인 에러율을 다르게.
-ANOMALY_PROFILES = [  # (error_rate, invocations_per_minute)
-    (0.55, 12), (0.70, 20), (0.85, 30), (0.60, 25), (0.90, 15),
-]
-NORMAL_PROFILES = [
-    (0.00, 12), (0.02, 12), (0.00, 25), (0.03, 25),
-    (0.00, 40), (0.01, 40), (0.00, 4), (0.02, 20),
-]
+# 5분당 호출 횟수 (30포인트 윈도우 중 최근 k개에서 측정)
+INVOCATIONS_PER_MINUTE = 20  # 분당 20회 → 5분에 100회
 
 LOG_DIR = PROJECT_ROOT / "playground" / "eval_outputs" / "logs"
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
@@ -128,6 +80,7 @@ def _setup_logging() -> Path:
 
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
+
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
@@ -139,6 +92,7 @@ def _setup_logging() -> Path:
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(fmt)
     logger.addHandler(console_handler)
+
     return log_path
 
 
@@ -148,16 +102,17 @@ LAMBDA_CODE = '''
 import json
 
 def handler(event, context):
-    if isinstance(event, dict) and event.get("fail"):
+    if event.get("fail"):
         raise Exception("Intentional error for testing")
     return {"statusCode": 200, "body": json.dumps("OK")}
 '''
 
 
 def _create_lambda_zip() -> bytes:
+    """Lambda 함수 코드를 zip으로 패키징"""
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("lambda_function.py", LAMBDA_CODE)
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('lambda_function.py', LAMBDA_CODE)
     return buffer.getvalue()
 
 
@@ -167,99 +122,90 @@ def _lambda_function_name(prefix: str, idx: int) -> str:
     return f"{LAMBDA_PREFIX}-{prefix}-{idx}"
 
 
-def _resolve_role_arn(explicit_arn: str | None) -> str:
-    """기존 역할을 재사용한다. 없으면 생성을 시도하되, 이 프로젝트의 자격증명은
-    IAM 쓰기 권한이 제한적이라 실패할 수 있으므로 명확히 안내한다."""
-    iam = boto3.client("iam", region_name=AWS_REGION)
-    candidate = explicit_arn or DEFAULT_ROLE_ARN
-    role_name = candidate.rsplit("/", 1)[-1]
+def _get_or_create_lambda_role(iam) -> str:
+    """Lambda 실행용 IAM 역할 생성 또는 기존 역할 ARN 반환"""
+    role_name = "detection-trial-lambda-role"
 
     try:
-        arn = iam.get_role(RoleName=role_name)["Role"]["Arn"]
-        logger.info("기존 IAM 역할 재사용: %s", arn)
-        return arn
-    except Exception as exc:
-        logger.warning("역할 조회 실패(%s): %s", role_name, exc)
+        response = iam.get_role(RoleName=role_name)
+        logger.info("IAM 역할 이미 존재: %s", role_name)
+        return response['Role']['Arn']
+    except iam.exceptions.NoSuchEntityException:
+        pass
 
-    logger.info("역할 생성 시도: %s", FALLBACK_ROLE_NAME)
     trust_policy = {
         "Version": "2012-10-17",
         "Statement": [{
             "Effect": "Allow",
             "Principal": {"Service": "lambda.amazonaws.com"},
-            "Action": "sts:AssumeRole",
-        }],
+            "Action": "sts:AssumeRole"
+        }]
     }
-    try:
-        response = iam.create_role(
-            RoleName=FALLBACK_ROLE_NAME,
-            AssumeRolePolicyDocument=json.dumps(trust_policy),
-            Description="Role for detection trial Lambda functions",
-        )
-        iam.attach_role_policy(
-            RoleName=FALLBACK_ROLE_NAME,
-            PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
-        )
-        logger.info("역할 생성 완료 (전파 대기 10초)")
-        time.sleep(10)
-        return response["Role"]["Arn"]
-    except Exception as exc:
-        raise RuntimeError(
-            f"IAM 역할을 재사용도 생성도 할 수 없습니다: {exc}\n"
-            f"--role-arn 으로 사용 가능한 Lambda 실행 역할 ARN을 직접 지정하거나, "
-            f"IAM 권한이 있는 자격증명으로 실행하세요."
-        ) from exc
+
+    response = iam.create_role(
+        RoleName=role_name,
+        AssumeRolePolicyDocument=json.dumps(trust_policy),
+        Description="Role for detection trial Lambda functions"
+    )
+    role_arn = response['Role']['Arn']
+
+    # 기본 실행 정책 연결
+    iam.attach_role_policy(
+        RoleName=role_name,
+        PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+    )
+
+    logger.info("IAM 역할 생성: %s (10초 대기)", role_name)
+    time.sleep(10)  # IAM 역할 전파 대기
+
+    return role_arn
 
 
 def _ensure_lambda_function(lam, name: str, role_arn: str, zip_bytes: bytes) -> None:
+    """Lambda 함수 생성 또는 업데이트"""
     try:
         lam.get_function(FunctionName=name)
-        logger.info("Lambda 함수 이미 존재: %s (코드 업데이트)", name)
+        logger.info("Lambda 함수 이미 존재: %s (업데이트)", name)
         lam.update_function_code(FunctionName=name, ZipFile=zip_bytes)
     except lam.exceptions.ResourceNotFoundException:
         logger.info("Lambda 함수 생성: %s", name)
         lam.create_function(
-            FunctionName=name, Runtime="python3.12", Role=role_arn,
-            Handler="lambda_function.handler", Code={"ZipFile": zip_bytes},
-            Timeout=30, MemorySize=128,
+            FunctionName=name,
+            Runtime="python3.12",
+            Role=role_arn,
+            Handler="lambda_function.handler",
+            Code={"ZipFile": zip_bytes},
+            Timeout=30,
+            MemorySize=128,
         )
-        lam.get_waiter("function_active").wait(FunctionName=name)
+        # 함수 활성화 대기
+        waiter = lam.get_waiter('function_active')
+        waiter.wait(FunctionName=name)
 
 
-def setup_lambda_functions(n_anomaly: int, n_normal: int,
-                            role_arn: str | None = None) -> tuple[list[str], list[str]]:
+def setup_lambda_functions(n_anomaly: int, n_normal: int) -> tuple[list[str], list[str]]:
+    """anomaly n_anomaly개 + normal n_normal개 Lambda 함수 생성"""
+    iam = boto3.client("iam", region_name=AWS_REGION)
     lam = boto3.client("lambda", region_name=AWS_REGION)
-    resolved_role = _resolve_role_arn(role_arn)
+
+    role_arn = _get_or_create_lambda_role(iam)
     zip_bytes = _create_lambda_zip()
 
     anomaly_names = [_lambda_function_name("anomaly", i) for i in range(n_anomaly)]
     normal_names = [_lambda_function_name("normal", i) for i in range(n_normal)]
+
     for name in anomaly_names + normal_names:
-        _ensure_lambda_function(lam, name, resolved_role, zip_bytes)
+        _ensure_lambda_function(lam, name, role_arn, zip_bytes)
 
     logger.info("Lambda 함수 준비 완료: anomaly=%d개, normal=%d개", n_anomaly, n_normal)
-    logger.warning("생성 직후에는 CloudWatch 창(30포인트=2.5시간)의 앞부분이 0으로 채워진다. "
-                    "--run의 --baseline-minutes 만큼 평상시 호출을 쌓은 뒤 폭증을 걸어야 "
-                    "'0에서 급증'이 아닌 실제 재시도폭증 패턴을 측정하게 된다.")
     return anomaly_names, normal_names
 
 
-def teardown_lambda_functions(n_anomaly: int, n_normal: int) -> None:
-    lam = boto3.client("lambda", region_name=AWS_REGION)
-    for label, count in (("anomaly", n_anomaly), ("normal", n_normal)):
-        for i in range(count):
-            name = _lambda_function_name(label, i)
-            try:
-                lam.delete_function(FunctionName=name)
-                logger.info("Lambda 함수 삭제: %s", name)
-            except Exception as exc:
-                logger.warning("삭제 실패(%s): %s", name, exc)
-
-
-# ── 메트릭 조회 / 판정 ────────────────────────────────────────────────────────
+# ── 메트릭 조회 ───────────────────────────────────────────────────────────────
 
 def _fetch_metrics_at(resource_type: str, resource_id: str, end_time: datetime,
                        n_points: int = 30, period_seconds: int = 300) -> dict[str, list[float]]:
+    """CloudWatch에서 메트릭 조회"""
     cw = boto3.client("cloudwatch", region_name=AWS_REGION)
     start_time = end_time - timedelta(seconds=n_points * period_seconds)
 
@@ -300,25 +246,52 @@ def _fetch_metrics_at(resource_type: str, resource_id: str, end_time: datetime,
             match = next((v for ts, v in observed if abs((ts - expected_ts).total_seconds()) < half_period), 0.0)
             filled.append(match)
         metrics[metric_key] = filled
+
     return metrics
 
 
 def detect(resource_type: str, resource_id: str, end_time: datetime | None = None) -> dict:
-    """production(detection_node 실제 방식: persistence z-score + persistence IForest +
-    절대임계값 체크)과 teammate_compat(옛 방식: 창 최댓값 z-score + 마지막 시점 IForest)을
-    모두 계산. cost는 detect_both가 estimate_cost_series로 채운다."""
-    if end_time is None:
-        return detect_both(resource_type, resource_id)
+    """detection_agent 로직으로 판정"""
+    end_time = end_time or datetime.now(timezone.utc)
     usage = _fetch_metrics_at(resource_type, resource_id, end_time)
-    return detect_both(resource_type, resource_id, usage=usage)
+    n = len(next(iter(usage.values()))) if usage else 0
+
+    result = {
+        "resource_id": resource_id,
+        "end_time": end_time.isoformat(),
+        "n_points": n,
+        "raw_metrics": usage,
+    }
+
+    if n < da.MIN_POINTS_FOR_IFOREST:
+        result["note"] = f"포인트 {n}개로 최소 기준({da.MIN_POINTS_FOR_IFOREST}) 미달"
+        result["anomaly_flag"] = False
+        return result
+
+    # Lambda 에러 재시도 폭증 체크
+    error_metrics, error_triggered = da._lambda_error_rate_check(resource_type, usage)
+
+    # z-score / IForest
+    z_max = da._zscore_max(usage)
+    z_triggered = z_max > da.Z_SCORE_THRESHOLD
+    iforest_score = da._iforest_score(resource_type, usage)
+    iforest_triggered = iforest_score > da.IFOREST_THRESHOLD
+
+    result.update({
+        "z_max": round(z_max, 4),
+        "z_triggered": z_triggered,
+        "iforest_score": round(iforest_score, 4),
+        "iforest_triggered": iforest_triggered,
+        "error_rate_triggered": error_triggered,
+        "anomaly_flag": z_triggered or iforest_triggered or error_triggered,
+    })
+    return result
 
 
 # ── 시행 실행 ─────────────────────────────────────────────────────────────────
 
 def _invoke_lambda(lam, function_name: str, fail: bool) -> bool:
-    """RequestResponse(동기)로 호출한다. 비동기(Event)는 실패 시 Lambda가 기본 2회
-    자동 재시도해서 Invocations/Errors가 의도한 값보다 부풀려지므로, 에러율을 정확히
-    통제하려면 동기 호출이 맞다."""
+    """Lambda 함수 호출. 성공 여부 반환."""
     try:
         response = lam.invoke(
             FunctionName=function_name,
@@ -330,86 +303,142 @@ def _invoke_lambda(lam, function_name: str, fail: bool) -> bool:
         return False
 
 
-def _run_invocation_phase(lam, function_name: str, minutes: int, invocations_per_minute: int,
-                           error_rate: float, tag: str) -> tuple[int, int]:
-    """minutes 동안 분당 invocations_per_minute회 호출. v1처럼 분 시작에 몰아서 보내지 않고
-    분 안에 고르게 퍼뜨린다(실제 트래픽에 더 가깝고, 5분 구간이 고르게 채워짐)."""
-    interval = 60.0 / max(1, invocations_per_minute)
-    total = errors = 0
-    for _ in range(minutes):
-        minute_start = time.time()
-        for _ in range(invocations_per_minute):
-            should_fail = random.random() < error_rate
-            ok = _invoke_lambda(lam, function_name, fail=should_fail)
-            total += 1
-            if should_fail or not ok:
-                errors += 1
-            sleep_for = interval - ((time.time() - minute_start) % interval)
-            time.sleep(max(0.0, min(interval, sleep_for)))
-        remain = 60 - (time.time() - minute_start)
-        if remain > 0:
-            time.sleep(remain)
-    logger.info("[%s] %s 구간 완료: %d회 호출(에러 %d, 실측 에러율 %.0f%%)",
-                function_name, tag, total, errors, (errors / total * 100) if total else 0)
-    return total, errors
-
-
-def run_trial(function_name: str, rep: int, label: str, error_rate: float,
-               invocations_per_minute: int, baseline_minutes: int, duration_minutes: int,
-               wait_sec: int, normal_baseline_error_rate: float = 0.02) -> dict:
-    """anomaly/normal 공통. 베이스라인(평상시 에러율) 구간을 쌓은 뒤,
-    anomaly는 error_rate로 폭증시키고 normal은 평상시 수준을 계속 유지한다."""
+def run_anomaly_trial(function_name: str, rep: int, duration_minutes: int,
+                       invocations_per_minute: int, error_rate: float, wait_sec: int) -> dict:
+    """anomaly 시행: 높은 에러율로 호출"""
     t0 = time.time()
-    lam = boto3.client("lambda", region_name=AWS_REGION)
-    logger.info("[%s rep=%d] function=%s 시작 (베이스라인 %d분 + 본구간 %d분, "
-                "inv/min=%d, 본구간 error_rate=%.0f%%)",
-                label, rep, function_name, baseline_minutes, duration_minutes,
-                invocations_per_minute, error_rate * 100)
+    logger.info("[anomaly rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
+                rep, function_name, duration_minutes, invocations_per_minute, error_rate * 100)
+
     try:
-        n_base = e_base = 0
-        if baseline_minutes > 0:
-            n_base, e_base = _run_invocation_phase(
-                lam, function_name, baseline_minutes, invocations_per_minute,
-                normal_baseline_error_rate, "베이스라인")
+        lam = boto3.client("lambda", region_name=AWS_REGION)
 
-        before = detect("Lambda", function_name)
-        logger.info("[%s rep=%d] before production.or_gate=%s", label, rep,
-                    before["production"]["or_gate"])
+        total_invocations = 0
+        total_errors = 0
 
-        n_main, e_main = _run_invocation_phase(
-            lam, function_name, duration_minutes, invocations_per_minute, error_rate,
-            "폭증" if label == "anomaly" else "평상시 유지")
+        for minute in range(duration_minutes):
+            for _ in range(invocations_per_minute):
+                should_fail = random.random() < error_rate
+                success = _invoke_lambda(lam, function_name, fail=should_fail)
+                total_invocations += 1
+                if should_fail or not success:
+                    total_errors += 1
 
-        logger.info("[%s rep=%d] CloudWatch 반영 %d초 대기...", label, rep, wait_sec)
+            if minute < duration_minutes - 1:
+                time.sleep(60)  # 다음 분까지 대기
+
+        logger.info("[anomaly rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
+                    rep, total_invocations, total_errors, wait_sec)
         time.sleep(wait_sec)
 
         after = detect("Lambda", function_name)
-        prod = after["production"]
-        logger.info("[%s rep=%d] production.or_gate=%s (z=%s, IF=%s, 절대=%s) / teammate=%s",
-                    label, rep, prod["or_gate"], prod["zscore_persistent"],
-                    prod["iforest_triggered"], prod["absolute_triggered"],
-                    after["teammate_compat"]["anomaly_flag"])
+        logger.info("[anomaly rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
+                    rep, after.get("anomaly_flag"), after.get("z_max"),
+                    after.get("iforest_score"), after.get("error_rate_triggered"))
 
         return {
-            "rep": rep, "resource": function_name, "label": label,
-            "target_error_rate": error_rate, "invocations_per_minute": invocations_per_minute,
-            "baseline_invocations": n_base, "baseline_errors": e_base,
-            "main_invocations": n_main, "main_errors": e_main,
-            "actual_main_error_rate": round(e_main / n_main, 4) if n_main else 0,
-            "before": before, "after": after,
-            "detected_production": bool(prod["or_gate"]),
-            "detected_teammate_compat": bool(after["teammate_compat"]["anomaly_flag"]),
-            "detected_iforest_only": bool(prod["iforest_triggered"]),
-            "detected_zscore_only": bool(prod["zscore_persistent"]),
-            "detected_absolute_only": bool(prod["absolute_triggered"]),
-            "elapsed_sec": round(time.time() - t0, 1),
+            "rep": rep,
+            "function_name": function_name,
+            "label": "anomaly",
+            "total_invocations": total_invocations,
+            "total_errors": total_errors,
+            "actual_error_rate": total_errors / total_invocations if total_invocations else 0,
+            "after": after,
+            "detected": bool(after.get("anomaly_flag")),
+            "elapsed_sec": time.time() - t0,
         }
     except Exception as exc:
-        logger.error("[%s rep=%d] 실패: %s\n%s", label, rep, exc, traceback.format_exc())
-        return {"rep": rep, "resource": function_name, "label": label, "error": str(exc),
-                "detected_production": None, "detected_teammate_compat": None,
-                "detected_iforest_only": None, "detected_zscore_only": None,
-                "detected_absolute_only": None}
+        logger.error("[anomaly rep=%d] 실패: %s\n%s", rep, exc, traceback.format_exc())
+        return {"rep": rep, "function_name": function_name, "label": "anomaly",
+                "error": str(exc), "detected": None}
+
+
+def run_normal_trial(function_name: str, rep: int, duration_minutes: int,
+                      invocations_per_minute: int, error_rate: float, wait_sec: int) -> dict:
+    """normal 시행: 낮은 에러율로 정상 호출"""
+    t0 = time.time()
+    logger.info("[normal rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
+                rep, function_name, duration_minutes, invocations_per_minute, error_rate * 100)
+
+    try:
+        lam = boto3.client("lambda", region_name=AWS_REGION)
+
+        total_invocations = 0
+        total_errors = 0
+
+        for minute in range(duration_minutes):
+            for _ in range(invocations_per_minute):
+                should_fail = random.random() < error_rate
+                success = _invoke_lambda(lam, function_name, fail=should_fail)
+                total_invocations += 1
+                if should_fail or not success:
+                    total_errors += 1
+
+            if minute < duration_minutes - 1:
+                time.sleep(60)
+
+        logger.info("[normal rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
+                    rep, total_invocations, total_errors, wait_sec)
+        time.sleep(wait_sec)
+
+        after = detect("Lambda", function_name)
+        logger.info("[normal rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
+                    rep, after.get("anomaly_flag"), after.get("z_max"),
+                    after.get("iforest_score"), after.get("error_rate_triggered"))
+
+        return {
+            "rep": rep,
+            "function_name": function_name,
+            "label": "normal",
+            "total_invocations": total_invocations,
+            "total_errors": total_errors,
+            "actual_error_rate": total_errors / total_invocations if total_invocations else 0,
+            "after": after,
+            "detected": bool(after.get("anomaly_flag")),
+            "elapsed_sec": time.time() - t0,
+        }
+    except Exception as exc:
+        logger.error("[normal rep=%d] 실패: %s\n%s", rep, exc, traceback.format_exc())
+        return {"rep": rep, "function_name": function_name, "label": "normal",
+                "error": str(exc), "detected": None}
+
+
+# ── 통계 계산 ────────────────────────────────────────────────────────────────
+
+def clopper_pearson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:
+    if n == 0:
+        return (0.0, 1.0)
+    alpha = 1 - confidence
+    lower = 0.0 if successes == 0 else _beta_dist.ppf(alpha / 2, successes, n - successes + 1)
+    upper = 1.0 if successes == n else _beta_dist.ppf(1 - alpha / 2, successes + 1, n - successes)
+    return (float(lower), float(upper))
+
+
+def compute_confusion_metrics(anomaly_results: list[dict], normal_results: list[dict]) -> dict:
+    tp = sum(1 for r in anomaly_results if r.get("detected") is True)
+    fn = sum(1 for r in anomaly_results if r.get("detected") is False)
+    fp = sum(1 for r in normal_results if r.get("detected") is True)
+    tn = sum(1 for r in normal_results if r.get("detected") is False)
+
+    total = tp + fn + fp + tn
+    accuracy = (tp + tn) / total if total else None
+    recall = tp / (tp + fn) if (tp + fn) else None
+    precision = tp / (tp + fp) if (tp + fp) else None
+    fpr = fp / (fp + tn) if (fp + tn) else None
+
+    n_anomaly = tp + fn
+    n_normal = tn + fp
+
+    return {
+        "confusion_matrix": {"TP": tp, "FN": fn, "FP": fp, "TN": tn},
+        "accuracy": accuracy,
+        "accuracy_ci_95_clopper_pearson": list(clopper_pearson_ci(tp + tn, total)) if total else None,
+        "recall": recall,
+        "recall_ci_95_clopper_pearson": list(clopper_pearson_ci(tp, n_anomaly)) if n_anomaly else None,
+        "precision": precision,
+        "false_positive_rate": fpr,
+        "fpr_ci_95_clopper_pearson": list(clopper_pearson_ci(fp, n_normal)) if n_normal else None,
+    }
 
 
 # ── 메인 ────────────────────────────────────────────────────────────────────
@@ -424,92 +453,66 @@ def result_filename(invocations_per_min: int, error_rate: float, wait_sec: int,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Lambda 재시도폭증 반복 시행 실험")
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--setup", action="store_true", help="Lambda 함수 생성")
     parser.add_argument("--run", action="store_true", help="실험 실행")
-    parser.add_argument("--teardown", action="store_true", help="Lambda 함수 삭제")
     parser.add_argument("--n-anomaly", type=int, default=5)
     parser.add_argument("--n-normal", type=int, default=8)
-    parser.add_argument("--duration-minutes", type=int, default=MIN_DURATION_MINUTES,
-                        help=f"본 구간 호출 지속 시간(분). 절대체크는 5분 구간 "
-                             f"{da.PERSISTENCE_WINDOW_POINTS}개 연속을 요구하므로 "
-                             f"{MIN_DURATION_MINUTES}분 이상이어야 한다")
-    parser.add_argument("--baseline-minutes", type=int, default=150,
-                        help="평상시 호출 이력을 쌓는 시간. 기본 150분(창 전체). 줄이면 창 앞부분이 "
-                             "0으로 채워져 탐지율이 낙관적으로 왜곡됨")
-    parser.add_argument("--wait-sec", type=int, default=180, help="CloudWatch 반영 대기 시간")
-    parser.add_argument("--role-arn", type=str, default=None,
-                        help="Lambda 실행 역할 ARN(미지정 시 기존 detection-test-lambda-role 재사용)")
+    parser.add_argument("--duration-minutes", type=int, default=5, help="각 시행당 호출 지속 시간(분)")
+    parser.add_argument("--invocations-per-minute", type=int, default=20)
+    parser.add_argument("--anomaly-error-rate", type=float, default=0.6)
+    parser.add_argument("--normal-error-rate", type=float, default=0.05)
+    parser.add_argument("--wait-sec", type=int, default=300, help="CloudWatch 반영 대기 시간")
     args = parser.parse_args()
 
     log_path = _setup_logging()
     logger.info("로그 파일: %s (SCRIPT_VERSION=%s)", log_path, SCRIPT_VERSION)
 
-    if args.duration_minutes < MIN_DURATION_MINUTES:
-        logger.warning(
-            "--duration-minutes=%d 는 %d분 미만입니다. 절대체크(_lambda_error_rate_check)는 "
-            "최근 %d개 5분 구간이 모두 조건을 만족해야 트리거되므로, 이 설정으로는 "
-            "진짜 anomaly도 절대체크로 잡히지 않습니다(z-score/IForest만 기여).",
-            args.duration_minutes, MIN_DURATION_MINUTES, da.PERSISTENCE_WINDOW_POINTS)
-    if args.baseline_minutes < 150:
-        logger.warning("--baseline-minutes=%d 는 창 전체(150분)보다 짧습니다. 창 앞부분이 0으로 "
-                        "채워져 탐지율이 실제보다 좋게 나올 수 있으니 보고서에 명시할 것.",
-                        args.baseline_minutes)
-
-    if args.teardown:
-        teardown_lambda_functions(args.n_anomaly, args.n_normal)
-        return
-
     if args.setup:
-        setup_lambda_functions(args.n_anomaly, args.n_normal, args.role_arn)
+        setup_lambda_functions(args.n_anomaly, args.n_normal)
         return
 
     if not args.run:
         parser.print_help()
         return
 
+    anomaly_functions = [_lambda_function_name("anomaly", i) for i in range(args.n_anomaly)]
+    normal_functions = [_lambda_function_name("normal", i) for i in range(args.n_normal)]
+
     total_workers = args.n_anomaly + args.n_normal
     logger.info("=== anomaly %d개 + normal %d개, 총 %d개 시행 동시 병렬 시작 ===",
                 args.n_anomaly, args.n_normal, total_workers)
-    logger.info("함수별로 서로 다른 에러율/호출량을 쓴다(그룹 내 복제본이면 독립 시행이 아니므로)")
 
-    results = []
+    anomaly_results, normal_results = [], []
     with ThreadPoolExecutor(max_workers=total_workers) as executor:
-        futures = []
+        futures = {}
         for i in range(args.n_anomaly):
-            err, ipm = ANOMALY_PROFILES[i % len(ANOMALY_PROFILES)]
-            futures.append(executor.submit(
-                run_trial, _lambda_function_name("anomaly", i), i, "anomaly", err, ipm,
-                args.baseline_minutes, args.duration_minutes, args.wait_sec))
+            fut = executor.submit(
+                run_anomaly_trial, anomaly_functions[i], i,
+                args.duration_minutes, args.invocations_per_minute,
+                args.anomaly_error_rate, args.wait_sec
+            )
+            futures[fut] = ("anomaly", i)
         for i in range(args.n_normal):
-            err, ipm = NORMAL_PROFILES[i % len(NORMAL_PROFILES)]
-            futures.append(executor.submit(
-                run_trial, _lambda_function_name("normal", i), i, "normal", err, ipm,
-                args.baseline_minutes, args.duration_minutes, args.wait_sec))
+            fut = executor.submit(
+                run_normal_trial, normal_functions[i], i,
+                args.duration_minutes, args.invocations_per_minute,
+                args.normal_error_rate, args.wait_sec
+            )
+            futures[fut] = ("normal", i)
+
         for future in as_completed(futures):
-            results.append(future.result())
+            label, _ = futures[future]
+            result = future.result()
+            (anomaly_results if label == "anomaly" else normal_results).append(result)
 
-    results.sort(key=lambda r: (r["label"], r["rep"]))
+    anomaly_results.sort(key=lambda r: r["rep"])
+    normal_results.sort(key=lambda r: r["rep"])
 
-    metrics = {
-        "production(detection_node 실제 방식)": compute_metrics(results, "detected_production"),
-        "iforest_only(persistence 적용)": compute_metrics(results, "detected_iforest_only"),
-        "zscore_only(persistence 적용)": compute_metrics(results, "detected_zscore_only"),
-        "absolute_only(_lambda_error_rate_check)": compute_metrics(results, "detected_absolute_only"),
-        "teammate_compat(v1까지의 방식)": compute_metrics(results, "detected_teammate_compat"),
-    }
-    for name, m in metrics.items():
-        c = m["confusion_matrix"]
-        logger.info("[%s] TP=%d TN=%d FP=%d FN=%d / accuracy=%s recall=%s FPR=%s",
-                    name, c["TP"], c["TN"], c["FP"], c["FN"],
-                    f"{m['accuracy']:.1%}" if m["accuracy"] is not None else "N/A",
-                    f"{m['recall']:.1%}" if m["recall"] is not None else "N/A",
-                    f"{m['false_positive_rate']:.1%}" if m["false_positive_rate"] is not None else "N/A")
-        if m["recall_ci_95_clopper_pearson"]:
-            lo, hi = m["recall_ci_95_clopper_pearson"]
-            logger.info("    recall 95%% CI(Clopper-Pearson) = [%.1f%%, %.1f%%]", lo * 100, hi * 100)
+    metrics = compute_confusion_metrics(anomaly_results, normal_results)
+    logger.info("=== 결과 ===\n%s", json.dumps(metrics, ensure_ascii=False, indent=2))
 
-    out_path = result_filename(ANOMALY_PROFILES[0][1], ANOMALY_PROFILES[0][0],
+    out_path = result_filename(args.invocations_per_minute, args.anomaly_error_rate,
                                 args.wait_sec, args.n_normal, args.n_anomaly)
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -517,19 +520,20 @@ def main() -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "params": {
             "duration_minutes": args.duration_minutes,
-            "baseline_minutes": args.baseline_minutes,
+            "invocations_per_minute": args.invocations_per_minute,
+            "anomaly_error_rate": args.anomaly_error_rate,
+            "normal_error_rate": args.normal_error_rate,
             "wait_sec": args.wait_sec,
-            "n_normal": args.n_normal, "n_anomaly": args.n_anomaly,
-            "anomaly_profiles": ANOMALY_PROFILES[:args.n_anomaly],
-            "normal_profiles": NORMAL_PROFILES[:args.n_normal],
+            "n_normal": args.n_normal,
+            "n_anomaly": args.n_anomaly,
         },
         "metrics": metrics,
-        "trials": results,
+        "anomaly_trials": anomaly_results,
+        "normal_trials": normal_results,
     }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     logger.info("결과 저장: %s", out_path)
-    logger.info("정리는 --teardown --n-anomaly %d --n-normal %d", args.n_anomaly, args.n_normal)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,314 @@
+{
+  "scenario": "Lambda 재시도폭증 (실 AWS, 13개 함수 병렬)",
+  "windows": [
+    {
+      "id": "detection-test-lambda",
+      "true_label": "anomaly",
+      "z_score": false,
+      "iforest": true,
+      "iforest_score": 1.0,
+      "absolute_error_surge": true,
+      "or_gate": true,
+      "last_invocation": [
+        27.0,
+        37.0,
+        13.0
+      ],
+      "last_error": [
+        20.0,
+        32.0,
+        12.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-anomaly-2",
+      "true_label": "anomaly",
+      "z_score": false,
+      "iforest": true,
+      "iforest_score": 0.7864,
+      "absolute_error_surge": false,
+      "or_gate": true,
+      "last_invocation": [
+        18.0,
+        25.0,
+        6.0
+      ],
+      "last_error": [
+        14.0,
+        22.0,
+        5.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-anomaly-3",
+      "true_label": "anomaly",
+      "z_score": false,
+      "iforest": true,
+      "iforest_score": 0.9328,
+      "absolute_error_surge": true,
+      "or_gate": true,
+      "last_invocation": [
+        63.0,
+        65.0,
+        44.0
+      ],
+      "last_error": [
+        63.0,
+        63.0,
+        44.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-anomaly-4",
+      "true_label": "anomaly",
+      "z_score": false,
+      "iforest": true,
+      "iforest_score": 0.8828,
+      "absolute_error_surge": true,
+      "or_gate": true,
+      "last_invocation": [
+        49.0,
+        51.0,
+        31.0
+      ],
+      "last_error": [
+        38.0,
+        44.0,
+        26.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-anomaly-5",
+      "true_label": "anomaly",
+      "z_score": false,
+      "iforest": true,
+      "iforest_score": 1.0,
+      "absolute_error_surge": true,
+      "or_gate": true,
+      "last_invocation": [
+        32.0,
+        31.0,
+        15.0
+      ],
+      "last_error": [
+        30.0,
+        29.0,
+        15.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-1",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.4588,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        10.0,
+        10.0,
+        2.0
+      ],
+      "last_error": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-2",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.0311,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        11.0,
+        10.0,
+        2.0
+      ],
+      "last_error": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-3",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.9952,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        19.0,
+        18.0,
+        7.0
+      ],
+      "last_error": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-4",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.0458,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        21.0,
+        20.0,
+        7.0
+      ],
+      "last_error": [
+        4.0,
+        2.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-5",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.9172,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        35.0,
+        34.0,
+        15.0
+      ],
+      "last_error": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-6",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 1.0,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        37.0,
+        33.0,
+        18.0
+      ],
+      "last_error": [
+        3.0,
+        0.0,
+        3.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-7",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.6388,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        5.0,
+        5.0,
+        0.0
+      ],
+      "last_error": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "detection-test-lambda-normal-8",
+      "true_label": "normal",
+      "z_score": false,
+      "iforest": false,
+      "iforest_score": 0.1197,
+      "absolute_error_surge": false,
+      "or_gate": false,
+      "last_invocation": [
+        14.0,
+        15.0,
+        5.0
+      ],
+      "last_error": [
+        0.0,
+        2.0,
+        1.0
+      ]
+    }
+  ],
+  "per_mechanism": {
+    "z_score": {
+      "n_normal": 8,
+      "n_anomaly": 5,
+      "confusion": {
+        "TP": 0,
+        "TN": 8,
+        "FP": 0,
+        "FN": 5
+      },
+      "metrics": {
+        "accuracy": 0.6154,
+        "recall": 0.0,
+        "precision": null
+      }
+    },
+    "iforest": {
+      "n_normal": 8,
+      "n_anomaly": 5,
+      "confusion": {
+        "TP": 5,
+        "TN": 8,
+        "FP": 0,
+        "FN": 0
+      },
+      "metrics": {
+        "accuracy": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      }
+    },
+    "absolute_error_surge": {
+      "n_normal": 8,
+      "n_anomaly": 5,
+      "confusion": {
+        "TP": 4,
+        "TN": 8,
+        "FP": 0,
+        "FN": 1
+      },
+      "metrics": {
+        "accuracy": 0.9231,
+        "recall": 0.8,
+        "precision": 1.0
+      }
+    },
+    "or_gate(detection_node 전체)": {
+      "n_normal": 8,
+      "n_anomaly": 5,
+      "confusion": {
+        "TP": 5,
+        "TN": 8,
+        "FP": 0,
+        "FN": 0
+      },
+      "metrics": {
+        "accuracy": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      }
+    }
+  }
+}
