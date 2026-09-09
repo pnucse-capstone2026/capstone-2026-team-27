@@ -1,0 +1,41 @@
+2026-09-10 02:47:45,350 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_zombie_replay_trial_20260910_024745.log (SCRIPT_VERSION=1)
+2026-09-10 02:47:45,353 [INFO] 원본: ec2_repeated_trial__n8-5_scriptv1_20260909.json (측정 2026-09-09T14:11:40.704652+00:00, 시행 13개)
+2026-09-10 02:47:45,364 [INFO] [anomaly i-00f27d6650869a74d] profile=silent anomaly_flag=True (z=0.5825, IF=0.9258, triggered=['cpu_utilization', 'network_in', 'network_out'])
+2026-09-10 02:47:45,373 [INFO] [anomaly i-013a9d143009d1376] profile=whisper_more anomaly_flag=True (z=0.8203, IF=0.3578, triggered=['cpu_utilization', 'network_in', 'network_out'])
+2026-09-10 02:47:45,383 [INFO] [anomaly i-0238a05593fbcf2f2] profile=whisper anomaly_flag=True (z=0.7264, IF=0.5895, triggered=['cpu_utilization', 'network_in', 'network_out'])
+2026-09-10 02:47:45,392 [INFO] [anomaly i-046cbf400dd6dc9d7] profile=whisper anomaly_flag=True (z=0.6283, IF=0.5055, triggered=['cpu_utilization', 'network_in', 'network_out'])
+2026-09-10 02:47:45,402 [INFO] [anomaly i-094595e331b19be17] profile=silent anomaly_flag=True (z=0.5933, IF=0.918, triggered=['cpu_utilization', 'network_in', 'network_out'])
+2026-09-10 02:47:45,412 [INFO] [normal i-01aed37041b8e6946] profile=bursty anomaly_flag=False (z=2.4721, IF=0.3606, triggered=[])
+2026-09-10 02:47:45,422 [INFO] [normal i-0380a0b372a973a5c] profile=heavy anomaly_flag=False (z=5.2954, IF=0.0, triggered=[])
+2026-09-10 02:47:45,431 [INFO] [normal i-04cec80c3045da327] profile=moderate anomaly_flag=False (z=4.8292, IF=0.2859, triggered=[])
+2026-09-10 02:47:45,441 [INFO] [normal i-053230c6e903132f8] profile=heavy anomaly_flag=False (z=5.2824, IF=0.0, triggered=[])
+2026-09-10 02:47:45,450 [INFO] [normal i-07c77db4628d7e7ca] profile=moderate anomaly_flag=False (z=5.1608, IF=0.0, triggered=[])
+2026-09-10 02:47:45,459 [INFO] [normal i-0973aa83fa2ba0dd9] profile=bursty anomaly_flag=False (z=2.4096, IF=0.4006, triggered=[])
+2026-09-10 02:47:45,467 [INFO] [normal i-0cd6cf73f56959d2e] profile=light anomaly_flag=False (z=4.6759, IF=0.0, triggered=[])
+2026-09-10 02:47:45,477 [INFO] [normal i-0e810265b88caeac5] profile=light anomaly_flag=False (z=4.649, IF=0.0, triggered=[])
+2026-09-10 02:47:45,480 [INFO] === 결과 ===
+{
+  "confusion_matrix": {
+    "TP": 5,
+    "FN": 0,
+    "FP": 0,
+    "TN": 8
+  },
+  "accuracy": 1.0,
+  "accuracy_ci_95_clopper_pearson": [
+    0.752947361999529,
+    1.0
+  ],
+  "recall": 1.0,
+  "recall_ci_95_clopper_pearson": [
+    0.47817624989501856,
+    1.0
+  ],
+  "precision": 1.0,
+  "false_positive_rate": 0.0,
+  "fpr_ci_95_clopper_pearson": [
+    0.0,
+    0.36941664755281917
+  ]
+}
+2026-09-10 02:47:45,484 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\ec2_zombie_replay_trial__n8-5_scriptv1_20260910.json

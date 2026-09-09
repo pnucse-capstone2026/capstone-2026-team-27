@@ -1,0 +1,35 @@
+2026-09-09 23:11:17,245 [INFO] 로그: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260909_231117.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-09 23:11:17,245 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===
+2026-09-09 23:11:17,247 [INFO] [normal i-0cd6cf73f56959d2e] 측정 시작 (profile=light, age=9088s)
+2026-09-09 23:11:17,258 [INFO] [normal i-0e810265b88caeac5] 측정 시작 (profile=light, age=9088s)
+2026-09-09 23:11:17,265 [INFO] [normal i-04cec80c3045da327] 측정 시작 (profile=moderate, age=9085s)
+2026-09-09 23:11:17,270 [INFO] [normal i-07c77db4628d7e7ca] 측정 시작 (profile=moderate, age=9085s)
+2026-09-09 23:11:17,290 [INFO] [normal i-0380a0b372a973a5c] 측정 시작 (profile=heavy, age=9082s)
+2026-09-09 23:11:17,298 [INFO] [normal i-053230c6e903132f8] 측정 시작 (profile=heavy, age=9082s)
+2026-09-09 23:11:17,316 [INFO] [normal i-01aed37041b8e6946] 측정 시작 (profile=bursty, age=9079s)
+2026-09-09 23:11:17,318 [INFO] [normal i-0973aa83fa2ba0dd9] 측정 시작 (profile=bursty, age=9079s)
+2026-09-09 23:11:17,345 [INFO] [anomaly i-00f27d6650869a74d] 측정 시작 (profile=silent, age=9067s)
+2026-09-09 23:11:17,349 [INFO] [anomaly i-094595e331b19be17] 측정 시작 (profile=silent, age=9067s)
+2026-09-09 23:11:17,350 [INFO] [anomaly i-0238a05593fbcf2f2] 측정 시작 (profile=whisper, age=9064s)
+2026-09-09 23:11:17,354 [INFO] [anomaly i-046cbf400dd6dc9d7] 측정 시작 (profile=whisper, age=9064s)
+2026-09-09 23:11:17,357 [INFO] [anomaly i-013a9d143009d1376] 측정 시작 (profile=whisper_more, age=9061s)
+2026-09-09 23:11:32,343 [INFO] [normal i-04cec80c3045da327] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:32,383 [INFO] [anomaly i-046cbf400dd6dc9d7] production.or_gate=True (IF=True, 절대=True) / teammate.anomaly_flag=True
+2026-09-09 23:11:32,459 [INFO] [normal i-07c77db4628d7e7ca] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:32,604 [INFO] [normal i-01aed37041b8e6946] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:32,646 [INFO] [normal i-0973aa83fa2ba0dd9] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:32,677 [INFO] [anomaly i-0238a05593fbcf2f2] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=True
+2026-09-09 23:11:33,521 [INFO] [normal i-0380a0b372a973a5c] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:33,596 [INFO] [normal i-053230c6e903132f8] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:33,667 [INFO] [anomaly i-013a9d143009d1376] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-09 23:11:33,687 [INFO] [anomaly i-00f27d6650869a74d] production.or_gate=True (IF=True, 절대=True) / teammate.anomaly_flag=True
+2026-09-09 23:11:35,285 [INFO] [normal i-0e810265b88caeac5] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:39,493 [INFO] [anomaly i-094595e331b19be17] production.or_gate=True (IF=True, 절대=True) / teammate.anomaly_flag=True
+2026-09-09 23:11:40,693 [INFO] [normal i-0cd6cf73f56959d2e] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-09 23:11:40,703 [INFO] [production(detection_node 실제 방식)] TP=5 TN=8 FP=0 FN=0 / accuracy=100.0% recall=100.0%
+2026-09-09 23:11:40,703 [INFO]     recall 95% CI(Clopper-Pearson) = [47.8%, 100.0%]
+2026-09-09 23:11:40,703 [INFO] [iforest_only(persistence 적용)] TP=3 TN=8 FP=0 FN=2 / accuracy=84.6% recall=60.0%
+2026-09-09 23:11:40,703 [INFO]     recall 95% CI(Clopper-Pearson) = [14.7%, 94.7%]
+2026-09-09 23:11:40,703 [INFO] [teammate_compat(낡은 헬퍼 방식)] TP=4 TN=8 FP=0 FN=1 / accuracy=92.3% recall=80.0%
+2026-09-09 23:11:40,703 [INFO]     recall 95% CI(Clopper-Pearson) = [28.4%, 99.5%]
+2026-09-09 23:11:40,708 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\ec2_repeated_trial__n8-5_scriptv1_20260909.json

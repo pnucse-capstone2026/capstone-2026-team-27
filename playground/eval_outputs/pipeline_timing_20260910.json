@@ -1,0 +1,22 @@
+[
+  {
+    "resource_id": "i-094595e331b19be17",
+    "resource_type": "EC2",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_inefficiency",
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "approval_bypassed_for_timing": false,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.04190182685852051,
+      "classification": 19.40121293067932,
+      "decision": 0.9046840667724609,
+      "action": 2.30363392829895,
+      "qa": 303.68258595466614,
+      "logging": 0.24243807792663574,
+      "total": 333.6602871417999
+    },
+    "measured_at": "2026-09-09T18:22:38.030496+00:00"
+  }
+]

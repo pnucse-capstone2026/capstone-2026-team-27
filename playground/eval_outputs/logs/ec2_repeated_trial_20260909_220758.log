@@ -1,0 +1,2 @@
+2026-09-09 22:07:58,963 [INFO] 로그: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260909_220758.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-09 22:07:58,964 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===

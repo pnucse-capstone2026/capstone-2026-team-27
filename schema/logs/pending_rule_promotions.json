@@ -38,6 +38,20 @@
       "sample_reasoning": "[LLM] EC2 CPU utilization and network-in traffic have simultaneously surged significantly, leading to a corresponding increase in cost. This pattern indicates a sudden increase in workload or traffic.",
       "sample_interim_action": "Investigate EC2 instance workload and traffic sources immediately.",
       "queued_at": "2026-09-02T08:27:53Z"
+    },
+    {
+      "id": "pending-clf-4",
+      "resource_type": "EC2",
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_inefficiency",
+      "count": 3,
+      "sample_reasoning": "[LLM] EC2 인스턴스의 네트워크 지표가 0으로 떨어지고 CPU 사용률이 낮게 유지되며 비용은 동일합니다. 이는 리소스가 유휴 상태이거나 좀비 리소스일 가능성이 높습니다.",
+      "sample_interim_action": "EC2 인스턴스 사용량 확인 및 종료/축소 고려",
+      "queued_at": "2026-09-09T18:38:18Z"
     }
   ],
   "decision": [

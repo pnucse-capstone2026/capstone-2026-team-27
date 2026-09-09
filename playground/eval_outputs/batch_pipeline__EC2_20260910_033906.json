@@ -1,0 +1,323 @@
+{
+  "script_version": "1",
+  "resource_type": "EC2",
+  "generated_at": "2026-09-09T18:39:06.339597+00:00",
+  "wall_clock_sec": 380.3,
+  "lambda_traffic_minutes": 0,
+  "lambda_traffic_stats": {},
+  "summary": {
+    "n_resources": 13,
+    "n_ok": 10,
+    "n_error": 3,
+    "n_detected": 10,
+    "n_stopped_at_approval_gate": 1,
+    "n_action_executed": 9,
+    "n_qa_passed": 9,
+    "qa_pass_rate": 1.0,
+    "detected_by_label": {
+      "anomaly": {
+        "total": 5,
+        "detected": 5
+      },
+      "normal": {
+        "total": 5,
+        "detected": 5
+      }
+    },
+    "selected_actions": {
+      "ScaleDown": 1,
+      "Stop": 9
+    },
+    "timings": {
+      "detection": {
+        "n": 10,
+        "mean_sec": 0.145,
+        "stdev_sec": 0.07,
+        "min_sec": 0.05,
+        "max_sec": 0.264
+      },
+      "classification": {
+        "n": 10,
+        "mean_sec": 26.937,
+        "stdev_sec": 15.63,
+        "min_sec": 13.603,
+        "max_sec": 57.843
+      },
+      "decision": {
+        "n": 10,
+        "mean_sec": 3.046,
+        "stdev_sec": 6.795,
+        "min_sec": 0.578,
+        "max_sec": 22.349
+      },
+      "action": {
+        "n": 9,
+        "mean_sec": 2.352,
+        "stdev_sec": 0.916,
+        "min_sec": 1.501,
+        "max_sec": 3.716
+      },
+      "qa": {
+        "n": 9,
+        "mean_sec": 302.933,
+        "stdev_sec": 0.727,
+        "min_sec": 302.15,
+        "max_sec": 304.118
+      },
+      "logging": {
+        "n": 9,
+        "mean_sec": 0.117,
+        "stdev_sec": 0.019,
+        "min_sec": 0.087,
+        "max_sec": 0.139
+      },
+      "total": {
+        "n": 10,
+        "mean_sec": 318.968,
+        "stdev_sec": 95.235,
+        "min_sec": 51.556,
+        "max_sec": 380.291
+      }
+    }
+  },
+  "results": [
+    {
+      "resource_id": "i-00f27d6650869a74d",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "selected_action": "ScaleDown",
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.08647322654724121,
+        "classification": 13.603429079055786,
+        "decision": 22.34933090209961,
+        "total": 51.55582356452942
+      },
+      "label": "anomaly",
+      "profile": "silent",
+      "elapsed_sec": 51.6
+    },
+    {
+      "resource_id": "i-094595e331b19be17",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.1320357322692871,
+        "classification": 57.84307813644409,
+        "decision": 0.6522245407104492,
+        "action": 1.8987481594085693,
+        "qa": 304.1179690361023,
+        "logging": 0.13458824157714844,
+        "total": 380.2909007072449
+      },
+      "label": "anomaly",
+      "profile": "silent",
+      "elapsed_sec": 380.3
+    },
+    {
+      "resource_id": "i-0238a05593fbcf2f2",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.14694857597351074,
+        "classification": 17.25733971595764,
+        "decision": 0.9780499935150146,
+        "action": 3.68705153465271,
+        "qa": 303.60301780700684,
+        "logging": 0.12634515762329102,
+        "total": 337.9585735797882
+      },
+      "label": "anomaly",
+      "profile": "whisper",
+      "elapsed_sec": 338.0
+    },
+    {
+      "resource_id": "i-046cbf400dd6dc9d7",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.07174468040466309,
+        "classification": 15.383394002914429,
+        "decision": 0.6753735542297363,
+        "action": 1.8367607593536377,
+        "qa": 302.2551860809326,
+        "logging": 0.12250733375549316,
+        "total": 332.523864030838
+      },
+      "label": "anomaly",
+      "profile": "whisper",
+      "elapsed_sec": 332.5
+    },
+    {
+      "resource_id": "i-013a9d143009d1376",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.26421475410461426,
+        "classification": 34.345942735672,
+        "decision": 0.5821030139923096,
+        "action": 1.5012972354888916,
+        "qa": 302.3764111995697,
+        "logging": 0.09203577041625977,
+        "total": 354.41123628616333
+      },
+      "label": "anomaly",
+      "profile": "whisper_more",
+      "elapsed_sec": 354.4
+    },
+    {
+      "resource_id": "i-0e810265b88caeac5",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.049634456634521484,
+        "classification": 14.883969783782959,
+        "decision": 0.9899327754974365,
+        "action": 3.154493808746338,
+        "qa": 302.9301211833954,
+        "logging": 0.12264466285705566,
+        "total": 336.39238810539246
+      },
+      "label": "normal",
+      "profile": "light",
+      "elapsed_sec": 336.4
+    },
+    {
+      "resource_id": "i-0cd6cf73f56959d2e",
+      "resource_type": "EC2",
+      "label": "normal",
+      "profile": "light",
+      "error": "Infinite loop in credential configuration detected. Attempting to load from profile default which has already been visited. Visited profiles: ['detection-runtime', 'default']",
+      "elapsed_sec": 0.3
+    },
+    {
+      "resource_id": "i-07c77db4628d7e7ca",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.16296625137329102,
+        "classification": 17.054768800735474,
+        "decision": 1.1329143047332764,
+        "action": 3.7158124446868896,
+        "qa": 303.63584446907043,
+        "logging": 0.08666729927062988,
+        "total": 337.92078971862793
+      },
+      "label": "normal",
+      "profile": "moderate",
+      "elapsed_sec": 337.9
+    },
+    {
+      "resource_id": "i-04cec80c3045da327",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.2163550853729248,
+        "classification": 31.59834909439087,
+        "decision": 0.6014630794525146,
+        "action": 1.539491891860962,
+        "qa": 302.1503818035126,
+        "logging": 0.1394050121307373,
+        "total": 351.61135029792786
+      },
+      "label": "normal",
+      "profile": "moderate",
+      "elapsed_sec": 351.6
+    },
+    {
+      "resource_id": "i-0380a0b372a973a5c",
+      "resource_type": "EC2",
+      "label": "normal",
+      "profile": "heavy",
+      "error": "Infinite loop in credential configuration detected. Attempting to load from profile default which has already been visited. Visited profiles: ['detection-runtime', 'default']",
+      "elapsed_sec": 0.2
+    },
+    {
+      "resource_id": "i-053230c6e903132f8",
+      "resource_type": "EC2",
+      "label": "normal",
+      "profile": "heavy",
+      "error": "Infinite loop in credential configuration detected. Attempting to load from profile default which has already been visited. Visited profiles: ['detection-runtime', 'default']",
+      "elapsed_sec": 0.2
+    },
+    {
+      "resource_id": "i-01aed37041b8e6946",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.10330581665039062,
+        "classification": 19.07854127883911,
+        "decision": 1.9170303344726562,
+        "action": 2.2219491004943848,
+        "qa": 303.0879201889038,
+        "logging": 0.09802055358886719,
+        "total": 338.63115882873535
+      },
+      "label": "normal",
+      "profile": "bursty",
+      "elapsed_sec": 338.6
+    },
+    {
+      "resource_id": "i-0973aa83fa2ba0dd9",
+      "resource_type": "EC2",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_inefficiency",
+      "selected_action": "Stop",
+      "risk_level": "LOW",
+      "approval_bypassed_for_timing": false,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.21535348892211914,
+        "classification": 48.32051706314087,
+        "decision": 0.5782260894775391,
+        "action": 1.609541416168213,
+        "qa": 302.24268865585327,
+        "logging": 0.12788105010986328,
+        "total": 368.38623237609863
+      },
+      "label": "normal",
+      "profile": "bursty",
+      "elapsed_sec": 368.4
+    }
+  ]
+}
