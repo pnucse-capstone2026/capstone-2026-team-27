@@ -190,8 +190,8 @@ def generate_edge_normal_autoscaling_window(
     """엣지케이스 (정상) AutoScaling 윈도우 생성
 
     임계값 근처지만 정상인 데이터:
-    - capacity가 평균의 1.8배 (2배 미만)
-    - 또는 스파이크가 1~2개 포인트만 (지속성 체크 미통과)
+    - 스파이크가 1개 포인트만 (지속성 체크 3개 연속 미통과)
+    - 최근 3개 중 1개만 높고, 나머지 2개는 정상
     """
 
     time_slot = get_time_slot(start_hour)
@@ -199,17 +199,22 @@ def generate_edge_normal_autoscaling_window(
 
     base_capacity = 4 * base_multiplier
 
-    # 정상 부분
+    # 앞 28개는 정상
     normal_capacity = np.clip(
-        base_capacity + np.random.choice([-1, 0, 0, 0, 1], 27),
+        base_capacity + np.random.choice([-1, 0, 0, 0, 1], 28),
         1, 6
     ).astype(float)
 
-    # 엣지 케이스: 평균의 1.7~1.9배 (2배 미만)
-    # 평균 4 × 1.8 = 7.2
-    edge_capacity = base_capacity * np.random.uniform(1.7, 1.9, 3)
+    # 마지막 2개: 정상 범위 (지속성 체크 미통과용)
+    normal_end = np.clip(
+        base_capacity + np.random.choice([-1, 0, 0, 0, 1], 2),
+        1, 6
+    ).astype(float)
 
-    group_desired_capacity = np.concatenate([normal_capacity, edge_capacity])
+    # 28번째(인덱스 27)에만 스파이크 삽입 - 최근 3개 중 1개만 높음
+    group_desired_capacity = np.concatenate([normal_capacity[:27],
+                                              [base_capacity * np.random.uniform(2.2, 2.8)],  # 스파이크 1개
+                                              normal_end])  # 정상 2개
 
     group_in_service_instances = group_desired_capacity - np.random.choice([0, 1], N_POINTS)
     group_in_service_instances = np.maximum(1, group_in_service_instances)

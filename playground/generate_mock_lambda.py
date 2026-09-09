@@ -202,8 +202,8 @@ def generate_edge_normal_lambda_window(
     """엣지케이스 (정상) Lambda 윈도우 생성
 
     임계값 근처지만 정상인 데이터:
-    - Z-score가 2.5 정도 (2.75 미만)
-    - 또는 스파이크가 1~2개 포인트만 (지속성 체크 미통과)
+    - 스파이크가 1개 포인트만 (지속성 체크 3개 연속 미통과)
+    - 최근 3개 중 1개만 높고, 나머지 2개는 정상
     """
 
     time_slot = get_time_slot(start_hour)
@@ -211,15 +211,16 @@ def generate_edge_normal_lambda_window(
 
     base_invocation = 150 * base_multiplier
 
-    # 케이스 1: Z-score가 임계값 바로 아래 (2.5σ 정도)
-    # 2.5σ = 평균 + 2.5 * 표준편차
-    normal_part = np.maximum(0, base_invocation + np.random.normal(0, base_invocation * 0.15, 27))
+    # 앞 28개는 정상
+    normal_part = np.maximum(0, base_invocation + np.random.normal(0, base_invocation * 0.15, 28))
 
-    # 마지막 3개: 높지만 임계값 미만 (2.5배 정도)
-    edge_multiplier = np.random.uniform(2.3, 2.7, 3)
-    edge_part = base_invocation * edge_multiplier
+    # 마지막 2개: 정상 범위 (지속성 체크 미통과용)
+    normal_end = np.maximum(0, base_invocation + np.random.normal(0, base_invocation * 0.15, 2))
 
-    invocation_count = np.concatenate([normal_part, edge_part])
+    # 28번째(인덱스 27)에만 스파이크 삽입 - 최근 3개 중 1개만 높음
+    invocation_count = np.concatenate([normal_part[:27],
+                                        [base_invocation * np.random.uniform(3.5, 4.5)],  # 스파이크 1개
+                                        normal_end])  # 정상 2개
 
     # 에러 (정상 수준)
     error_count = np.random.poisson(invocation_count * 0.02)
