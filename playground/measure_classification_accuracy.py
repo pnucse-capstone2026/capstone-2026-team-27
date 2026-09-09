@@ -71,13 +71,22 @@ def _expected_label_for_scenario(resource_type: str) -> str | None:
 
 
 def main() -> None:
-    result_path = Path(sys.argv[1]) if len(sys.argv) > 1 else find_latest_result()
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("result_path", nargs="?", default=None,
+                         help="반복실험 결과 JSON 경로 (생략 시 최신 파일 자동 탐색)")
+    parser.add_argument("--resource-type", required=True,
+                         choices=["EC2", "Lambda", "S3", "RDS", "AutoScaling"],
+                         help="이 결과 JSON이 어떤 리소스 타입 반복실험인지")
+    args = parser.parse_args()
+
+    result_path = Path(args.result_path) if args.result_path else find_latest_result()
     print(f"결과 파일: {result_path}\n")
 
     with open(result_path, encoding="utf-8") as f:
         payload = json.load(f)
 
-    resource_type = "S3"  # s3_repeated_trial.py 결과 전용. 다른 스크립트로 확장 시 여기만 바꾸면 됨
+    resource_type = args.resource_type
     expected_label = _expected_label_for_scenario(resource_type)
     print(f"이 리소스 타입의 '정답' anomaly_type (Rule Book 기준): {expected_label}\n")
 
