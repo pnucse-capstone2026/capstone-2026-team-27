@@ -50,7 +50,7 @@ def compute_all_signals(resource_type: str, metrics: dict, resource_age_seconds=
             z_triggered = True
 
     iforest_score, iforest_triggered = da._iforest_score_and_trigger(resource_type, metrics)
-    _, idle_triggered = da._low_utilization_check(resource_type, metrics, resource_age_seconds)
+    _, idle_triggered, _ = da._low_utilization_check(resource_type, metrics, resource_age_seconds)
     _, error_surge_triggered = da._lambda_error_rate_check(resource_type, metrics)
 
     absolute_triggered = idle_triggered or error_surge_triggered  # 타입별로 하나만 의미 있음

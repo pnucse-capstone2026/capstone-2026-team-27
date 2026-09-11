@@ -397,7 +397,7 @@ def build_lambda_retry_file(rng: np.random.Generator):
 
 def verify_ec2(windows: list[dict]):
     for w in windows:
-        _, is_idle = da._low_utilization_check(
+        _, is_idle, _ = da._low_utilization_check(
             "EC2", w["raw_metrics"], w.get("resource_age_seconds")
         )
         expect_idle = (w["label"] == "anomaly")
