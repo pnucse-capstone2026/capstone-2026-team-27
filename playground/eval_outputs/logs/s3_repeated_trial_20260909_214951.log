@@ -1,0 +1,80 @@
+2026-09-09 21:49:51,626 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\s3_repeated_trial_20260909_214951.log (SCRIPT_VERSION=2)
+2026-09-09 21:49:51,627 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 ===
+2026-09-09 21:49:51,629 [INFO] [anomaly rep=0] bucket=detection-trial-anomaly-0 시작 (n_gets=741(기준 800±15%), object_size=200000B, wait=300s)
+2026-09-09 21:49:51,637 [INFO] [anomaly rep=1] bucket=detection-trial-anomaly-1 시작 (n_gets=914(기준 800±15%), object_size=200000B, wait=300s)
+2026-09-09 21:49:51,638 [INFO] [anomaly rep=2] bucket=detection-trial-anomaly-2 시작 (n_gets=861(기준 800±15%), object_size=200000B, wait=300s)
+2026-09-09 21:49:51,639 [INFO] [anomaly rep=3] bucket=detection-trial-anomaly-3 시작 (n_gets=881(기준 800±15%), object_size=200000B, wait=300s)
+2026-09-09 21:49:51,639 [INFO] [anomaly rep=4] bucket=detection-trial-anomaly-4 시작 (n_gets=703(기준 800±15%), object_size=200000B, wait=300s)
+2026-09-09 21:49:51,640 [INFO] [normal rep=0] bucket=detection-trial-normal-0 시작 (multiplier=0.50 -> 요청 268건, wait=300s)
+2026-09-09 21:49:51,641 [INFO] [normal rep=1] bucket=detection-trial-normal-1 시작 (multiplier=0.60 -> 요청 313건, wait=300s)
+2026-09-09 21:49:51,642 [INFO] [normal rep=2] bucket=detection-trial-normal-2 시작 (multiplier=0.80 -> 요청 415건, wait=300s)
+2026-09-09 21:49:51,642 [INFO] [normal rep=3] bucket=detection-trial-normal-3 시작 (multiplier=0.85 -> 요청 429건, wait=300s)
+2026-09-09 21:49:51,644 [INFO] [normal rep=4] bucket=detection-trial-normal-4 시작 (multiplier=0.90 -> 요청 406건, wait=300s)
+2026-09-09 21:49:51,645 [INFO] [normal rep=5] bucket=detection-trial-normal-5 시작 (multiplier=1.00 -> 요청 479건, wait=300s)
+2026-09-09 21:49:51,645 [INFO] [normal rep=6] bucket=detection-trial-normal-6 시작 (multiplier=1.00 -> 요청 469건, wait=300s)
+2026-09-09 21:49:51,645 [INFO] [normal rep=7] bucket=detection-trial-normal-7 시작 (multiplier=0.70 -> 요청 341건, wait=300s)
+2026-09-09 21:49:55,854 [DEBUG] [normal rep=5] before={"resource_id": "detection-trial-normal-5", "end_time": "2026-09-09T12:49:51.667730+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,870 [DEBUG] [anomaly rep=4] before={"resource_id": "detection-trial-anomaly-4", "end_time": "2026-09-09T12:49:51.662684+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,886 [DEBUG] [normal rep=6] before={"resource_id": "detection-trial-normal-6", "end_time": "2026-09-09T12:49:51.668737+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,890 [DEBUG] [normal rep=3] before={"resource_id": "detection-trial-normal-3", "end_time": "2026-09-09T12:49:51.665192+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,902 [DEBUG] [anomaly rep=3] before={"resource_id": "detection-trial-anomaly-3", "end_time": "2026-09-09T12:49:51.662684+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,907 [DEBUG] [anomaly rep=2] before={"resource_id": "detection-trial-anomaly-2", "end_time": "2026-09-09T12:49:51.662684+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,911 [DEBUG] [anomaly rep=0] before={"resource_id": "detection-trial-anomaly-0", "end_time": "2026-09-09T12:49:51.629776+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,919 [DEBUG] [normal rep=4] before={"resource_id": "detection-trial-normal-4", "end_time": "2026-09-09T12:49:51.667730+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,924 [DEBUG] [normal rep=7] before={"resource_id": "detection-trial-normal-7", "end_time": "2026-09-09T12:49:51.668737+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,927 [DEBUG] [normal rep=1] before={"resource_id": "detection-trial-normal-1", "end_time": "2026-09-09T12:49:51.663684+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,932 [DEBUG] [normal rep=2] before={"resource_id": "detection-trial-normal-2", "end_time": "2026-09-09T12:49:51.665192+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,945 [DEBUG] [anomaly rep=1] before={"resource_id": "detection-trial-anomaly-1", "end_time": "2026-09-09T12:49:51.661685+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:49:55,950 [DEBUG] [normal rep=0] before={"resource_id": "detection-trial-normal-0", "end_time": "2026-09-09T12:49:51.663684+00:00", "n_points": 30, "raw_metrics": {"number_of_requests": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "bytes_downloaded": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "z_max": 0.0, "z_triggered": false, "iforest_score": 1.0, "iforest_triggered": true, "anomaly_flag": true}
+2026-09-09 21:50:21,624 [INFO] [normal rep=0] GET 268회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:25,917 [INFO] [normal rep=1] GET 313회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:28,046 [INFO] [normal rep=7] GET 341회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:34,477 [INFO] [normal rep=4] GET 406회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:35,475 [INFO] [normal rep=2] GET 415회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:36,792 [INFO] [normal rep=3] GET 429회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:40,586 [INFO] [normal rep=6] GET 469회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:50:41,775 [INFO] [normal rep=5] GET 479회(평상시 수준) 완료, 300초 대기 중...
+2026-09-09 21:51:05,788 [INFO] [anomaly rep=4] GET 703회 완료, 300초 대기 중...
+2026-09-09 21:51:10,516 [INFO] [anomaly rep=0] GET 741회 완료, 300초 대기 중...
+2026-09-09 21:51:25,083 [INFO] [anomaly rep=3] GET 881회 완료, 300초 대기 중...
+2026-09-09 21:51:25,912 [INFO] [anomaly rep=2] GET 861회 완료, 300초 대기 중...
+2026-09-09 21:51:29,064 [INFO] [anomaly rep=1] GET 914회 완료, 300초 대기 중...
+2026-09-09 21:55:21,763 [INFO] [normal rep=0] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=330.1s
+2026-09-09 21:55:26,074 [INFO] [normal rep=1] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=334.4s
+2026-09-09 21:55:28,154 [INFO] [normal rep=7] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=336.5s
+2026-09-09 21:55:34,618 [INFO] [normal rep=4] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=343.0s
+2026-09-09 21:55:35,597 [INFO] [normal rep=2] after anomaly_flag=True (z_max=5.3851, iforest=0.0), elapsed=344.0s
+2026-09-09 21:55:36,912 [INFO] [normal rep=3] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=345.3s
+2026-09-09 21:55:40,712 [INFO] [normal rep=6] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=349.1s
+2026-09-09 21:55:41,877 [INFO] [normal rep=5] after anomaly_flag=True (z_max=5.3852, iforest=0.0), elapsed=350.2s
+2026-09-09 21:56:05,922 [INFO] [anomaly rep=4] after anomaly_flag=True (z_max=4.1641, iforest=0.2131), elapsed=374.3s
+2026-09-09 21:56:10,627 [INFO] [anomaly rep=0] after anomaly_flag=True (z_max=4.2551, iforest=0.3108), elapsed=379.0s
+2026-09-09 21:56:25,234 [INFO] [anomaly rep=3] after anomaly_flag=True (z_max=4.7737, iforest=0.7997), elapsed=393.6s
+2026-09-09 21:56:25,998 [INFO] [anomaly rep=2] after anomaly_flag=True (z_max=4.7125, iforest=0.7254), elapsed=394.4s
+2026-09-09 21:56:29,150 [INFO] [anomaly rep=1] after anomaly_flag=True (z_max=4.7373, iforest=0.8564), elapsed=397.5s
+2026-09-09 21:56:29,154 [INFO] === 결과 ===
+{
+  "confusion_matrix": {
+    "TP": 5,
+    "FN": 0,
+    "FP": 8,
+    "TN": 0
+  },
+  "accuracy": 0.38461538461538464,
+  "accuracy_ci_95_clopper_pearson": [
+    0.13857933889016066,
+    0.6842223970859369
+  ],
+  "recall": 1.0,
+  "recall_ci_95_clopper_pearson": [
+    0.47817624989501856,
+    1.0
+  ],
+  "precision": 0.38461538461538464,
+  "false_positive_rate": 1.0,
+  "fpr_ci_95_clopper_pearson": [
+    0.6305833524471808,
+    1.0
+  ]
+}
+2026-09-09 21:56:29,156 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\s3_repeated_trial__ngets800_objsize200kb_wait300s_n8-5_scriptv2_20260909.json

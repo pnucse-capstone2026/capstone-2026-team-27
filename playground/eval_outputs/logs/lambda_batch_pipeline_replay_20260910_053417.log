@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\lambda_batch_pipeline_replay.py", line 316, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\lambda_batch_pipeline_replay.py", line 277, in main
+    print(f"원본: {source.name} (측정 {payload_src.get('generated_at')}, 시행 {len(trials)}개 "
+UnicodeEncodeError: 'cp949' codec can't encode character '\u2014' in position 115: illegal multibyte sequence
