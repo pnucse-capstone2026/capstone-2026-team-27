@@ -14,10 +14,10 @@ decision_agent.py가 결정 시점마다 남기는 schema/logs/cost_prediction_l
 측정하는 것 2가지:
   1) 예측 vs 실측 절감액 오차 (포스터용 "우리 예측이 얼마나 정확한가" 지표)
   2) QA 정확도 근사치: "이 실측 결과를 봤다면 QA가 통과라고 했어야 하는가"를
-     cost_ok 기준(recent <= baseline*1.1)으로 역산해서, 실제 QA가 그 시점에
-     qa_passed로 남긴 값(schema/logs/llm_decision_log.jsonl의 qa_result, LLM 판단
-     건에 한해서만 존재)과 대조한다. Rule Book으로 처리된 건은 QA_agent가
-     qa_result를 안 채워서(팀원 코드의 기존 동작) 대조 불가 — 이 경우는 결과에
+     cost_ok 기준(recent <= baseline*1.1)으로 역산해서, 실제 QA가 남긴 qa_passed
+     (cost_prediction_log.jsonl 항목 자체에 QA_agent가 직접 채워줌 — Rule Book/LLM
+     구분 없이 전체 케이스 커버, QA_agent._update_cost_prediction_log_with_qa_result
+     참고)와 대조한다. QA가 아직 안 끝났거나(파이프라인 중간에 검증) 로그가 없으면
      "qa_result_available": false로 표시하고 정확도 집계에서 제외한다.
 
 [실행 방법]
@@ -56,7 +56,6 @@ from pipeline.cloudwatch_client import METRIC_SPEC, _build_dimensions
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION")
 
 COST_PREDICTION_LOG_PATH = PROJECT_ROOT / "schema" / "logs" / "cost_prediction_log.jsonl"
-LLM_DECISION_LOG_PATH = PROJECT_ROOT / "schema" / "logs" / "llm_decision_log.jsonl"
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 COST_INCREASE_THRESHOLD = 1.1  # QA_agent._check_cost_sla와 동일한 기준(10% 증가 허용)
@@ -78,15 +77,10 @@ def _load_jsonl(path: Path) -> list[dict]:
     return entries
 
 
-def _load_qa_results_by_trace_id() -> dict[str, dict]:
-    """llm_decision_log.jsonl에서 trace_id -> qa_result 매핑. LLM 판단 건에만 존재."""
-    out = {}
-    for entry in _load_jsonl(LLM_DECISION_LOG_PATH):
-        trace_id = entry.get("trace_id")
-        qa_result = entry.get("qa_result")
-        if trace_id and qa_result is not None:
-            out[trace_id] = qa_result
-    return out
+# [수정] QA_agent._update_cost_prediction_log_with_qa_result()가 이제 Rule Book/LLM
+# 구분 없이 cost_prediction_log.jsonl 항목 자체에 qa_passed를 직접 채워준다 —
+# 그래서 더 이상 llm_decision_log.jsonl(LLM 판단 건에만 존재)을 따로 조회할 필요
+# 없이, entry.get("qa_passed")만 보면 전체 케이스를 커버한다.
 
 
 def _real_current_cost(resource_type: str, resource_id: str) -> float | None:
@@ -223,14 +217,12 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
         prediction_error_usd / estimated_saving if estimated_saving > 0 else None
     )
 
-    # QA 정확도 근사치 계산 (cost_ok 기준 역산)
+    # QA 정확도 근사치 계산 (cost_ok 기준 역산) — entry 자체에 QA_agent가 직접
+    # 채워준 qa_passed를 씀 (Rule Book/LLM 구분 없이 전체 케이스 커버)
     would_pass_cost_sla = actual_now_cost <= current_before * COST_INCREASE_THRESHOLD
-    qa_result = _QA_RESULTS_CACHE.get(entry.get("trace_id"))
-    qa_result_available = qa_result is not None
-    qa_matched_prediction = None
-    if qa_result_available:
-        actual_qa_passed = qa_result.get("qa_passed")
-        qa_matched_prediction = (actual_qa_passed == would_pass_cost_sla)
+    actual_qa_passed = entry.get("qa_passed")
+    qa_result_available = actual_qa_passed is not None
+    qa_matched_prediction = (actual_qa_passed == would_pass_cost_sla) if qa_result_available else None
 
     # 기간 전체 적분: 액션 시점 ~ (같은 리소스의 다음 결정 시점 또는 지금)까지
     # 실제 누적 비용 vs "안 썼으면 baseline이 그대로 이어졌을 것"이라는 가정치 비교.
@@ -252,18 +244,13 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
         ),
         "would_pass_cost_sla": would_pass_cost_sla,
         "qa_result_available": qa_result_available,
-        "qa_actual_passed": qa_result.get("qa_passed") if qa_result_available else None,
+        "qa_actual_passed": actual_qa_passed,
         "qa_matched_real_outcome": qa_matched_prediction,
         "period_totals": period_totals,
     }
 
 
-_QA_RESULTS_CACHE: dict[str, dict] = {}
-
-
 def main() -> None:
-    global _QA_RESULTS_CACHE
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--min-age-minutes", type=int, default=60,
                          help="결정 후 최소 이만큼 지난 항목만 검증 (기본 60분 — "
@@ -275,8 +262,6 @@ def main() -> None:
         print(f"{COST_PREDICTION_LOG_PATH}에 항목이 없음 — decision_node가 아직 "
               f"NoAction 아닌 결정을 안 남겼거나 로그 파일이 없음.")
         return
-
-    _QA_RESULTS_CACHE = _load_qa_results_by_trace_id()
 
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=args.min_age_minutes)

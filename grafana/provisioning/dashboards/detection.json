@@ -61,7 +61,7 @@
     {
       "id": 11,
       "type": "stat",
-      "title": "탐지 미적용 시 예상 비용",
+      "title": "시스템 미적용 시 예상 비용",
       "description": "실제 지출 비용 + 비용 절감액 (역산). '이 시스템이 없었다면 나갔을 것으로 추정되는 비용'",
       "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
@@ -89,7 +89,7 @@
     {
       "id": 12,
       "type": "stat",
-      "title": "실제 지출 비용",
+      "title": "시스템 적용 시 실측 비용",
       "description": "detection 단계에 기록된 latest_cost 합산. 이 코드 수정 이후 새로 쌓이는 데이터부터 값이 나옴",
       "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
@@ -192,7 +192,7 @@
     {
       "id": 6,
       "type": "piechart",
-      "title": "이상 유형별 발생 분포",
+      "title": "이상 유형 분포",
       "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
@@ -228,7 +228,7 @@
     {
       "id": 7,
       "type": "table",
-      "title": "자동 조치 실행 이력",
+      "title": "자동 조치 이력",
       "gridPos": { "x": 8, "y": 12, "w": 16, "h": 8 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
@@ -267,6 +267,18 @@
         "showHeader": true,
         "cellHeight": "sm"
       }
+    },
+    {
+      "id": 22,
+      "type": "text",
+      "title": "전체 파이프라인 성공률",
+      "description": "IForest Recall × 분류정확도 × Action성공률 × QA정확도. DB 로그만으로는 정답(ground truth)을 알 수 없어 실시간 계산이 불가능합니다 — playground/combine_team_results.py로 통제 실험(실측)을 돌릴 때마다 이 패널의 숫자를 수동으로 갱신하는 정적 패널입니다.",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; text-align:center;\">\n  <div style=\"font-size:14px; color:#8888a0; margin-bottom:6px;\">전체 파이프라인 성공률 = 탐지 Recall × 분류정확도 × Action 성공률 × QA정확도</div>\n  <div style=\"font-size:42px; font-weight:bold; color:#FADE2A;\">측정 중 (QA n=0)</div>\n  <div style=\"font-size:16px; margin-top:10px;\">탐지 Recall <b style=\"color:#73BF69;\">100%</b> (n=13) &nbsp;·&nbsp; 분류정확도 <b style=\"color:#73BF69;\">100%</b> (n=5) &nbsp;·&nbsp; Action 성공률 <b style=\"color:#73BF69;\">100%</b> (n=3) &nbsp;·&nbsp; QA정확도 <b style=\"color:#F2495C;\">-- </b> (n=0)</div>\n  <div style=\"font-size:12px; color:#8888a0; margin-top:8px;\">※ 실측 통제 실험(combine_team_results.py) 결과를 수동으로 반영하는 정적 패널입니다. 실시간 DB 쿼리가 아닙니다.</div>\n</div>"
+      },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
     }
   ]
 }
