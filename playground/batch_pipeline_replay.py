@@ -65,6 +65,7 @@ from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
 from pipeline.QA_agent import qa_node
 from pipeline.logging_agent import logging_node
+from pipeline.cost_estimator import estimate_cost_series
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
@@ -104,14 +105,33 @@ def find_source() -> Path:
 
 
 def _build_state(resource_id: str, resource_type: str, raw_metrics: dict,
-                 resource_age_seconds: float | None) -> dict:
+                 resource_age_seconds: float | None, measured_at: str | None = None) -> dict:
     """measure_pipeline_timing._build_initial_state와 같은 형태지만, assemble_resource로
     AWS를 다시 부르지 않고 저장된 raw_metrics를 그대로 쓴다.
 
     resource_age_seconds도 저장값을 넘긴다 — measure_pipeline_timing은 이걸 None으로
     두는데, 그러면 EC2 유휴 판정의 나이가드가 아예 작동하지 않는다(detection_agent.py
     _low_utilization_check는 None이면 가드를 건너뛴다). 재생은 원본 측정과 같은
-    조건을 재현해야 하므로 저장된 나이를 그대로 쓴다."""
+    조건을 재현해야 하므로 저장된 나이를 그대로 쓴다.
+
+    [버그 수정] ec2_repeated_trial.py가 저장한 raw_metrics엔 assemble_resource()가
+    평소 채워주는 "cost" 필드가 빠져 있었다(실측 확인). decision_node가 cost 없는
+    Stop/Stop+Schedule 후보를 만나면 _cost_based_full_removal_saving이 None을
+    반환해 Gemini LLM 폴백으로 넘어가는데, 이게 레이트리밋(429)에 걸려 76~129초씩
+    걸리고 estimated_saving_usd도 0.0으로 찍히는 원인이었다. assemble_resource와
+    동일하게 estimate_cost_series()로 채워서 라이브 경로와 같은 입력을 재현한다.
+    end_time은 반드시 measured_at(원본 측정 시점, 부하가 살아있던 때)을 써야 한다 —
+    생략하면 CloudTrail 조회 창이 지금(유휴 상태)을 기준으로 어긋난다."""
+    if "cost" not in raw_metrics:
+        usage_metrics = {k: v for k, v in raw_metrics.items() if k != "cost"}
+        end_time = datetime.fromisoformat(measured_at) if measured_at else None
+        raw_metrics = {
+            **raw_metrics,
+            "cost": estimate_cost_series(
+                resource_type, resource_id, usage_metrics,
+                end_time=end_time, currently_running=True,
+            ),
+        }
     return {
         "trace_id": None,
         "resource_id": resource_id,
@@ -146,14 +166,14 @@ def _build_state(resource_id: str, resource_type: str, raw_metrics: dict,
 
 
 def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict,
-            resource_age_seconds: float | None) -> dict:
+            resource_age_seconds: float | None, measured_at: str | None = None) -> dict:
     """저장된 지표로 detection부터 시작해 파이프라인을 끝까지 흘린다."""
     timings: dict[str, float] = {}
     t_total = time.time()
     out: dict = {"resource_id": resource_id, "label": label, "profile": profile}
 
     try:
-        state = _build_state(resource_id, "EC2", raw_metrics, resource_age_seconds)
+        state = _build_state(resource_id, "EC2", raw_metrics, resource_age_seconds, measured_at)
 
         t0 = time.time()
         state = detection_node(state)
@@ -348,7 +368,8 @@ def main() -> None:
                 print(f"[{t.get('resource')}] raw_metrics 없음 — 건너뜀")
                 continue
             fut = ex.submit(run_one, t["resource"], t["label"], t.get("profile"),
-                            after["raw_metrics"], after.get("resource_age_seconds"))
+                            after["raw_metrics"], after.get("resource_age_seconds"),
+                            after.get("measured_at"))
             futs[fut] = t["resource"]
         for f in as_completed(futs):
             results.append(f.result())
