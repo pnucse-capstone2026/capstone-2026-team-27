@@ -2,21 +2,42 @@
   {
     "rule_id": "DEC-001",
     "rule_type": "decision",
-    "description": "EC2 cost_inefficiency -> Stop",
+    "description": "EC2 cost_inefficiency(좀비) -> Stop",
     "resource_types": ["EC2"],
     "conditions": {
-      "anomaly_type": "cost_inefficiency"
+      "anomaly_type": "cost_inefficiency",
+      "ec2_utilization_band": "zombie"
     },
     "result": {
       "selected_action": "Stop",
-      "reasoning_template": "EC2 비용 비효율(좀비 리소스) 탐지 -> Stop 액션으로 인스턴스 정지"
+      "reasoning_template": "EC2 비용 비효율(좀비 리소스, peak CPU ≤5%) 탐지 -> Stop 액션으로 인스턴스 정지"
     },
     "priority": 10,
     "enabled": true,
     "created_at": "2025-01-01T00:00:00Z",
-    "updated_at": "2026-09-10T00:00:00Z",
+    "updated_at": "2026-09-11T00:00:00Z",
     "author": "system",
     "rationale": "좀비 인스턴스는 다운사이즈보다 정지가 맞다. 이미 최저 tier(t3.micro)인 인스턴스는 Resize 절감액이 0이고, Stop은 risk=LOW라 승인 없이 자동 조치가 가능하다."
+  },
+  {
+    "rule_id": "DEC-001b",
+    "rule_type": "decision",
+    "description": "EC2 cost_inefficiency(오버프로비저닝) -> Resize",
+    "resource_types": ["EC2"],
+    "conditions": {
+      "anomaly_type": "cost_inefficiency",
+      "ec2_utilization_band": "overprovisioned"
+    },
+    "result": {
+      "selected_action": "Resize",
+      "reasoning_template": "EC2 비용 비효율(오버프로비저닝, 5%< peak CPU ≤20%) 탐지 -> Resize 액션으로 인스턴스 타입 다운사이즈"
+    },
+    "priority": 10,
+    "enabled": true,
+    "created_at": "2026-09-11T00:00:00Z",
+    "updated_at": "2026-09-11T00:00:00Z",
+    "author": "system",
+    "rationale": "완전 유휴가 아니라 실사용 중인 리소스는 정지가 아니라 사양을 낮추는 게 맞다. peak CPU 5~20% 구간(Compute Optimizer 5%/Trusted Advisor 10% 기준 위에 마진을 둔 자체 채택값)을 오버프로비저닝으로 본다."
   },
   {
     "rule_id": "DEC-002",

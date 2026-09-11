@@ -189,6 +189,12 @@ class RuleEngine:
             if action_executed not in normalized_cond:
                 return False
 
+        # ec2_utilization_band 조건 (EC2 좀비 vs 오버프로비저닝 구분용, Decision 전용)
+        band_cond = conditions.get("ec2_utilization_band")
+        if band_cond is not None:
+            if state.get("ec2_utilization_band") != band_cond:
+                return False
+
         return True
 
     def _extract_spike_metrics(self, raw_metrics: dict, threshold: float = 2.0) -> set[str]:

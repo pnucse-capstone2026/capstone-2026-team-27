@@ -388,6 +388,7 @@ from pipeline.detection_agent import (
     EC2_IDLE_CPU_THRESHOLD_PCT,
     EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD,
     EC2_IDLE_TARGET_METRICS,
+    EC2_OVERPROVISION_CPU_THRESHOLD_PCT,
 )
 
 
@@ -402,7 +403,7 @@ def test_low_utilization_check_flags_flat_idle_ec2():
         "network_out":     [300.0] * 30,
         "cost":             [0.05] * 30,
     }
-    triggered, is_idle = _low_utilization_check("EC2", metrics)
+    triggered, is_idle, _ = _low_utilization_check("EC2", metrics)
 
     assert is_idle is True, "CPU/네트워크 둘 다 임계값 이하로 지속되면 유휴로 판정되어야 함"
     assert set(triggered) == set(EC2_IDLE_TARGET_METRICS), (
@@ -423,7 +424,7 @@ def test_low_utilization_check_requires_both_cpu_and_network_low():
         "network_in":      [50000.0] * 30,   # 임계값을 훨씬 초과하는 정상 트래픽
         "network_out":     [30000.0] * 30,
     }
-    triggered, is_idle = _low_utilization_check("EC2", metrics)
+    triggered, is_idle, _ = _low_utilization_check("EC2", metrics)
 
     assert is_idle is False, "CPU만 낮고 network는 정상이면 idle로 판정되면 안 됨(AND 조건)"
     assert triggered == []
@@ -443,7 +444,7 @@ def test_low_utilization_check_boundary_network_io():
         "network_in": [EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD / n] * n,
         "network_out": [0.0] * n,
     }
-    _, is_idle_at = _low_utilization_check("EC2", at_boundary)
+    _, is_idle_at, _ = _low_utilization_check("EC2", at_boundary)
     assert is_idle_at is True, "network I/O 합계가 임계값과 정확히 같으면 트리거되어야 함"
 
     over_boundary = {
@@ -451,7 +452,7 @@ def test_low_utilization_check_boundary_network_io():
         "network_in": [(EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD + n) / n] * n,  # 총합 임계값 + n bytes
         "network_out": [0.0] * n,
     }
-    _, is_idle_over = _low_utilization_check("EC2", over_boundary)
+    _, is_idle_over, _ = _low_utilization_check("EC2", over_boundary)
     assert is_idle_over is False, "network I/O 합계가 임계값을 조금이라도 넘으면 트리거되면 안 됨"
 
     print("✅ network I/O 임계값 경계(<=) 동작 확인")
@@ -460,23 +461,36 @@ test_low_utilization_check_boundary_network_io()
 
 
 def test_low_utilization_check_boundary_cpu():
-    """peak CPU가 임계값과 정확히 같으면(<=) 트리거되고, 아주 조금이라도 넘으면
-    트리거되지 않아야 한다."""
+    """peak CPU가 좀비 임계값(5%)과 정확히 같으면(<=) zombie로, 조금이라도 넘으면
+    (오버프로비저닝 임계값 20% 이내라면) overprovisioned로 판정되어야 한다.
+    오버프로비저닝 임계값(20%)을 넘으면 더 이상 트리거되지 않아야 한다.
+    [2026-09-11 갱신] 오버프로비저닝 밴드 추가로 "5% 초과 시 무조건 미탐지"였던
+    기존 기대값이 바뀜 — 이제 5~20%는 overprovisioned로 여전히 트리거된다."""
     n = 30
     network_safe = {"network_in": [0.0] * n, "network_out": [0.0] * n}  # network는 충분히 낮게 고정
 
     at_boundary = {"cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * n, **network_safe}
-    _, is_idle_at = _low_utilization_check("EC2", at_boundary)
-    assert is_idle_at is True, "peak CPU가 임계값과 정확히 같으면 트리거되어야 함"
+    _, is_idle_at, band_at = _low_utilization_check("EC2", at_boundary)
+    assert is_idle_at is True, "peak CPU가 좀비 임계값과 정확히 같으면 트리거되어야 함"
+    assert band_at == "zombie", "좀비 임계값 이내는 zombie 밴드여야 함"
 
-    over_boundary = {
+    just_over_zombie = {
         "cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * (n - 1) + [EC2_IDLE_CPU_THRESHOLD_PCT + 0.01],
         **network_safe,
     }
-    _, is_idle_over = _low_utilization_check("EC2", over_boundary)
-    assert is_idle_over is False, "peak CPU가 임계값을 조금이라도 넘으면 트리거되면 안 됨"
+    _, is_idle_over, band_over = _low_utilization_check("EC2", just_over_zombie)
+    assert is_idle_over is True, "좀비 임계값을 조금 넘어도 오버프로비저닝 밴드 이내면 트리거되어야 함"
+    assert band_over == "overprovisioned", "좀비~오버프로비저닝 임계값 사이는 overprovisioned 밴드여야 함"
 
-    print("✅ CPU 임계값 경계(<=) 동작 확인")
+    over_overprovision = {
+        "cpu_utilization": [EC2_OVERPROVISION_CPU_THRESHOLD_PCT + 0.01] * n,
+        **network_safe,
+    }
+    _, is_idle_normal, band_normal = _low_utilization_check("EC2", over_overprovision)
+    assert is_idle_normal is False, "오버프로비저닝 임계값을 넘으면 트리거되면 안 됨"
+    assert band_normal is None
+
+    print("✅ CPU 임계값 경계(좀비 5% / 오버프로비저닝 20%) 동작 확인")
 
 test_low_utilization_check_boundary_cpu()
 
@@ -491,8 +505,8 @@ def test_low_utilization_check_scoped_to_ec2_only():
         "read_iops": [0.0] * 30,
         "write_iops": [0.0] * 30,
     }
-    triggered, is_idle = _low_utilization_check("RDS", rds_metrics)
-    assert (triggered, is_idle) == ([], False), "RDS는 이번 범위에서 제외되어야 함"
+    triggered, is_idle, band = _low_utilization_check("RDS", rds_metrics)
+    assert (triggered, is_idle, band) == ([], False, None), "RDS는 이번 범위에서 제외되어야 함"
     print("✅ RDS는 이번 범위에서 제외됨을 확인 (resource_type 게이트)")
 
 test_low_utilization_check_scoped_to_ec2_only()
@@ -552,9 +566,9 @@ def test_low_utilization_check_holds_judgment_for_young_instance():
     }
     young_age = _EC2_IDLE_WINDOW_SECONDS - 1  # 윈도우 길이보다 1초 어림
 
-    triggered, is_idle = _low_utilization_check("EC2", idle_looking_metrics, young_age)
+    triggered, is_idle, band = _low_utilization_check("EC2", idle_looking_metrics, young_age)
 
-    assert (triggered, is_idle) == ([], False), (
+    assert (triggered, is_idle, band) == ([], False, None), (
         "생성된 지 윈도우 길이도 안 된 인스턴스는 지표가 idle처럼 보여도 판단을 보류해야 함"
     )
     print("✅ 신생 인스턴스(윈도우 길이 미만)는 idle 판단이 보류됨을 확인")
@@ -572,7 +586,7 @@ def test_low_utilization_check_still_triggers_for_mature_instance():
     }
     mature_age = _EC2_IDLE_WINDOW_SECONDS  # 정확히 윈도우 길이 = 판단 허용 경계
 
-    triggered, is_idle = _low_utilization_check("EC2", idle_metrics, mature_age)
+    triggered, is_idle, _ = _low_utilization_check("EC2", idle_metrics, mature_age)
 
     assert is_idle is True, "나이가 윈도우 길이 이상이면 가드에 안 걸리고 정상 판단돼야 함"
     assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)
@@ -590,7 +604,7 @@ def test_low_utilization_check_unknown_age_keeps_old_behavior():
         "network_in":      [500.0] * 30,
         "network_out":     [300.0] * 30,
     }
-    triggered, is_idle = _low_utilization_check("EC2", idle_metrics)  # resource_age_seconds 생략
+    triggered, is_idle, _ = _low_utilization_check("EC2", idle_metrics)  # resource_age_seconds 생략
 
     assert is_idle is True, "나이 정보가 없으면(None) 가드 없이 기존처럼 판단해야 함"
     assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)

@@ -71,6 +71,17 @@ PERSISTENCE_WINDOW_POINTS = 3
 # 섞여 있었음 — 이번에 5%(Compute Optimizer) 쪽으로 통일해서 채택.)
 EC2_IDLE_CPU_THRESHOLD_PCT = 5.0   # peak(윈도우 내 최댓값) 기준
 
+# ── EC2 오버프로비저닝 체크 (절대임계값, 신규) ─────────────────────────────────
+# 좀비(완전 유휴)와 별개로 "쓰긴 쓰는데 사양이 과한" 케이스를 구분한다.
+# AWS Compute Optimizer의 오버프로비저닝 판정은 percentile(P99.5/P90)+headroom
+# 조합이라 우리 스코프에서 그대로 재현하기 어렵다 — 대신 AWS의 두 공식 저사용률
+# 체크(Compute Optimizer idle 5%, Trusted Advisor Low Utilization 10%)를 참고해
+# 그 위에 안전 마진을 둔 20%를 자체 채택했다(실측으로 조정 가능, 팀 논의 2026-09-11).
+#   peak CPU ≤ 5%         → 좀비(zombie)         → Stop
+#   5% < peak CPU ≤ 20%   → 오버프로비저닝(overprovisioned) → Resize
+#   peak CPU > 20%         → 정상
+EC2_OVERPROVISION_CPU_THRESHOLD_PCT = 20.0
+
 _EC2_IDLE_NETWORK_IO_MB_PER_DAY = 5.0
 _EC2_IDLE_WINDOW_HOURS = (30 * 300) / 3600  # n_points × period_seconds 기본값 = 2.5시간
 # 5MB/day를 윈도우 길이에 비례 환산 (network_in/network_out은 Sum 스탯이라
@@ -251,15 +262,19 @@ def _low_utilization_check(
     resource_type: str,
     metrics: dict[str, list[float]],
     resource_age_seconds: Optional[float] = None,
-) -> tuple[list[str], bool]:
-    """EC2 저사용률(유휴/좀비) 절대임계값 체크. EC2_IDLE_* 상수 정의 위 주석 참고.
+) -> tuple[list[str], bool, Optional[str]]:
+    """EC2 저사용률(좀비/오버프로비저닝) 절대임계값 체크. EC2_IDLE_*/EC2_OVERPROVISION_*
+    상수 정의 위 주석 참고.
 
     z-score/IForest와 달리 window 내부 평균·표준편차를 쓰지 않는 절대 기준이라,
-    "윈도우 내내 낮기만 하고 변동이 없는" 진짜 유휴 패턴(z-score가 놓치는 케이스)도
-    잡을 수 있다. peak(=max) CPU와 window 전체 network I/O 합산을 보므로, 윈도우
-    30포인트 전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
+    "윈도우 내내 낮기만 하고 변동이 없는" 패턴(z-score가 못 잡는 케이스 — 벗어날
+    평균 자체가 없음)도 잡을 수 있다. peak(=max) CPU를 보므로, 윈도우 30포인트
+    전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
 
-    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 (), False 반환.
+    출력의 세 번째 값(utilization_band)은 "zombie"/"overprovisioned"/None 중 하나 —
+    decision_node가 이 값으로 Stop(좀비)과 Resize(오버프로비저닝)를 구분한다.
+
+    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 ([], False, None) 반환.
 
     ⚠️ 신생 인스턴스 오탐 방지 가드 (2026-09-05 실 AWS 테스트에서 발견): CloudWatch는
     리소스가 존재하기 전 구간을 0으로 채워서 반환한다(cloudwatch_client.py:85-89).
@@ -270,21 +285,31 @@ def _low_utilization_check(
     가드를 적용하지 않고 기존처럼 그냥 평가한다(하위호환 기본값).
     """
     if resource_type != "EC2":
-        return [], False
+        return [], False, None
     if not all(m in metrics and metrics[m] for m in EC2_IDLE_TARGET_METRICS):
-        return [], False
+        return [], False, None
     if resource_age_seconds is not None and resource_age_seconds < _EC2_IDLE_WINDOW_HOURS * 3600:
-        return [], False
+        return [], False, None
 
     peak_cpu = max(metrics["cpu_utilization"])
     network_io_bytes = sum(metrics["network_in"]) + sum(metrics["network_out"])
 
-    is_idle = (
-        peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT
-        and network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD
-    )
-    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if is_idle else []
-    return triggered_metrics, is_idle
+    # network I/O가 정상 범위면 CPU만 낮아도 "실제로 트래픽을 처리 중"이라는 뜻이라
+    # 좀비/오버프로비저닝 둘 다 아니다(AND 조건 — 기존 좀비 체크의 회귀 테스트가
+    # 이미 검증한 시맨틱스를 오버프로비저닝에도 동일하게 유지, 2026-09-11).
+    if network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD:
+        if peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT:
+            utilization_band = "zombie"
+        elif peak_cpu <= EC2_OVERPROVISION_CPU_THRESHOLD_PCT:
+            utilization_band = "overprovisioned"
+        else:
+            utilization_band = None
+    else:
+        utilization_band = None
+
+    triggered = utilization_band is not None
+    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if triggered else []
+    return triggered_metrics, triggered, utilization_band
 
 
 def _lambda_error_rate_check(
@@ -789,10 +814,11 @@ def detection_node(state: PipelineState) -> PipelineState:
     # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량, 마찬가지로 지속성 체크) ──
     iforest_score, iforest_triggered = _iforest_score_and_trigger(resource_type, metrics)
 
-    # ── 3) EC2 저사용률(유휴) 절대임계값 체크 (신규, EC2 전용) ──────────────
-    idle_metrics, idle_triggered = _low_utilization_check(
+    # ── 3) EC2 저사용률(좀비/오버프로비저닝) 절대임계값 체크 (EC2 전용) ──────
+    idle_metrics, idle_triggered, ec2_utilization_band = _low_utilization_check(
         resource_type, metrics, state.get("resource_age_seconds")
     )
+    state["ec2_utilization_band"] = ec2_utilization_band
     for m in idle_metrics:
         if m not in triggered_metrics:
             triggered_metrics.append(m)

@@ -155,6 +155,12 @@ class PipelineState(TypedDict):
     anomaly_score_iforest: Optional[float]
     triggered_metrics:     list[str]
 
+    # EC2 저사용률 절대임계값 체크(detection_agent._low_utilization_check)의 세부 판정.
+    # "zombie"(peak CPU ≤5%, 완전 유휴) / "overprovisioned"(5~20%, 쓰긴 하나 과사양) /
+    # None(해당 없음 또는 EC2 외 타입) 중 하나. decision_node가 이 값으로
+    # cost_inefficiency 액션을 Stop(좀비) vs Resize(오버프로비저닝)로 분기한다.
+    ec2_utilization_band: Optional[Literal["zombie", "overprovisioned"]]
+
     # 리소스가 생성(EC2는 LaunchTime)된 지 몇 초 지났는지. detection_agent.py의
     # 저사용률(유휴) 절대임계값 체크가 "관측 윈도우만큼도 안 된 신생 리소스"를
     # 판단 보류하는 데 씀 — CloudWatch가 존재 이전 구간을 0으로 채우기 때문에,
