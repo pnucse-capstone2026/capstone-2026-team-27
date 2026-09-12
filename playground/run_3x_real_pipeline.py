@@ -128,20 +128,64 @@ def _measure_one(function_name: str) -> dict:
     return {**result, "measured_at": datetime.now(timezone.utc).isoformat()}
 
 
-def restore_concurrency(targets: list[str]) -> None:
-    """Throttle로 걸린 예약 동시성을 제거해서 원상복구한다 (D 실행이 끝난 뒤에 쓸 것)."""
+def _concurrency_snapshot_path(function_name: str) -> Path:
+    return RESULT_DIR / f".run_3x_real_pipeline_concurrency_snapshot__{function_name}.json"
+
+
+def snapshot_concurrency_before_run(targets: list[str]) -> None:
+    """⚠️ 2026-09-13 수정: 예전엔 --restore 시점에 "현재 값"을 조회해서 그걸 기준으로
+    원복 여부를 판단했다 — 이러면 원래(=--run 시작 전) 동시성이 unset이 아니라 어떤
+    값으로 설정돼 있던 경우, --restore가 그 진짜 원래 값을 모른 채 "설정돼 있으니
+    삭제"해버려서 원래 설정을 지워버리는 사고가 날 수 있다(lambda_throttle_retry_trial.py
+    에서 실제로 같은 패턴의 버그 — "원복 시점 재조회 = 원래 값"으로 착각 — 발견됨,
+    거기서는 반대로 액션이 바꿔놓은 값을 "원래 값"으로 착각해 원복을 안 한 방향으로
+    나타났음). 이제 --run 시작 시점(=아직 아무 액션도 실행되기 전)에 스냅샷을 찍어
+    파일로 저장해두고, restore_concurrency는 그 파일을 기준으로 복원한다.
+    """
     lam = boto3.client("lambda", region_name=AWS_REGION)
     for fn in targets:
         try:
             current = lam.get_function_concurrency(FunctionName=fn).get("ReservedConcurrentExecutions")
         except Exception as exc:
-            logger.warning("[원복 %s] 현재 상태 조회 실패: %s", fn, exc)
+            logger.warning("[스냅샷 %s] 조회 실패: %s", fn, exc)
             continue
-        if current is None:
-            logger.info("[원복 %s] 예약 동시성 설정 없음 — 스킵", fn)
-            continue
-        lam.delete_function_concurrency(FunctionName=fn)
-        logger.info("[원복 %s] 예약 동시성 %s 제거 완료", fn, current)
+        RESULT_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_concurrency_snapshot_path(fn), "w", encoding="utf-8") as f:
+            json.dump({"concurrency": current}, f)
+        logger.info("[스냅샷 %s] --run 시작 전 동시성=%s 저장", fn, current)
+
+
+def restore_concurrency(targets: list[str]) -> None:
+    """snapshot_concurrency_before_run()이 --run 시작 시점에 저장해둔 값 기준으로
+    원상복구한다 (D 실행이 끝난 뒤에 쓸 것). 저장된 스냅샷이 없으면(예: --run 없이
+    --restore만 실행했거나 이미 한 번 복구해서 파일이 지워진 경우) 원래 값을 알 수
+    없으므로 안전 기본값(미설정)으로 정리하고 경고를 남긴다.
+    """
+    lam = boto3.client("lambda", region_name=AWS_REGION)
+    for fn in targets:
+        path = _concurrency_snapshot_path(fn)
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                orig_concurrency = json.load(f)["concurrency"]
+        else:
+            logger.warning(
+                "[원복 %s] 저장된 사전 스냅샷이 없음 — 진짜 원래 값을 알 수 없어 "
+                "미설정 상태로 정리한다(안전 기본값).", fn,
+            )
+            orig_concurrency = None
+
+        if orig_concurrency is None:
+            try:
+                lam.delete_function_concurrency(FunctionName=fn)
+                logger.info("[원복 %s] 예약 동시성 설정 제거 완료 (원래 미설정)", fn)
+            except Exception as exc:
+                logger.warning("[원복 %s] 제거 실패(이미 없을 수 있음): %s", fn, exc)
+        else:
+            lam.put_function_concurrency(FunctionName=fn, ReservedConcurrentExecutions=orig_concurrency)
+            logger.info("[원복 %s] 예약 동시성 %s로 복구 완료", fn, orig_concurrency)
+
+        if path.exists():
+            path.unlink()
 
 
 def main() -> None:
@@ -176,6 +220,9 @@ def main() -> None:
     if not args.run:
         parser.print_help()
         return
+
+    # ── 0) 액션(Throttle)이 실행되기 전, 원복 기준이 될 사전 동시성 스냅샷 저장 ──
+    snapshot_concurrency_before_run(targets)
 
     # ── 1) 3개 함수에 병렬로 재시도 폭증 유발 ────────────────────────────────
     t_start = time.time()
