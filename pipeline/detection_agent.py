@@ -10,6 +10,11 @@ pipeline/detection_agent.py (박소영)
   (ec2_idle_flag/lambda_error_rate)로 통합했다 — IForest 입력에도 노출되고,
   detection_node의 트리거 판단도 이 feature로 이뤄진다(자세한 지속성 처리 차이는
   _derived_features 문서 참고).
+- Lambda 스로틀(429)/시스템 에러 재시도 폭증(신규, 2026-09-12)은 위 "에러로 인한
+  재시도"와 메커니즘이 다른 별개 시나리오다 — invocation_count/error_count에는
+  안 잡히고(AWS 공식 문서 확인) Throttles/AsyncEventAge에만 나타나므로,
+  throttle_count/async_event_age 신규 지표 + throttle_rate 파생 feature로 별도
+  대응한다(THROTTLE_RATE_* 상수, _derived_features 문서 참고).
 
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
@@ -108,6 +113,28 @@ LAMBDA_ERROR_RATE_THRESHOLD = 0.5   # 50% — Lambda 기본 재시도 최대 2�
 # 전부에서 요구하므로 최종 오탐 확률은 사실상 0에 수렴한다. N=10을 채택.
 LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
 
+# ── Lambda 스로틀(429)/시스템 에러 재시도 폭증 체크 (신규, 2026-09-12) ───────────
+# 위 LAMBDA_ERROR_RATE_*와는 발생 메커니즘이 다른 별개 시나리오. "함수 코드 에러"
+# 재시도(최대 2회, ~3분, invocation_count/error_count에 그대로 잡힘)와 달리, 이건
+# "동시성 소진으로 인한 스로틀" 재시도(정해진 횟수 없음, 지수 백오프 1초→최대 5분,
+# MaximumEventAgeInSeconds까지 최대 6시간) — AWS 공식 문서 확인: 이 재시도는
+# invocation_count/error_count(Invocations/Errors)에 전혀 안 잡히고 Throttles/
+# AsyncEventAge에만 나타난다. 그래서 error_count가 아니라 throttle_count 기반의
+# 별도 지표가 필요함.
+#
+# 실측(F-1, 2026-09-12, detection-retry-storm-test 대상): Reserved Concurrency=1로
+# 낮춘 상태에서 40건 동시 호출 버스트를 5분 간격(=PERSISTENCE_WINDOW_POINTS 1구간)
+# 으로 3회 반복했을 때 구간별 throttle_rate가 0.50 / 0.75 / 0.67로 나왔음(한 번도
+# 0으로 안 떨어짐, invocation_count/error_count 기반으로는 이 이상이 전혀 안 보임 —
+# Errors는 시종 0). 0.4는 관찰된 최솟값(0.50)보다 여유를 둔 값.
+THROTTLE_RATE_THRESHOLD = 0.4
+
+# LAMBDA_ERROR_RATE_MIN_INVOCATIONS과 같은 이유(노이즈 게이트) — 다만 분모가
+# invocation_count 단독이 아니라 (throttle_count+invocation_count)라 "총 시도량"
+# 기준으로 게이트를 건다. 값 자체는 위와 동일한 근거(N=10일 때 우연한 오탐 확률
+# 0.006%대, 3구간 연속 요구로 사실상 0에 수렴)를 그대로 적용.
+THROTTLE_RATE_MIN_ACTIVITY = 10
+
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
 MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
 RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
@@ -149,6 +176,9 @@ Z_SCORE_TARGET_METRICS = {
     "invocation_count",
     "number_of_requests",
     "bytes_downloaded",
+    # 2026-09-12 추가 — 스로틀 재시도 폭증 시 비동기 큐 대기시간이 급증하는 신호
+    # (throttle_rate와 별개로, 기존 Z-score persistent check를 그대로 재사용).
+    "async_event_age",
 }
 
 # 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
@@ -359,7 +389,7 @@ def _lambda_error_rate_check(
 #   PERSISTENCE_WINDOW_POINTS와 궁합이 그대로 맞는다. 그래서 시점별 비율을
 #   그대로 반환하고, detection_node가 Z-score와 동일한 방식으로 지속성
 #   체크를 적용한다.
-DERIVED_FEATURE_NAMES = ["ec2_idle_flag", "lambda_error_rate"]
+DERIVED_FEATURE_NAMES = ["ec2_idle_flag", "lambda_error_rate", "throttle_rate"]
 
 
 def _derived_features(
@@ -367,11 +397,11 @@ def _derived_features(
     metrics: dict[str, list[float]],
     resource_age_seconds: Optional[float] = None,
 ) -> dict[str, list[float]]:
-    """DERIVED_FEATURE_NAMES 두 컬럼을 계산한다. 둘 다 원본 CloudWatch 지표가
+    """DERIVED_FEATURE_NAMES 컬럼들을 계산한다. 전부 원본 CloudWatch 지표가
     아니라 파생값이라 ALL_METRICS(=schema/state.py TypedDict에서 자동 추출)에는
     안 넣고 build_unified_feature_matrix에서 별도로 붙인다.
 
-    해당 리소스 타입이 아니면 두 값 모두 0.0으로 채운다(다른 타입에 영향 없음 —
+    해당 리소스 타입이 아니면 값들을 0.0으로 채운다(다른 타입에 영향 없음 —
     ALL_METRICS의 "지표 없으면 0"과 동일한 관례).
     """
     n = len(next(iter(metrics.values())))
@@ -396,9 +426,30 @@ def _derived_features(
             for inv, err in zip(invocation, error)
         ]
 
+    # throttle_rate: 시점별 throttle_count/(throttle_count+invocation_count).
+    # error_count가 아니라 throttle_count를 쓰는 이유와 이 정규화 방식을 택한
+    # 실측 근거는 THROTTLE_RATE_THRESHOLD 정의 위 주석 참고. 분모를
+    # invocation_count 단독이 아니라 (throttle_count+invocation_count)로 잡은
+    # 이유: 스로틀 폭증 상황에서는 실제 invocation_count가 오히려 낮게 나올 수
+    # 있어서(스로틀된 시도는 Invocations에 안 잡힘, F-1 실측으로 확인) 분모를
+    # invocation_count만으로 두면 불안정해짐. 최소 활동량 게이트
+    # (THROTTLE_RATE_MIN_ACTIVITY) 미만이면 0.0으로 눌러 노이즈를 억제한다
+    # (lambda_error_rate의 MIN_INVOCATIONS 게이트와 동일한 논리).
+    throttle_rate = [0.0] * n
+    if resource_type == "Lambda" and all(
+        m in metrics and metrics[m] for m in ("invocation_count", "throttle_count")
+    ):
+        invocation = metrics["invocation_count"]
+        throttle = metrics["throttle_count"]
+        throttle_rate = [
+            (thr / (thr + inv)) if (thr + inv) >= THROTTLE_RATE_MIN_ACTIVITY else 0.0
+            for inv, thr in zip(invocation, throttle)
+        ]
+
     return {
         "ec2_idle_flag": ec2_idle_flag,
         "lambda_error_rate": lambda_error_rate,
+        "throttle_rate": throttle_rate,
     }
 
 
@@ -926,9 +977,25 @@ def detection_node(state: PipelineState) -> PipelineState:
             if m not in triggered_metrics:
                 triggered_metrics.append(m)
 
-    # ── 5) OR 앙상블 결합 ─────────────────────────────────────────────────
+    # ── 5) Lambda 스로틀 재시도 폭증 — throttle_rate도 시점별 값이라 lambda_error_rate와
+    #    동일한 "최근 k개 전부" 지속성 체크를 적용한다. triggered_metrics는
+    #    "throttle_count" 단독만 채운다(invocation_count는 안 넣음) — 이 시나리오는
+    #    invocation_count/error_count가 정상 범위에 머무는 게 특징이라(F-1 실측:
+    #    Errors는 시종 0), CLF 규칙도 throttle_count 단독 조건으로 매칭한다
+    #    (classification_rules.json CLF-007 참고).
+    throttle_rate = derived["throttle_rate"]
+    k_eff = min(PERSISTENCE_WINDOW_POINTS, len(throttle_rate))
+    throttle_surge_triggered = bool(throttle_rate) and all(
+        v >= THROTTLE_RATE_THRESHOLD for v in throttle_rate[-k_eff:]
+    )
+    if throttle_surge_triggered:
+        if "throttle_count" not in triggered_metrics:
+            triggered_metrics.append("throttle_count")
+
+    # ── 6) OR 앙상블 결합 ─────────────────────────────────────────────────
     anomaly_flag = (
-        bool(triggered_metrics) or iforest_triggered or idle_triggered or error_surge_triggered
+        bool(triggered_metrics) or iforest_triggered or idle_triggered
+        or error_surge_triggered or throttle_surge_triggered
     )
 
     state["anomaly_flag"] = anomaly_flag

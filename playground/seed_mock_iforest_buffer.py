@@ -102,11 +102,22 @@ def make_lambda_window(rng):
     error = np.round(invocation * error_rate)
     duration = _noisy(rng, rng.choice([100.0, 200.0, 300.0]), noise_frac=0.1)
     cost = invocation * 0.0000002 + (duration / 1000) * (128 / 1024) * invocation * 0.0000166667
+    # 2026-09-12 추가 — throttle_count/async_event_age. F-1 실측(정상 시나리오는
+    # 동시성 여유가 있어 스로틀이 거의 발생 안 함) 근거로 baseline은 0에 가깝게
+    # 유지 — 재시도 폭증 임계값(THROTTLE_RATE_THRESHOLD=0.4)과 확실히 구분.
+    # mask=0(값 없음)이 아니라 "실측은 됐고 값이 0"으로 채워야, 실제 운영에서
+    # 항상 조회되는 지표(cloudwatch_client.py가 매 윈도우 fetch)와 스키마가
+    # 일치한다 — 없으면 mock 학습 데이터가 이 두 컬럼을 전부 mask=0으로 배워서
+    # 실제 운영(mask=1, value~0)과 어긋남.
+    throttle_count = np.round(np.clip(_noisy(rng, 0.2, noise_frac=1.0), 0, None))
+    async_event_age = np.clip(_noisy(rng, 50.0, noise_frac=0.5), 0, None)  # ms, 큐 대기 거의 없음
     return {
         "invocation_count": invocation.tolist(),
         "error_count": error.tolist(),
         "duration_avg": duration.tolist(),
         "cost": cost.tolist(),
+        "throttle_count": throttle_count.tolist(),
+        "async_event_age": async_event_age.tolist(),
     }
 
 

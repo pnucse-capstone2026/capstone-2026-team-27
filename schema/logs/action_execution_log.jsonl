@@ -13,3 +13,4 @@
 {"trace_id": "3aba3b9c-b7e8-4839-ba6a-18e13ab6afc7", "executed_at": "2026-09-10T12:06:38.913974Z", "resource_id": "detection-trial-lambda-anomaly-0", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
 {"trace_id": "a90b46c0-db71-4685-8da2-0f3b0a56c09f", "executed_at": "2026-09-10T12:06:39.117926Z", "resource_id": "detection-trial-lambda-anomaly-2", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
 {"trace_id": "e8aa6f70-b13d-4582-aa1f-fe65ac427027", "executed_at": "2026-09-10T12:06:39.136050Z", "resource_id": "detection-trial-lambda-anomaly-1", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
+{"trace_id": "a8c5cc61-2aeb-4f18-879d-fecaf12314be", "executed_at": "2026-09-12T15:18:14.854750Z", "resource_id": "detection-retry-storm-test", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}

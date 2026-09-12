@@ -20,6 +20,12 @@ class LambdaMetrics(TypedDict):
     error_count:      list[float]  # 횟수
     duration_avg:     list[float]  # ms
     cost:             list[float]  # USD
+    # 2026-09-12 추가 — 스로틀(429)/시스템 에러 재시도 폭증 시나리오 대응.
+    # invocation_count/error_count와 달리 스로틀된 재시도는 여기 안 잡힌다(AWS
+    # 공식 문서 확인: "Throttled requests and other invocation errors don't
+    # count as either Invocations or Errors") — 그래서 별도 지표가 필요함.
+    throttle_count:   list[float]  # 횟수 (AWS/Lambda Throttles)
+    async_event_age:  list[float]  # ms, 비동기 큐 대기시간 (AWS/Lambda AsyncEventAge)
 
 class S3Metrics(TypedDict):
     number_of_requests: list[float]  # 횟수

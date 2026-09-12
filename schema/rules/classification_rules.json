@@ -53,6 +53,30 @@
     "rationale": "Lambda 호출과 에러가 동시에 급증하면 코드 버그로 인한 무한루프 또는 외부 트래픽 폭증 가능성"
   },
   {
+    "rule_id": "CLF-007",
+    "rule_type": "classification",
+    "description": "Lambda 스로틀(동시성 소진) 재시도 폭증",
+    "resource_types": [
+      "Lambda"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "throttle_count"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_spike",
+      "interim_action": "Lambda 동시성 임시 제한 적용",
+      "reasoning_template": "Lambda 스로틀(재시도) 비율 급증 -> 동시성 소진으로 인한 호출 폭증"
+    },
+    "priority": 25,
+    "enabled": true,
+    "created_at": "2026-09-12T00:00:00Z",
+    "updated_at": "2026-09-12T00:00:00Z",
+    "author": "system",
+    "rationale": "스로틀(429)/시스템 에러 재시도는 invocation_count/error_count에 안 잡히고(AWS 공식 문서 확인) throttle_count에만 나타남 -- CLF-002(invocation_count+error_count 조건)와 별개 조건 필요. F-1 실측(2026-09-12, detection-retry-storm-test)에서 throttle_rate가 3구간 연속 0.50~0.75로 확인, invocation_count/error_count는 정상 범위 유지"
+  },
+  {
     "rule_id": "CLF-003",
     "rule_type": "classification",
     "description": "S3 데이터 유출 의심",

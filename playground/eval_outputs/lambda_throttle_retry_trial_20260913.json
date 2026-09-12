@@ -1,0 +1,34 @@
+{
+  "induce": {
+    "function_name": "detection-retry-storm-test",
+    "burst_times_utc": [
+      "2026-09-12T15:04:24.315239+00:00",
+      "2026-09-12T15:09:37.413634+00:00",
+      "2026-09-12T15:14:58.452760+00:00"
+    ],
+    "burst_size": 40,
+    "n_bursts": 3,
+    "orig_snapshot": {
+      "concurrency": null
+    }
+  },
+  "measure": {
+    "resource_id": "detection-retry-storm-test",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.05916166305541992,
+      "classification": 0.0013484954833984375,
+      "decision": 0.003726482391357422,
+      "action": 0.8967862129211426,
+      "qa": 301.0594575405121,
+      "logging": 0.18115687370300293,
+      "total": 303.7549731731415
+    }
+  }
+}
