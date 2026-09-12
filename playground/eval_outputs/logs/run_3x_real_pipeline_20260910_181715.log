@@ -1,0 +1,3 @@
+2026-09-10 18:17:15,720 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\run_3x_real_pipeline_20260910_181715.log (SCRIPT_VERSION=1)
+2026-09-10 18:17:16,933 [INFO] AWS 자격증명: arn:aws:iam::634236767974:user/capstone (account 634236767974)
+2026-09-10 18:17:16,933 [INFO] 타겟 함수 3개: ['detection-trial-lambda-anomaly-0', 'detection-trial-lambda-anomaly-1', 'detection-trial-lambda-anomaly-2']
