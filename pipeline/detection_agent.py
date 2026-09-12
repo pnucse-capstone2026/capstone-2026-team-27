@@ -3,9 +3,13 @@ pipeline/detection_agent.py (박소영)
 
 3.3.1 Detection Agent (이상 탐지)
 - Z-score 기반 탐지 (단기 스파이크 대응) + Isolation Forest 탐지 (다변량 복합 드리프트 대응)
-  + EC2 저사용률(유휴) 절대임계값 체크 (좀비 인스턴스 대응, 신규)
-  + Lambda 에러 재시도 폭증 절대임계값 체크 (신규)
-  → 네 경로를 병렬 적용하고 OR 앙상블로 결합.
+  → 두 경로를 병렬 적용하고 OR 앙상블로 결합.
+- EC2 저사용률(유휴, 좀비 인스턴스 대응)과 Lambda 에러 재시도 폭증은 절대임계값
+  판정 로직 자체(EC2_IDLE_*/LAMBDA_ERROR_RATE_* 상수)는 그대로 두되, 2026-09-12부터
+  detection_node의 독립 분기가 아니라 _derived_features가 계산하는 feature
+  (ec2_idle_flag/lambda_error_rate)로 통합했다 — IForest 입력에도 노출되고,
+  detection_node의 트리거 판단도 이 feature로 이뤄진다(자세한 지속성 처리 차이는
+  _derived_features 문서 참고).
 
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
@@ -254,6 +258,12 @@ def _low_utilization_check(
 ) -> tuple[list[str], bool]:
     """EC2 저사용률(유휴/좀비) 절대임계값 체크. EC2_IDLE_* 상수 정의 위 주석 참고.
 
+    ⚠️ 2026-09-12: detection_node는 이 함수를 더 이상 직접 호출하지 않는다 —
+    아래 _derived_features가 이 함수의 판정 결과를 재사용해 ec2_idle_flag
+    feature로 편입시키고, detection_node는 그 feature만 본다(로직 이식이지
+    변경이 아님 — 판정 기준은 100% 동일). 이 함수 자체는 playground 평가/재현
+    스크립트들이 여전히 직접 import해서 쓰므로 하위호환을 위해 남겨둔다.
+
     z-score/IForest와 달리 window 내부 평균·표준편차를 쓰지 않는 절대 기준이라,
     "윈도우 내내 낮기만 하고 변동이 없는" 진짜 유휴 패턴(z-score가 놓치는 케이스)도
     잡을 수 있다. peak(=max) CPU와 window 전체 network I/O 합산을 보므로, 윈도우
@@ -302,6 +312,14 @@ def _lambda_error_rate_check(
     항상 게이트에서 먼저 걸러져 0으로 나누는 경우가 발생하지 않는다.
 
     Lambda 전용 — 다른 리소스 타입은 항상 (), False 반환.
+
+    ⚠️ 2026-09-12: detection_node는 이 함수를 더 이상 직접 호출하지 않는다 —
+    아래 _derived_features가 시점별 error_rate를 직접 계산해 lambda_error_rate
+    feature로 편입시키고, detection_node가 그 feature에 동일한 임계값
+    (LAMBDA_ERROR_RATE_THRESHOLD)과 지속성 체크(PERSISTENCE_WINDOW_POINTS)를
+    적용한다 — 이 함수의 최종 판정과 결과가 같도록 상수를 그대로 공유한다.
+    이 함수 자체는 playground 평가/재현 스크립트들이 여전히 직접 import해서
+    쓰므로 하위호환을 위해 남겨둔다.
     """
     if resource_type != "Lambda":
         return [], False
@@ -322,8 +340,72 @@ def _lambda_error_rate_check(
     return triggered_metrics, is_surge
 
 
+# ── 파생 feature (EC2 유휴 / Lambda 재시도 비율, 신규 2026-09-12) ─────────────
+# 기존엔 _low_utilization_check/_lambda_error_rate_check가 detection_node의
+# OR 앙상블에서 독립된 분기로 호출됐다. 이제 그 판정을 "feature 계산" 단계로
+# 옮겨서 build_unified_feature_matrix(=IForest 입력)에도 노출시키고,
+# detection_node의 트리거 판단도 이 feature 하나로 통일한다 — 판정 기준
+# 자체(EC2_IDLE_*/LAMBDA_ERROR_RATE_* 상수)는 전혀 바뀌지 않는다.
+#
+# 두 feature의 지속성 처리 방식이 다른 이유:
+# - ec2_idle_flag: _low_utilization_check가 이미 "윈도우 전체"를 보고 내리는
+#   판정이라 그 자체로 지속성을 내포한다. 이 값을 PERSISTENCE_WINDOW_POINTS
+#   (최근 k개 지점) 지속성 체크에 다시 통과시키면, Z-score/Lambda와 공유하는
+#   이 상수를 EC2만 보고 건드려야 하는 상황이 생겨 다른 체크의 재현율에
+#   의도치 않게 영향을 준다. 그래서 EC2는 윈도우 전체에 동일한 값을
+#   broadcast해두고, detection_node에서 별도 지속성 체크 없이 flag==1이면
+#   바로 트리거로 쓴다.
+# - lambda_error_rate: 원래도 시점별 값 + "최근 k개 전부" 지속성 조건이라
+#   PERSISTENCE_WINDOW_POINTS와 궁합이 그대로 맞는다. 그래서 시점별 비율을
+#   그대로 반환하고, detection_node가 Z-score와 동일한 방식으로 지속성
+#   체크를 적용한다.
+DERIVED_FEATURE_NAMES = ["ec2_idle_flag", "lambda_error_rate"]
+
+
+def _derived_features(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
+) -> dict[str, list[float]]:
+    """DERIVED_FEATURE_NAMES 두 컬럼을 계산한다. 둘 다 원본 CloudWatch 지표가
+    아니라 파생값이라 ALL_METRICS(=schema/state.py TypedDict에서 자동 추출)에는
+    안 넣고 build_unified_feature_matrix에서 별도로 붙인다.
+
+    해당 리소스 타입이 아니면 두 값 모두 0.0으로 채운다(다른 타입에 영향 없음 —
+    ALL_METRICS의 "지표 없으면 0"과 동일한 관례).
+    """
+    n = len(next(iter(metrics.values())))
+
+    # ec2_idle_flag: _low_utilization_check(판정 로직 원본)를 그대로 재사용해
+    # 윈도우 단위 boolean을 얻고, n_points개 전부 같은 값으로 broadcast한다.
+    _, idle_triggered = _low_utilization_check(resource_type, metrics, resource_age_seconds)
+    ec2_idle_flag = [1.0 if idle_triggered else 0.0] * n
+
+    # lambda_error_rate: 시점별 error_count/invocation_count. 최소 호출수
+    # 게이트(LAMBDA_ERROR_RATE_MIN_INVOCATIONS) 미만인 시점은 0.0으로 눌러서
+    # _lambda_error_rate_check와 동일하게 "호출수 부족 = 판단 보류"를 유지한다
+    # (0.0은 항상 LAMBDA_ERROR_RATE_THRESHOLD=0.5 미만이라 트리거되지 않음).
+    lambda_error_rate = [0.0] * n
+    if resource_type == "Lambda" and all(
+        m in metrics and metrics[m] for m in ("invocation_count", "error_count")
+    ):
+        invocation = metrics["invocation_count"]
+        error = metrics["error_count"]
+        lambda_error_rate = [
+            (err / inv) if inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS else 0.0
+            for inv, err in zip(invocation, error)
+        ]
+
+    return {
+        "ec2_idle_flag": ec2_idle_flag,
+        "lambda_error_rate": lambda_error_rate,
+    }
+
+
 def build_unified_feature_matrix(
-    resource_type: str, metrics: dict[str, list[float]]
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
 ) -> np.ndarray:
     n = len(next(iter(metrics.values())))
     cols: list[np.ndarray] = []
@@ -335,6 +417,10 @@ def build_unified_feature_matrix(
         else:
             cols.append(np.zeros(n))
             cols.append(np.zeros(n))
+
+    derived = _derived_features(resource_type, metrics, resource_age_seconds)
+    for name in DERIVED_FEATURE_NAMES:
+        cols.append(np.asarray(derived[name], dtype=float))
 
     for rt in RESOURCE_TYPES:
         cols.append(np.full(n, 1.0 if rt == resource_type else 0.0))
@@ -432,12 +518,20 @@ def _zscore_max(metrics: dict[str, list[float]]) -> float:
 
 
 def _normalized_scores(
-    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]
+    model: IsolationForest,
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
 ) -> np.ndarray:
     """윈도우 전체에 대해 IsolationForest decision_function을 창 내부 min-max로
     0~1 정규화한 배열을 반환 (1에 가까울수록 이상). _score_with_model과
-    _iforest_score_and_trigger가 공유하는 정규화 로직."""
-    X = build_unified_feature_matrix(resource_type, metrics)
+    _iforest_score_and_trigger가 공유하는 정규화 로직.
+
+    resource_age_seconds는 build_unified_feature_matrix의 ec2_idle_flag 계산에만
+    쓰인다(신생 인스턴스 가드). 실시간 채점(_iforest_score_and_trigger)에서만
+    의미가 있고, 학습 버퍼 admission 등 과거 윈도우 채점에는 age 정보가 없어
+    기본값 None(가드 미적용, 기존 동작과 동일)을 그대로 쓴다."""
+    X = build_unified_feature_matrix(resource_type, metrics, resource_age_seconds)
     raw_scores = model.decision_function(X)  # 낮을수록 이상치
 
     s_min, s_max = raw_scores.min(), raw_scores.max()
@@ -684,10 +778,17 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
 
 
 def _iforest_score_and_trigger(
-    resource_type: str, metrics: dict[str, list[float]], k: int = PERSISTENCE_WINDOW_POINTS
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    k: int = PERSISTENCE_WINDOW_POINTS,
+    resource_age_seconds: Optional[float] = None,
 ) -> tuple[float, bool]:
     """detection_node 전용: 최신 시점의 이상 점수(리포팅용)와, 최근 k개 시점이
     "전부" 임계값을 넘었는지(트리거 판단, 지속성 체크)를 함께 반환한다.
+
+    resource_age_seconds는 feature matrix의 ec2_idle_flag 계산(신생 인스턴스
+    가드)에 그대로 전달된다 — detection_node가 별도로 계산하는 ec2_idle_flag와
+    IForest에 실제로 들어가는 값이 어긋나지 않도록 항상 같은 age를 넘겨야 한다.
 
     ⚠️ _iforest_score를 두 번(점수용 1번 + 트리거용 1번) 부르지 않는 이유:
     _get_or_train_iforest는 호출할 때마다 학습 버퍼를 갱신하는 부수효과가 있어서,
@@ -698,7 +799,7 @@ def _iforest_score_and_trigger(
     if model is None:
         return 0.0, False
 
-    normalized = _normalized_scores(model, resource_type, metrics)
+    normalized = _normalized_scores(model, resource_type, metrics, resource_age_seconds)
     latest_score = float(normalized[-1])
 
     k_eff = min(k, len(normalized))
@@ -717,6 +818,10 @@ def _unified_feature_names() -> list[str]:
     for m in ALL_METRICS:
         names.append(f"{m}_value")
         names.append(f"{m}_mask")
+    for name in DERIVED_FEATURE_NAMES:
+        # mask 컬럼 없음 — 원본 지표와 달리 파생값은 항상 계산 가능(해당 없는
+        # 타입은 0.0)하고, 리소스 타입 onehot이 이미 "적용 대상인지"를 알려준다.
+        names.append(f"{name}_value")
     for rt in RESOURCE_TYPES:
         names.append(f"onehot_{rt}")
     return names
@@ -771,6 +876,7 @@ def explain_iforest_top_features(
 def detection_node(state: PipelineState) -> PipelineState:
     metrics = state["raw_metrics"]
     resource_type = state["resource_type"]
+    resource_age_seconds = state.get("resource_age_seconds")
 
     # ── 1) Z-score 탐지 (비용 / 네트워크 입력 / 호출 횟수 지표만 대상, 최근 몇 시점 지속 기준) ──
     # window-max도 마지막 1개 시점도 아니고 "최근 PERSISTENCE_WINDOW_POINTS개 연속"인
@@ -786,22 +892,39 @@ def detection_node(state: PipelineState) -> PipelineState:
             triggered_metrics.append(metric_name)
         max_abs_z = max(max_abs_z, z)
 
-    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량, 마찬가지로 지속성 체크) ──
-    iforest_score, iforest_triggered = _iforest_score_and_trigger(resource_type, metrics)
-
-    # ── 3) EC2 저사용률(유휴) 절대임계값 체크 (신규, EC2 전용) ──────────────
-    idle_metrics, idle_triggered = _low_utilization_check(
-        resource_type, metrics, state.get("resource_age_seconds")
+    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표 + ec2_idle_flag/
+    #    lambda_error_rate 파생 feature까지 포함한 다변량, 마찬가지로 지속성 체크) ──
+    iforest_score, iforest_triggered = _iforest_score_and_trigger(
+        resource_type, metrics, resource_age_seconds=resource_age_seconds
     )
-    for m in idle_metrics:
-        if m not in triggered_metrics:
-            triggered_metrics.append(m)
 
-    # ── 4) Lambda 에러 재시도 폭증 절대임계값 체크 (신규, Lambda 전용) ───────
-    error_surge_metrics, error_surge_triggered = _lambda_error_rate_check(resource_type, metrics)
-    for m in error_surge_metrics:
-        if m not in triggered_metrics:
-            triggered_metrics.append(m)
+    # ── 3) EC2 저사용률(유휴) — ec2_idle_flag feature 자체가 윈도우 전체 판정을
+    #    내포하므로(_derived_features 문서 참고) PERSISTENCE_WINDOW_POINTS 지속성
+    #    체크 없이 flag==1을 그대로 트리거로 쓴다(2026-09-12, 팀 결정: 이 상수를
+    #    Z-score/Lambda와 공유하는 채로 EC2만 보고 조정하면 다른 체크 재현율에
+    #    의도치 않게 영향을 주므로). 판정 기준 자체는 기존 _low_utilization_check와
+    #    100% 동일 — 계산 위치만 옮겼다.
+    derived = _derived_features(resource_type, metrics, resource_age_seconds)
+
+    ec2_idle_flag = derived["ec2_idle_flag"]
+    idle_triggered = bool(ec2_idle_flag) and ec2_idle_flag[-1] == 1.0
+    if idle_triggered:
+        for m in EC2_IDLE_TARGET_METRICS:
+            if m not in triggered_metrics:
+                triggered_metrics.append(m)
+
+    # ── 4) Lambda 에러 재시도 폭증 — lambda_error_rate는 시점별 값이라 기존
+    #    _lambda_error_rate_check와 동일하게 "최근 k개 전부" 지속성 체크(Z-score와
+    #    같은 패턴)를 그대로 적용한다. 임계값(LAMBDA_ERROR_RATE_THRESHOLD)도 동일.
+    lambda_error_rate = derived["lambda_error_rate"]
+    k_eff = min(PERSISTENCE_WINDOW_POINTS, len(lambda_error_rate))
+    error_surge_triggered = bool(lambda_error_rate) and all(
+        v >= LAMBDA_ERROR_RATE_THRESHOLD for v in lambda_error_rate[-k_eff:]
+    )
+    if error_surge_triggered:
+        for m in ("error_count", "invocation_count"):
+            if m not in triggered_metrics:
+                triggered_metrics.append(m)
 
     # ── 5) OR 앙상블 결합 ─────────────────────────────────────────────────
     anomaly_flag = (

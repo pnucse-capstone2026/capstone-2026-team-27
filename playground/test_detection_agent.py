@@ -20,6 +20,7 @@ from pipeline.detection_agent import (
     build_unified_feature_matrix,
     ALL_METRICS,
     RESOURCE_TYPES,
+    DERIVED_FEATURE_NAMES,
 )
 
 def test_shape_and_mask():
@@ -31,8 +32,9 @@ def test_shape_and_mask():
     }
     X = build_unified_feature_matrix("EC2", metrics)
 
-    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 리소스타입수
-    expected_cols = len(ALL_METRICS) * 2 + len(RESOURCE_TYPES)
+    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 파생feature수(ec2_idle_flag/
+    # lambda_error_rate, 2026-09-12 추가) + 리소스타입수
+    expected_cols = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES) + len(RESOURCE_TYPES)
     assert X.shape == (3, expected_cols), f"실제 shape: {X.shape}, 기대값: (3, {expected_cols})"
 
     print("✅ shape 통과:", X.shape)
@@ -69,7 +71,7 @@ def test_one_hot():
     X_ec2 = build_unified_feature_matrix("EC2", metrics)
     X_lambda = build_unified_feature_matrix("Lambda", metrics)
 
-    onehot_start = len(ALL_METRICS) * 2  # one-hot 컬럼이 시작되는 위치
+    onehot_start = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES)  # one-hot 컬럼이 시작되는 위치
 
     ec2_onehot = X_ec2[0, onehot_start:]
     lambda_onehot = X_lambda[0, onehot_start:]
