@@ -1,0 +1,153 @@
+2026-09-13 17:23:23,734 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_zombie_real_pipeline_trial_20260913_172323.log
+2026-09-13 17:23:25,061 [INFO] 자격증명 워밍업 완료 (스레드 레이스 방지)
+2026-09-13 17:23:25,061 [INFO] === 측정 시작 (13대 병렬, bypass_approval_for_timing=True) ===
+2026-09-13 17:23:25,062 [INFO] [측정 i-00f27d6650869a74d] measure() 시작 (label=anomaly, profile=silent)
+2026-09-13 17:23:25,063 [INFO] [측정 i-094595e331b19be17] measure() 시작 (label=anomaly, profile=silent)
+2026-09-13 17:23:25,064 [INFO] [측정 i-0238a05593fbcf2f2] measure() 시작 (label=anomaly, profile=whisper)
+2026-09-13 17:23:25,064 [INFO] [측정 i-046cbf400dd6dc9d7] measure() 시작 (label=anomaly, profile=whisper)
+2026-09-13 17:23:25,064 [INFO] [측정 i-013a9d143009d1376] measure() 시작 (label=anomaly, profile=whisper_more)
+2026-09-13 17:23:25,065 [INFO] [측정 i-0e810265b88caeac5] measure() 시작 (label=normal, profile=light)
+2026-09-13 17:23:25,065 [INFO] [측정 i-0cd6cf73f56959d2e] measure() 시작 (label=normal, profile=light)
+2026-09-13 17:23:25,065 [INFO] [측정 i-07c77db4628d7e7ca] measure() 시작 (label=normal, profile=moderate)
+2026-09-13 17:23:25,066 [INFO] [측정 i-04cec80c3045da327] measure() 시작 (label=normal, profile=moderate)
+2026-09-13 17:23:25,066 [INFO] [측정 i-0380a0b372a973a5c] measure() 시작 (label=normal, profile=heavy)
+2026-09-13 17:23:25,066 [INFO] [측정 i-053230c6e903132f8] measure() 시작 (label=normal, profile=heavy)
+2026-09-13 17:23:25,066 [INFO] [측정 i-01aed37041b8e6946] measure() 시작 (label=normal, profile=bursty)
+2026-09-13 17:23:25,067 [INFO] [측정 i-0973aa83fa2ba0dd9] measure() 시작 (label=normal, profile=bursty)
+2026-09-13 17:23:28,285 [ERROR] [측정 i-053230c6e903132f8] 실패: list index out of range
+2026-09-13 17:23:28,335 [ERROR] [측정 i-094595e331b19be17] 실패: list index out of range
+2026-09-13 17:23:28,341 [ERROR] [측정 i-0238a05593fbcf2f2] 실패: list index out of range
+2026-09-13 17:23:28,357 [ERROR] [측정 i-0e810265b88caeac5] 실패: list index out of range
+2026-09-13 17:23:28,367 [ERROR] [측정 i-0380a0b372a973a5c] 실패: list index out of range
+2026-09-13 17:23:28,490 [ERROR] [측정 i-0cd6cf73f56959d2e] 실패: list index out of range
+2026-09-13 17:23:28,683 [ERROR] [측정 i-046cbf400dd6dc9d7] 실패: list index out of range
+2026-09-13 17:23:28,726 [ERROR] [측정 i-01aed37041b8e6946] 실패: list index out of range
+2026-09-13 17:23:28,781 [ERROR] [측정 i-00f27d6650869a74d] 실패: list index out of range
+2026-09-13 17:23:28,791 [ERROR] [측정 i-04cec80c3045da327] 실패: list index out of range
+2026-09-13 17:23:28,803 [ERROR] [측정 i-013a9d143009d1376] 실패: list index out of range
+2026-09-13 17:23:28,818 [ERROR] [측정 i-07c77db4628d7e7ca] 실패: list index out of range
+2026-09-13 17:23:28,831 [ERROR] [측정 i-0973aa83fa2ba0dd9] 실패: list index out of range
+2026-09-13 17:23:28,838 [INFO] === 결과 ===
+2026-09-13 17:23:28,838 [INFO] [
+  {
+    "resource_id": "i-00f27d6650869a74d",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-094595e331b19be17",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0238a05593fbcf2f2",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-046cbf400dd6dc9d7",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-013a9d143009d1376",
+    "label": "anomaly",
+    "profile": "whisper_more",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0e810265b88caeac5",
+    "label": "normal",
+    "profile": "light",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0cd6cf73f56959d2e",
+    "label": "normal",
+    "profile": "light",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-07c77db4628d7e7ca",
+    "label": "normal",
+    "profile": "moderate",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-04cec80c3045da327",
+    "label": "normal",
+    "profile": "moderate",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0380a0b372a973a5c",
+    "label": "normal",
+    "profile": "heavy",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-053230c6e903132f8",
+    "label": "normal",
+    "profile": "heavy",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-01aed37041b8e6946",
+    "label": "normal",
+    "profile": "bursty",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0973aa83fa2ba0dd9",
+    "label": "normal",
+    "profile": "bursty",
+    "anomaly_flag": null,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  }
+]
+2026-09-13 17:23:28,839 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\ec2_zombie_real_pipeline_trial_20260913.json
+2026-09-13 17:23:28,839 [INFO] normal 오탐: 0/8, anomaly 정탐: 0/5
+2026-09-13 17:23:28,839 [INFO] 정리(전체 정지) 시작...
+2026-09-13 17:23:29,421 [WARNING] 정지 요청 중 일부 실패(이미 정지 중일 수 있음): An error occurred (InvalidInstanceID.NotFound) when calling the StopInstances operation: The instance IDs 'i-0238a05593fbcf2f2, i-053230c6e903132f8, i-04cec80c3045da327, i-01aed37041b8e6946, i-0cd6cf73f56959d2e, i-0e810265b88caeac5, i-094595e331b19be17, i-013a9d143009d1376, i-046cbf400dd6dc9d7, i-0380a0b372a973a5c, i-0973aa83fa2ba0dd9, i-07c77db4628d7e7ca, i-00f27d6650869a74d' do not exist

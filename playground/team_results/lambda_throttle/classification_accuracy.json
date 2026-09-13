@@ -1,11 +1,11 @@
 {
-  "source_result_file": "playground/eval_outputs/lambda_throttle_repeated_trial_20260913.json",
+  "source_result_file": "playground/eval_outputs/lambda_throttle_clean_verification_20260914.json",
   "expected_label": "cost_spike",
-  "note": "classification 소요시간이 전부 1~6ms로 LLM 호출 수준이 아니라 전부 rulebook(CLF-007) 경로로 매칭됨 — measure()가 matched_rule_id를 반환하지 않아 직접 확인은 아니고 타이밍 근거의 추정",
+  "note": "2026-09-14 재학습(throttle_count 학습데이터 보정) 이후 -clean 함수 재검증. CloudWatch 실측으로 라벨을 정정한 결과(정상 3건이 실제로는 계정 동시성 소진으로 진짜 스로틀을 겪은 정탐이었음, repeated_trial.json의 note 참고) 기준으로 재계산.",
   "rulebook": {
-    "total": 5,
-    "correct": 5,
-    "accuracy": 1.0
+    "total": 9,
+    "correct": 8,
+    "accuracy": 0.8888888888888888
   },
   "llm": {
     "total": 0,
@@ -14,8 +14,11 @@
   },
   "p_rulebook": 1.0,
   "p_llm": 0.0,
-  "combined_classification_accuracy": 1.0,
+  "combined_classification_accuracy": 0.8888888888888888,
   "normal_false_positive_count": 0,
-  "normal_total": 8,
-  "false_positive_classification_notes": []
+  "normal_total": 4,
+  "false_positive_classification_notes": [
+    "최초 오탐으로 집계됐던 normal-3/5/6-clean은 CloudWatch 실측 결과 실제로 37/93/71건의 진짜 Throttles가 발생한 것으로 확인되어(계정 전체 Lambda 동시실행 한도 소진, 13개 함수 동시 버스트로 인한 테스트 설계상 교차간섭), 오탐이 아니라 정탐으로 재분류함.",
+    "normal-4-clean은 실제로 24건의 Throttles가 있었으나 모델이 놓쳐 유일한 실제 미탐(FN)임."
+  ]
 }

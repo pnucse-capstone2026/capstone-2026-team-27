@@ -2,7 +2,7 @@
   "script_version": "1",
   "scenario": "lambda_throttle_retry_storm_clean_verification",
   "generated_at": "2026-09-13T20:22:15.271231+00:00",
-  "note": "오염된 기존 13개 함수(anomaly-2~5, normal-1~8) 대신 신규 생성한 -clean 함수 13개로 IForest 단독 탐지 정확도를 재검증. detection_agent.py는 수정하지 않음(production 코드 그대로). [2026-09-14 재해석] 최초 집계(정확도 76.9%, 오탐 3건)는 '개별 동시성 제한 여부'만을 정상/이상 라벨 기준으로 삼았으나, CloudWatch로 직접 조회한 결과 normal-3/5/6-clean이 실제로 37/93/71건의 진짜 Throttles를 겪은 것으로 확인되었다. 원인은 13개 함수의 버스트를 SHARED_INVOKE_POOL로 동시에 발사하면서 개별 함수에는 동시성 제한이 없어도 계정 전체의 Lambda 동시실행 한도 소진으로 moderate/heavy 볼륨의 normal 함수도 실제로 스로틀링을 겪은 것 -- 즉 이 3건은 모델의 오탐이 아니라 실제로 발생한 이상을 정확히 잡아낸 정탐이었다. CloudWatch 실측 기준으로 라벨을 정정하면 TP=8/FN=1(normal-4만 실제 스로틀 24건을 놓침)/FP=0/TN=4 -- 정확도 92.3%, 정밀도 100%, 재현율 88.9%, FPR 0%. metrics_by_design_label(원래 설계 라벨 기준)과 metrics_by_actual_throttle_ground_truth(CloudWatch 실측 기준, 최종 채택)를 둘 다 남겨 재현성을 확보한다.",
+  "note": "오염된 기존 13개 함수(anomaly-2~5, normal-1~8) 대신 신규 생성한 -clean 함수 13개로 IForest 단독 탐지 정확도를 재검증. detection_agent.py는 수정하지 않음(production 코드 그대로).",
   "params": {
     "n_anomaly": 5,
     "n_normal": 8,
@@ -21,26 +21,26 @@
   },
   "metrics": {
     "confusion_matrix": {
-      "TP": 8,
-      "FN": 1,
-      "FP": 0,
-      "TN": 4
+      "TP": 5,
+      "FN": 0,
+      "FP": 3,
+      "TN": 5
     },
-    "accuracy": 0.9230769230769231,
+    "accuracy": 0.7692307692307693,
     "accuracy_ci_95_clopper_pearson": [
-      0.6397025647321225,
-      0.9980543715026533
+      0.461868460765959,
+      0.9496189265088485
     ],
-    "recall": 0.8888888888888888,
+    "recall": 1.0,
     "recall_ci_95_clopper_pearson": [
-      0.517503485082663,
-      0.9971908632534008
+      0.4781762498950185,
+      1.0
     ],
-    "precision": 1.0,
-    "false_positive_rate": 0.0,
+    "precision": 0.625,
+    "false_positive_rate": 0.375,
     "fpr_ci_95_clopper_pearson": [
-      0.0,
-      0.6023646356164746
+      0.08523341413725354,
+      0.7551367836334484
     ]
   },
   "trials": [
@@ -86,8 +86,7 @@
         "2026-09-13T20:13:47.878501+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:22:15.255517+00:00",
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:22:15.255517+00:00"
     },
     {
       "resource_id": "detection-test-lambda-anomaly-3-clean",
@@ -131,8 +130,7 @@
         "2026-09-13T20:13:35.041584+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:22:03.922559+00:00",
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:22:03.922559+00:00"
     },
     {
       "resource_id": "detection-test-lambda-anomaly-4-clean",
@@ -176,8 +174,7 @@
         "2026-09-13T20:13:01.182318+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:21:24.571956+00:00",
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:21:24.571956+00:00"
     },
     {
       "resource_id": "detection-test-lambda-anomaly-5-clean",
@@ -221,8 +218,7 @@
         "2026-09-13T20:13:03.108232+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:21:27.294735+00:00",
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:21:27.294735+00:00"
     },
     {
       "resource_id": "detection-retry-storm-test-clean",
@@ -266,8 +262,7 @@
         "2026-09-13T20:13:32.198567+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:21:58.137047+00:00",
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:21:58.137047+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-1-clean",
@@ -295,12 +290,7 @@
         "2026-09-13T20:11:41.833710+00:00"
       ],
       "detected": false,
-      "measured_at": "2026-09-13T20:14:45.626046+00:00",
-      "cloudwatch_verification": {
-        "throttles": 0,
-        "invocations": 56
-      },
-      "actually_throttled": false
+      "measured_at": "2026-09-13T20:14:45.626046+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-2-clean",
@@ -328,12 +318,7 @@
         "2026-09-13T20:11:42.024769+00:00"
       ],
       "detected": false,
-      "measured_at": "2026-09-13T20:14:45.795312+00:00",
-      "cloudwatch_verification": {
-        "throttles": 0,
-        "invocations": 56
-      },
-      "actually_throttled": false
+      "measured_at": "2026-09-13T20:14:45.795312+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-3-clean",
@@ -377,12 +362,7 @@
         "2026-09-13T20:11:54.988576+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:20:05.965803+00:00",
-      "cloudwatch_verification": {
-        "throttles": 37,
-        "invocations": 116
-      },
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:20:05.965803+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-4-clean",
@@ -410,12 +390,7 @@
         "2026-09-13T20:11:56.124882+00:00"
       ],
       "detected": false,
-      "measured_at": "2026-09-13T20:15:04.599893+00:00",
-      "cloudwatch_verification": {
-        "throttles": 24,
-        "invocations": 116
-      },
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:15:04.599893+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-5-clean",
@@ -459,12 +434,7 @@
         "2026-09-13T20:12:21.447323+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:20:35.918533+00:00",
-      "cloudwatch_verification": {
-        "throttles": 93,
-        "invocations": 206
-      },
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:20:35.918533+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-6-clean",
@@ -508,12 +478,7 @@
         "2026-09-13T20:12:09.734169+00:00"
       ],
       "detected": true,
-      "measured_at": "2026-09-13T20:20:24.306389+00:00",
-      "cloudwatch_verification": {
-        "throttles": 71,
-        "invocations": 206
-      },
-      "actually_throttled": true
+      "measured_at": "2026-09-13T20:20:24.306389+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-7-clean",
@@ -539,12 +504,7 @@
         "2026-09-13T20:01:33.744799+00:00"
       ],
       "detected": false,
-      "measured_at": "2026-09-13T20:05:26.567994+00:00",
-      "cloudwatch_verification": {
-        "throttles": 0,
-        "invocations": 106
-      },
-      "actually_throttled": false
+      "measured_at": "2026-09-13T20:05:26.567994+00:00"
     },
     {
       "resource_id": "detection-test-lambda-normal-8-clean",
@@ -570,47 +530,7 @@
         "2026-09-13T20:01:33.822416+00:00"
       ],
       "detected": false,
-      "measured_at": "2026-09-13T20:05:15.033587+00:00",
-      "cloudwatch_verification": {
-        "throttles": 0,
-        "invocations": 106
-      },
-      "actually_throttled": false
+      "measured_at": "2026-09-13T20:05:15.033587+00:00"
     }
-  ],
-  "metrics_by_design_label": {
-    "confusion_matrix": {
-      "TP": 5,
-      "FN": 0,
-      "FP": 3,
-      "TN": 5
-    },
-    "accuracy": 0.7692307692307693,
-    "recall": 1.0,
-    "precision": 0.625
-  },
-  "metrics_by_actual_throttle_ground_truth": {
-    "confusion_matrix": {
-      "TP": 8,
-      "FN": 1,
-      "FP": 0,
-      "TN": 4
-    },
-    "accuracy": 0.9230769230769231,
-    "accuracy_ci_95_clopper_pearson": [
-      0.6397025647321225,
-      0.9980543715026533
-    ],
-    "recall": 0.8888888888888888,
-    "recall_ci_95_clopper_pearson": [
-      0.517503485082663,
-      0.9971908632534008
-    ],
-    "precision": 1.0,
-    "false_positive_rate": 0.0,
-    "fpr_ci_95_clopper_pearson": [
-      0.0,
-      0.6023646356164746
-    ]
-  }
+  ]
 }
