@@ -144,9 +144,36 @@ def _build_stress_script(profile: str, duration_sec: int) -> str:
     )
 
 
+def _remove_iam_instance_profile(ec2, iid: str) -> None:
+    """anomaly(유휴) 인스턴스에서 IAM instance profile을 떼어낸다 — SSM Agent가
+    붙어있으면 하트비트 트래픽이 계속 발생해 진짜 방치된 인스턴스를 재현 못 한다
+    (2026-09-13 실측으로 발견: peak_cpu는 0.2%대로 완벽히 유휴인데 network_io
+    합산이 SSM 하트비트 트래픽만으로 임계값을 40% 초과해 idle_flag가 5/5 전부
+    미탐되는 사고가 실제로 있었음)."""
+    try:
+        resp = ec2.describe_iam_instance_profile_associations(
+            Filters=[{"Name": "instance-id", "Values": [iid]}]
+        )
+        assocs = resp.get("IamInstanceProfileAssociations", [])
+        for a in assocs:
+            if a["State"] in ("associated", "associating"):
+                ec2.disassociate_iam_instance_profile(AssociationId=a["AssociationId"])
+                logger.info("[%s] IAM instance profile 해제 완료 (%s)", iid, a["AssociationId"])
+        if not assocs:
+            logger.info("[%s] IAM instance profile 원래 없음 — 스킵", iid)
+    except Exception as exc:
+        logger.warning("[%s] IAM instance profile 해제 실패: %s", iid, exc)
+
+
 def start_and_prepare(ec2, ssm, targets: list[tuple[str, str, str]]) -> None:
-    """IAM instance-profile 연결 + 시작 + SSM 등록 대기. 이미 연결/실행 중이면 건너뛴다."""
+    """"normal" 라벨에만 IAM instance-profile을 연결해 SSM으로 부하를 걸 준비를 하고,
+    "anomaly" 라벨은 반대로 IAM profile을 떼어내 진짜 방치된(SSM 미등록) 인스턴스
+    상태를 재현한다. 이후 전체를 시작하고, "normal"만 SSM 등록을 기다린다.
+    """
     for iid, label, profile in targets:
+        if label != "normal":
+            _remove_iam_instance_profile(ec2, iid)
+            continue
         try:
             ec2.associate_iam_instance_profile(
                 IamInstanceProfile={"Name": IAM_INSTANCE_PROFILE_NAME}, InstanceId=iid,
@@ -166,8 +193,10 @@ def start_and_prepare(ec2, ssm, targets: list[tuple[str, str, str]]) -> None:
     waiter.wait(InstanceIds=ids)
     logger.info("전체 %d대 running 상태 도달", len(ids))
 
+    # SSM 등록 대기는 "normal"만 — "anomaly"는 IAM profile이 없어서 영원히 등록 안 됨
+    normal_ids = [iid for iid, label, _ in targets if label == "normal"]
     deadline = time.time() + SSM_REGISTER_TIMEOUT_SEC
-    pending = set(ids)
+    pending = set(normal_ids)
     while pending and time.time() < deadline:
         resp = ssm.describe_instance_information(
             Filters=[{"Key": "InstanceIds", "Values": list(pending)}]

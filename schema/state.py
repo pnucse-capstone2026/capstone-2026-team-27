@@ -160,6 +160,10 @@ class PipelineState(TypedDict):
     anomaly_score_zscore:  Optional[float]
     anomaly_score_iforest: Optional[float]
     triggered_metrics:     list[str]
+    # IForest가 트리거된 경우에 한해 채워지는 SHAP 상위 기여 지표(지표명 -> 기여도,
+    # 절댓값 내림차순 최대 SHAP_TOP_N개). Z-score/EC2 유휴 단독 트리거는 IForest
+    # 판단이 아니므로 None. detection_agent.py의 detection_node() 참고.
+    shap_top_features:     Optional[dict[str, float]]
 
     # 리소스가 생성(EC2는 LaunchTime)된 지 몇 초 지났는지. detection_agent.py의
     # 저사용률(유휴) 절대임계값 체크가 "관측 윈도우만큼도 안 된 신생 리소스"를

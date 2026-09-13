@@ -23,9 +23,14 @@ pipeline/detection_agent.py (박소영)
   detection_node의 직접 트리거에서는 제외됐다. EC2와 달리 이 두 feature의
   "이상" 값은 다른 타입의 0(해당없음)이나 자체 정상 베이스라인과 전역적으로
   겹치지 않아 raw decision_function이 뚜렷한 음수(이상)로 나옴을 확인했기
-  때문 — IForest 단독으로도 충분히 잡는다. 단, 이 두 feature의 임계값 체크
-  자체는 코드에 남아 triggered_metrics 라벨링(CLF-002/CLF-007 매칭용)에는
-  계속 쓰인다 — anomaly_flag 계산에만 관여하지 않는다.
+  때문 — IForest 단독으로도 충분히 잡는다.
+  Lambda 에러율(`lambda_error_rate`)은 여전히 별도의 결정론적 임계값 체크가
+  코드에 남아 triggered_metrics 라벨링(CLF-002 매칭용)에 쓰인다 —
+  anomaly_flag 계산에만 관여하지 않는다. 반면 스로틀률(`throttle_rate`)은
+  2026-09-14부로 이 임계값 체크 자체를 제거했다 — triggered_metrics가
+  비었을 때 rule_engine의 범용 폴백(`_extract_spike_metrics`, raw_metrics
+  latest/mean 급증 추출)이 CLF-007 라벨링을 대신 처리하므로, 결정론적
+  게이트를 하나 더 두지 않고 IForest 판단에 일원화했다.
 
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
@@ -67,6 +72,12 @@ IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max �
 IFOREST_RANDOM_STATE = 42
 IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
 MIN_POINTS_FOR_IFOREST = 5
+
+# IForest가 트리거된 경우 SHAP 상위 몇 개 기여 지표를 state/DB에 남길지 (2026-09-14
+# 프로덕션 경로 연결). 관리자 화면에 근거로 보여주기엔 3~5개면 충분하고, 그 이상은
+# 오히려 "결정적 지표가 뭔지" 파악을 방해한다고 판단해 5로 설정 — 엄밀한 튜닝은
+# 아니고 관례적 선택.
+SHAP_TOP_N = 5
 
 # 알림 판단(지속성 체크)용: 최근 이만큼의 연속 시점이 전부 임계값을 넘어야 트리거.
 # period_seconds=300초(5분) 기준 3개 = 15분 — 순간적인 노이즈 튐 한 번에는 반응하지 않되,
@@ -124,26 +135,21 @@ LAMBDA_ERROR_RATE_THRESHOLD = 0.5   # 50% — Lambda 기본 재시도 최대 2�
 # 전부에서 요구하므로 최종 오탐 확률은 사실상 0에 수렴한다. N=10을 채택.
 LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
 
-# ── Lambda 스로틀(429)/시스템 에러 재시도 폭증 체크 (신규, 2026-09-12) ───────────
+# ── Lambda 스로틀(429)/시스템 에러 재시도 폭증 feature (신규, 2026-09-12) ────────
 # 위 LAMBDA_ERROR_RATE_*와는 발생 메커니즘이 다른 별개 시나리오. "함수 코드 에러"
 # 재시도(최대 2회, ~3분, invocation_count/error_count에 그대로 잡힘)와 달리, 이건
 # "동시성 소진으로 인한 스로틀" 재시도(정해진 횟수 없음, 지수 백오프 1초→최대 5분,
 # MaximumEventAgeInSeconds까지 최대 6시간) — AWS 공식 문서 확인: 이 재시도는
 # invocation_count/error_count(Invocations/Errors)에 전혀 안 잡히고 Throttles/
 # AsyncEventAge에만 나타난다. 그래서 error_count가 아니라 throttle_count 기반의
-# 별도 지표가 필요함.
+# 별도 지표(throttle_rate)가 필요함 — IForest 입력 feature로만 쓰이고(아래
+# detection_node 5번 참고), 별도의 결정론적 임계값 게이트는 2026-09-14부로 제거
+# (실측상 IForest 단독으로 이미 100% 탐지 — 절대임계값은 경계 케이스에서 오히려
+# 놓칠 수 있음을 확인, playground/lambda_throttle_diverse_trial.py 결과 참고).
 #
-# 실측(F-1, 2026-09-12, detection-retry-storm-test 대상): Reserved Concurrency=1로
-# 낮춘 상태에서 40건 동시 호출 버스트를 5분 간격(=PERSISTENCE_WINDOW_POINTS 1구간)
-# 으로 3회 반복했을 때 구간별 throttle_rate가 0.50 / 0.75 / 0.67로 나왔음(한 번도
-# 0으로 안 떨어짐, invocation_count/error_count 기반으로는 이 이상이 전혀 안 보임 —
-# Errors는 시종 0). 0.4는 관찰된 최솟값(0.50)보다 여유를 둔 값.
-THROTTLE_RATE_THRESHOLD = 0.4
-
-# LAMBDA_ERROR_RATE_MIN_INVOCATIONS과 같은 이유(노이즈 게이트) — 다만 분모가
-# invocation_count 단독이 아니라 (throttle_count+invocation_count)라 "총 시도량"
-# 기준으로 게이트를 건다. 값 자체는 위와 동일한 근거(N=10일 때 우연한 오탐 확률
-# 0.006%대, 3구간 연속 요구로 사실상 0에 수렴)를 그대로 적용.
+# 노이즈 게이트: 구간당 총 시도량(throttle_count+invocation_count)이 이 값
+# 미만이면 throttle_rate를 0.0으로 눌러, 호출이 거의 없는 구간의 우연한 비율
+# 튐(예: 1번 중 1번 스로틀=100%)이 feature 값을 왜곡하지 않게 한다.
 THROTTLE_RATE_MIN_ACTIVITY = 10
 
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
@@ -438,9 +444,9 @@ def _derived_features(
         ]
 
     # throttle_rate: 시점별 throttle_count/(throttle_count+invocation_count).
-    # error_count가 아니라 throttle_count를 쓰는 이유와 이 정규화 방식을 택한
-    # 실측 근거는 THROTTLE_RATE_THRESHOLD 정의 위 주석 참고. 분모를
-    # invocation_count 단독이 아니라 (throttle_count+invocation_count)로 잡은
+    # error_count가 아니라 throttle_count를 쓰는 이유는 위 THROTTLE_RATE_MIN_ACTIVITY
+    # 정의 위 주석 참고. 분모를 invocation_count 단독이 아니라
+    # (throttle_count+invocation_count)로 잡은
     # 이유: 스로틀 폭증 상황에서는 실제 invocation_count가 오히려 낮게 나올 수
     # 있어서(스로틀된 시도는 Invocations에 안 잡힘, F-1 실측으로 확인) 분모를
     # invocation_count만으로 두면 불안정해짐. 최소 활동량 게이트
@@ -844,6 +850,7 @@ def _iforest_score_and_trigger(
     metrics: dict[str, list[float]],
     k: int = PERSISTENCE_WINDOW_POINTS,
     resource_age_seconds: Optional[float] = None,
+    model: Optional[IsolationForest] = None,
 ) -> tuple[float, bool]:
     """detection_node 전용: 최신 시점의 이상 점수(리포팅용)와, 최근 k개 시점이
     "전부" 임계값을 넘었는지(트리거 판단, 지속성 체크)를 함께 반환한다.
@@ -856,8 +863,15 @@ def _iforest_score_and_trigger(
     _get_or_train_iforest는 호출할 때마다 학습 버퍼를 갱신하는 부수효과가 있어서,
     같은 요청 안에서 두 번 부르면 같은 윈도우가 버퍼에 중복 반영되거나 재학습
     카운트가 두 배로 올라가는 버그가 생긴다. 모델을 한 번만 불러와 재사용한다.
+
+    model을 미리 넘기면(2026-09-14 추가 — SHAP 설명가능성을 프로덕션 경로에 연결
+    하면서 필요해짐) 내부에서 다시 불러오지 않고 그대로 재사용한다 — 호출자(예:
+    detection_node)가 같은 모델을 explain_iforest_top_features()에도 재사용해서
+    _get_or_train_iforest 중복 호출(=버퍼 이중 반영)을 피하려는 목적. 안 넘기면
+    기존과 동일하게 내부에서 조회한다(하위호환).
     """
-    model = _get_or_train_iforest(resource_type, metrics)
+    if model is None:
+        model = _get_or_train_iforest(resource_type, metrics)
     if model is None:
         return 0.0, False
 
@@ -959,9 +973,31 @@ def detection_node(state: PipelineState) -> PipelineState:
     # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표 + ec2_idle_flag/
     #    lambda_error_rate/throttle_rate 파생 feature까지 포함한 다변량, 마찬가지로
     #    지속성 체크) ──
+    # 모델을 여기서 한 번만 불러와서 트리거 판정과(필요시) SHAP 설명 계산에
+    # 재사용한다 — _get_or_train_iforest를 또 부르면 학습 버퍼가 중복 반영되는
+    # 부수효과가 있어서(_iforest_score_and_trigger 문서 참고), 아래 SHAP 계산도
+    # 반드시 이 model을 그대로 넘겨써야 한다.
+    iforest_model = _get_or_train_iforest(resource_type, metrics)
     iforest_score, iforest_triggered = _iforest_score_and_trigger(
-        resource_type, metrics, resource_age_seconds=resource_age_seconds
+        resource_type, metrics, resource_age_seconds=resource_age_seconds, model=iforest_model
     )
+
+    # ── 2-1) SHAP 해석가능성 — IForest가 실제로 트리거된 경우에만 계산 (2026-09-14) ──
+    # Z-score 단독이나 EC2 유휴 단독 트리거는 IForest의 판단이 아니므로 SHAP으로
+    # 설명할 대상 자체가 없다 — iforest_triggered 조건으로만 게이팅한다. shap 모듈
+    # import 자체가 explain_iforest() 안에서 지연 임포트라, 트리거 안 되는 절대다수의
+    # 정상 판정 경로에는 여전히 이 의존성/계산 비용이 전혀 안 걸린다.
+    shap_top_features: Optional[dict[str, float]] = None
+    if iforest_triggered and iforest_model is not None:
+        try:
+            shap_top_features = explain_iforest_top_features(
+                resource_type, metrics, model=iforest_model, top_n=SHAP_TOP_N
+            )
+        except Exception:
+            logger.exception(
+                "[detection_node] SHAP 설명 계산 실패 — 탐지 자체는 정상 진행 "
+                "(resource_id=%s, resource_type=%s)", state.get("resource_id"), resource_type,
+            )
 
     # ── 3) EC2 저사용률(유휴) — 트리거 앙상블의 예외 경로로 유지 (2026-09-13 재확인) ──
     # ec2_idle_flag feature 자체가 윈도우 전체 판정을 내포하므로(_derived_features
@@ -1008,18 +1044,15 @@ def detection_node(state: PipelineState) -> PipelineState:
             if m not in triggered_metrics:
                 triggered_metrics.append(m)
 
-    # ── 5) Lambda 스로틀 재시도 폭증 — 마찬가지로 2026-09-13부터 직접 트리거 아님 ──
-    # 위 4)와 동일한 이유(전역적으로 희귀한 값, raw decision_function 음수 실측
-    # 확인). throttle_surge_detected도 anomaly_flag에는 안 쓰고 triggered_metrics
-    # ("throttle_count" 단독, CLF-007용) 라벨링에만 쓴다.
-    throttle_rate = derived["throttle_rate"]
-    k_eff = min(PERSISTENCE_WINDOW_POINTS, len(throttle_rate))
-    throttle_surge_detected = bool(throttle_rate) and all(
-        v >= THROTTLE_RATE_THRESHOLD for v in throttle_rate[-k_eff:]
-    )
-    if throttle_surge_detected:
-        if "throttle_count" not in triggered_metrics:
-            triggered_metrics.append("throttle_count")
+    # ── 5) Lambda 스로틀 재시도 폭증 — IForest 입력 feature로만 사용 (2026-09-14) ──
+    # throttle_rate 자체는 build_unified_feature_matrix를 통해 이미 IForest에
+    # 들어가 있다(derived 딕셔너리 → 피처 행렬). 별도의 결정론적 임계값 게이트는
+    # 두지 않는다 — 여기서 triggered_metrics를 채우지 않아도, IForest가 이 케이스를
+    # 잡았을 때 rule_engine._extract_spike_metrics()(triggered_metrics가 비어있을
+    # 때의 범용 폴백 — raw_metrics에서 latest/mean 급증 지표를 직접 추출)가
+    # throttle_count 급증을 잡아 CLF-007 매칭을 대신 처리한다. 결정론적 게이트를
+    # 하나 더 두는 것보다, 이미 있는 범용 폴백에 맡기는 쪽이 "규칙 기반 예외 처리"를
+    # 늘리지 않고 IForest 판단에 일원화하는 방향에 맞다는 판단.
 
     # ── 6) OR 앙상블 결합 (2026-09-13 축소: Z-score / IForest / EC2 idle 3개만) ──
     # Lambda error_rate/throttle_rate는 더 이상 이 OR에 직접 참여하지 않는다 —
@@ -1030,6 +1063,13 @@ def detection_node(state: PipelineState) -> PipelineState:
     state["anomaly_score_zscore"] = round(max_abs_z, 4)
     state["anomaly_score_iforest"] = round(iforest_score, 4)
     state["triggered_metrics"] = triggered_metrics
+    state["shap_top_features"] = shap_top_features
+    # ⚠️ 공식 스키마(PipelineState) 필드 아님 — 게이트별 기여도 분석/보고서용
+    # 계측 전용. anomaly_score_zscore/iforest만으로는 "지속성 체크까지 통과해
+    # 실제로 트리거됐는지"를 역산할 수 없어서(최근 시점 값만 노출) 추가함.
+    state["_gate_zscore_triggered"] = zscore_triggered
+    state["_gate_iforest_triggered"] = iforest_triggered
+    state["_gate_idle_triggered"] = idle_triggered
 
     return state
 
@@ -1055,6 +1095,7 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "anomaly_score_zscore":  None,
         "anomaly_score_iforest": None,
         "triggered_metrics":     [],
+        "shap_top_features":     None,
 
         "anomaly_type":             None,
         "classification_reasoning": None,
