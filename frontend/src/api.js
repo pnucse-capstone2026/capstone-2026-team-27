@@ -160,6 +160,13 @@ export const api = {
   getSettings: () => request("/settings"),
   updateSettings: (patch) =>
     request("/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  exportSettingsYaml: () => request("/settings/export", { method: "POST" }),
+
+  // 파이프라인 실행/종료 - PID 기반 실측 상태(로그 최신성 기반 추정인 getStatus()의
+  // pipeline_running과는 다른 값)
+  getPipelineProcessStatus: () => request("/pipeline/status"),
+  startPipeline: () => request("/pipeline/start", { method: "POST" }),
+  stopPipeline: () => request("/pipeline/stop", { method: "POST" }),
 };
 
 export { AuthError };

@@ -33,6 +33,8 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [failures, setFailures] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [pipelineProcess, setPipelineProcess] = useState(null); // {running, pid, started_at}
+  const [pipelineActionPending, setPipelineActionPending] = useState(false);
 
   // 401(AuthError) 받으면 로그인 화면으로 돌려보냄, 그 외 에러는 그냥 콘솔에만
   const handleError = useCallback((err) => {
@@ -47,6 +49,7 @@ export default function App() {
     if (!isAuthed) return;
     api.getStatus().then(setStatus).catch(handleError).finally(() => setStatusLoading(false));
     api.getRecentDetections().then(setRecentDetections).catch(handleError);
+    api.getPipelineProcessStatus().then(setPipelineProcess).catch(handleError);
   }, [isAuthed, handleError]);
 
   useEffect(() => {
@@ -161,6 +164,27 @@ export default function App() {
     });
   }
 
+  function handleExportSettings() {
+    return api.exportSettingsYaml();
+  }
+
+  // ── 파이프라인 실행/종료 ──
+  function handleStartPipeline() {
+    setPipelineActionPending(true);
+    api.startPipeline()
+      .then(setPipelineProcess)
+      .catch((err) => alert(err.message || "파이프라인 시작 실패"))
+      .finally(() => setPipelineActionPending(false));
+  }
+
+  function handleStopPipeline() {
+    setPipelineActionPending(true);
+    api.stopPipeline()
+      .then(setPipelineProcess)
+      .catch((err) => alert(err.message || "파이프라인 종료 실패"))
+      .finally(() => setPipelineActionPending(false));
+  }
+
   if (!isAuthed) {
     return <Login onSuccess={() => setIsAuthed(true)} />;
   }
@@ -198,7 +222,17 @@ export default function App() {
             onNavigateToFailures={() => setActiveTab("failures")}
           />
         )}
-        {activeTab === "settings" && <SettingsTab settings={settings} onUpdate={handleUpdateSettings} />}
+        {activeTab === "settings" && (
+          <SettingsTab
+            settings={settings}
+            onUpdate={handleUpdateSettings}
+            onExport={handleExportSettings}
+            pipelineProcess={pipelineProcess}
+            pipelineActionPending={pipelineActionPending}
+            onStartPipeline={handleStartPipeline}
+            onStopPipeline={handleStopPipeline}
+          />
+        )}
         {activeTab === "queue" && (
           <ApprovalQueue queue={queue} onApprove={handleApprove} onReject={handleReject} />
         )}
