@@ -1,0 +1,5 @@
+{"trace_id": "2ed1015c-af0f-44ab-bc6c-f669c4b8237a", "executed_at": "2026-09-12T17:10:30.758507Z", "resource_id": "detection-test-lambda-anomaly-4", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
+{"trace_id": "040e8db9-1b05-40d1-973a-768aad6734d4", "executed_at": "2026-09-12T17:10:56.549081Z", "resource_id": "detection-test-lambda-anomaly-3", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
+{"trace_id": "24db66a9-d81d-421d-a7dc-266d93ea9cf4", "executed_at": "2026-09-12T17:11:05.824491Z", "resource_id": "detection-retry-storm-test", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
+{"trace_id": "8e965564-e282-45d5-8c76-21d2078541a6", "executed_at": "2026-09-12T17:11:30.942511Z", "resource_id": "detection-test-lambda-anomaly-5", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}
+{"trace_id": "3230f9b0-1a79-4249-988e-7e5b84115bbf", "executed_at": "2026-09-12T17:11:36.558777Z", "resource_id": "detection-test-lambda-anomaly-2", "resource_type": "Lambda", "action": "Throttle", "status": "success", "error": null}

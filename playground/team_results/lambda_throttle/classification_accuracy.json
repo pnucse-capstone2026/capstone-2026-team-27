@@ -1,0 +1,21 @@
+{
+  "source_result_file": "playground/eval_outputs/lambda_throttle_repeated_trial_20260913.json",
+  "expected_label": "cost_spike",
+  "note": "classification 소요시간이 전부 1~6ms로 LLM 호출 수준이 아니라 전부 rulebook(CLF-007) 경로로 매칭됨 — measure()가 matched_rule_id를 반환하지 않아 직접 확인은 아니고 타이밍 근거의 추정",
+  "rulebook": {
+    "total": 5,
+    "correct": 5,
+    "accuracy": 1.0
+  },
+  "llm": {
+    "total": 0,
+    "correct": 0,
+    "accuracy": null
+  },
+  "p_rulebook": 1.0,
+  "p_llm": 0.0,
+  "combined_classification_accuracy": 1.0,
+  "normal_false_positive_count": 0,
+  "normal_total": 8,
+  "false_positive_classification_notes": []
+}
