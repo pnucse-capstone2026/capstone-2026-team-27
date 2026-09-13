@@ -7,9 +7,9 @@
       "eval_file": "ec2_eval.json",
       "stats": {
         "normal": {
-          "triggered": 1,
+          "triggered": 2,
           "total": 20,
-          "rate": 0.05
+          "rate": 0.1
         },
         "anomaly": {
           "triggered": 10,
@@ -17,28 +17,31 @@
           "rate": 1.0
         },
         "edge_normal": {
-          "triggered": 0,
+          "triggered": 1,
           "total": 5,
-          "rate": 0.0
+          "rate": 0.2
         }
       },
       "details": {
         "normal_false_positive_window_ids": [
-          "ec2_eval_normal_008"
+          "ec2_eval_normal_001",
+          "ec2_eval_normal_005"
         ],
         "missed_window_ids": [],
-        "edge_normal_false_positive_window_ids": []
+        "edge_normal_false_positive_window_ids": [
+          "ec2_eval_edge_000"
+        ]
       }
     },
     {
-      "scenario_label": "Lambda (재시도폭증, 담당)",
+      "scenario_label": "Lambda (함수 코드 에러 재시도, 담당, 대체됨)",
       "resource_type": "Lambda",
       "eval_file": "lambda_eval_retry.json",
       "stats": {
         "normal": {
-          "triggered": 3,
+          "triggered": 1,
           "total": 20,
-          "rate": 0.15
+          "rate": 0.05
         },
         "anomaly": {
           "triggered": 10,
@@ -53,9 +56,7 @@
       },
       "details": {
         "normal_false_positive_window_ids": [
-          "lambda_eval_retry_normal_002",
-          "lambda_eval_retry_normal_011",
-          "lambda_eval_retry_normal_016"
+          "lambda_eval_retry_normal_002"
         ],
         "missed_window_ids": [],
         "edge_normal_false_positive_window_ids": [
@@ -71,6 +72,42 @@
       }
     },
     {
+      "scenario_label": "Lambda (스로틀 재시도폭증, 담당)",
+      "resource_type": "Lambda",
+      "eval_file": "lambda_eval_throttle.json",
+      "stats": {
+        "normal": {
+          "triggered": 5,
+          "total": 20,
+          "rate": 0.25
+        },
+        "anomaly": {
+          "triggered": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "edge_normal": {
+          "triggered": 2,
+          "total": 5,
+          "rate": 0.4
+        }
+      },
+      "details": {
+        "normal_false_positive_window_ids": [
+          "lambda_eval_throttle_normal_002",
+          "lambda_eval_throttle_normal_009",
+          "lambda_eval_throttle_normal_010",
+          "lambda_eval_throttle_normal_014",
+          "lambda_eval_throttle_normal_016"
+        ],
+        "missed_window_ids": [],
+        "edge_normal_false_positive_window_ids": [
+          "lambda_eval_throttle_edge_002",
+          "lambda_eval_throttle_edge_004"
+        ]
+      }
+    },
+    {
       "scenario_label": "Lambda (cost_spike, 팀원)",
       "resource_type": "Lambda",
       "eval_file": "lambda_eval.json",
@@ -81,9 +118,9 @@
           "rate": 0.0
         },
         "anomaly": {
-          "triggered": 8,
+          "triggered": 7,
           "total": 10,
-          "rate": 0.8
+          "rate": 0.7
         },
         "edge_normal": {
           "triggered": 0,
@@ -95,6 +132,7 @@
         "normal_false_positive_window_ids": [],
         "missed_window_ids": [
           "lambda_eval_anomaly_002",
+          "lambda_eval_anomaly_003",
           "lambda_eval_anomaly_009"
         ],
         "edge_normal_false_positive_window_ids": []

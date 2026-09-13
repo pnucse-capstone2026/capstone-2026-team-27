@@ -34,9 +34,18 @@ import pipeline.detection_agent as da
 MOCK_DATA_DIR = PROJECT_ROOT / "playground" / "mock_data"
 
 # resource_type -> train 파일. RDS는 아직 데이터 없어서 제외.
+#
+# ⚠️ Lambda만 원본(lambda_train.json, 팀원 제공)이 아니라 throttle_count/
+# async_event_age 베이스라인을 덧붙인 사본(lambda_train_with_throttle_baseline.json,
+# _tmp_augment_lambda_train.py로 생성)을 쓴다 — 2026-09-14 실측으로 확인: 원본엔
+# 이 두 컬럼이 아예 없어서(항상 0/mask=0) IsolationForest가 이 피처로 전혀 분할을
+# 안 배웠고(decision_function이 throttle_count 0→100 변화에 반응 0 — 직접 확인),
+# 결과적으로 스로틀 폭증 시나리오를 이 피처로는 절대 못 잡는 상태였다. invocation/
+# error/duration/cost 분포는 원본과 완전히 동일(그대로 복사) — throttle 두 컬럼만
+# seed_mock_iforest_buffer.make_lambda_window와 같은 근거(F-1 실측)로 추가.
 TRAIN_FILES = {
     "EC2": "ec2_train.json",
-    "Lambda": "lambda_train.json",
+    "Lambda": "lambda_train_with_throttle_baseline.json",
     "AutoScaling": "autoscaling_train.json",
     "S3": "s3_train.json",
 }

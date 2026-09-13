@@ -29,7 +29,8 @@ MOCK_DATA_DIR = PROJECT_ROOT / "playground" / "mock_data"
 # (표시용 라벨, 실제 resource_type, eval 파일)
 EVAL_TARGETS = [
     ("EC2 (좀비, 담당)", "EC2", "ec2_eval.json"),
-    ("Lambda (재시도폭증, 담당)", "Lambda", "lambda_eval_retry.json"),
+    ("Lambda (함수 코드 에러 재시도, 담당, 대체됨)", "Lambda", "lambda_eval_retry.json"),
+    ("Lambda (스로틀 재시도폭증, 담당)", "Lambda", "lambda_eval_throttle.json"),
     ("Lambda (cost_spike, 팀원)", "Lambda", "lambda_eval.json"),
     ("AutoScaling (EDoS, 팀원)", "AutoScaling", "autoscaling_eval.json"),
     ("S3 (대량다운로드, 팀원)", "S3", "s3_eval.json"),
