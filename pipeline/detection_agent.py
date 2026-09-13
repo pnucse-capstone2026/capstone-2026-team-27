@@ -2,19 +2,30 @@
 pipeline/detection_agent.py (박소영)
 
 3.3.1 Detection Agent (이상 탐지)
-- Z-score 기반 탐지 (단기 스파이크 대응) + Isolation Forest 탐지 (다변량 복합 드리프트 대응)
-  → 두 경로를 병렬 적용하고 OR 앙상블로 결합.
-- EC2 저사용률(유휴, 좀비 인스턴스 대응)과 Lambda 에러 재시도 폭증은 절대임계값
-  판정 로직 자체(EC2_IDLE_*/LAMBDA_ERROR_RATE_* 상수)는 그대로 두되, 2026-09-12부터
-  detection_node의 독립 분기가 아니라 _derived_features가 계산하는 feature
-  (ec2_idle_flag/lambda_error_rate)로 통합했다 — IForest 입력에도 노출되고,
-  detection_node의 트리거 판단도 이 feature로 이뤄진다(자세한 지속성 처리 차이는
-  _derived_features 문서 참고).
-- Lambda 스로틀(429)/시스템 에러 재시도 폭증(신규, 2026-09-12)은 위 "에러로 인한
-  재시도"와 메커니즘이 다른 별개 시나리오다 — invocation_count/error_count에는
-  안 잡히고(AWS 공식 문서 확인) Throttles/AsyncEventAge에만 나타나므로,
-  throttle_count/async_event_age 신규 지표 + throttle_rate 파생 feature로 별도
-  대응한다(THROTTLE_RATE_* 상수, _derived_features 문서 참고).
+- OR 앙상블은 세 경로: Z-score(단기 스파이크) + Isolation Forest(다변량 복합
+  드리프트) + EC2 저사용률(유휴, 결정론적 절대임계값 — 아래 참고, 예외적으로
+  독립 트리거 유지). 2026-09-13에 5개(Z-score/IForest/EC2 idle/Lambda 에러율/
+  Lambda 스로틀률)에서 3개로 축소했다.
+- EC2 저사용률(유휴, 좀비 인스턴스 대응)은 절대임계값 판정 로직 자체
+  (EC2_IDLE_* 상수)는 그대로 두고 detection_node의 독립 분기가 아니라
+  _derived_features가 계산하는 feature(ec2_idle_flag)로 통합했다 — IForest
+  입력에도 노출되고, **detection_node의 트리거 판단에도 여전히 직접 쓰인다**.
+  이건 예외 취급이다: 학습된 IForest 트리 100개 중 다수(54개, 상위 3레벨
+  기준)가 리소스 타입 onehot 컬럼으로 분할하지 않아서, "진짜 EC2 유휴"와
+  "다른 타입이라 원래 0으로 채워진 값"을 구분 못 하고 raw decision_function이
+  거의 항상 양수(정상)로 나온다(실측 확인, 2026-09-13) — 통합 모델의 구조적
+  한계라 mock 재학습으로 해결 안 되므로, EC2만 결정론적 게이트를 유지한다.
+  자세한 근거는 detection_node의 3) 단계 주석 참고.
+- Lambda 에러 재시도 폭증(`lambda_error_rate`)과 Lambda 스로틀(429)/시스템
+  에러 재시도 폭증(`throttle_rate`, 2026-09-12 신규 — invocation_count/
+  error_count에는 안 잡히고 Throttles/AsyncEventAge에만 나타나는 별개
+  메커니즘)은 **2026-09-13부터 IForest 입력 feature로만 작동**하고
+  detection_node의 직접 트리거에서는 제외됐다. EC2와 달리 이 두 feature의
+  "이상" 값은 다른 타입의 0(해당없음)이나 자체 정상 베이스라인과 전역적으로
+  겹치지 않아 raw decision_function이 뚜렷한 음수(이상)로 나옴을 확인했기
+  때문 — IForest 단독으로도 충분히 잡는다. 단, 이 두 feature의 임계값 체크
+  자체는 코드에 남아 triggered_metrics 라벨링(CLF-002/CLF-007 매칭용)에는
+  계속 쓰인다 — anomaly_flag 계산에만 관여하지 않는다.
 
 ⚠️ 현재 AWS 미연동 상태
 - 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
@@ -933,6 +944,7 @@ def detection_node(state: PipelineState) -> PipelineState:
     # window-max도 마지막 1개 시점도 아니고 "최근 PERSISTENCE_WINDOW_POINTS개 연속"인
     # 이유: _zscore_check_persistent 문서 참고.
     triggered_metrics: list[str] = []
+    zscore_triggered = False
     max_abs_z = 0.0
 
     for metric_name in metrics:
@@ -941,20 +953,32 @@ def detection_node(state: PipelineState) -> PipelineState:
         z, is_triggered = _zscore_check_persistent(metrics[metric_name])
         if is_triggered:
             triggered_metrics.append(metric_name)
+            zscore_triggered = True
         max_abs_z = max(max_abs_z, z)
 
     # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표 + ec2_idle_flag/
-    #    lambda_error_rate 파생 feature까지 포함한 다변량, 마찬가지로 지속성 체크) ──
+    #    lambda_error_rate/throttle_rate 파생 feature까지 포함한 다변량, 마찬가지로
+    #    지속성 체크) ──
     iforest_score, iforest_triggered = _iforest_score_and_trigger(
         resource_type, metrics, resource_age_seconds=resource_age_seconds
     )
 
-    # ── 3) EC2 저사용률(유휴) — ec2_idle_flag feature 자체가 윈도우 전체 판정을
-    #    내포하므로(_derived_features 문서 참고) PERSISTENCE_WINDOW_POINTS 지속성
-    #    체크 없이 flag==1을 그대로 트리거로 쓴다(2026-09-12, 팀 결정: 이 상수를
-    #    Z-score/Lambda와 공유하는 채로 EC2만 보고 조정하면 다른 체크 재현율에
-    #    의도치 않게 영향을 주므로). 판정 기준 자체는 기존 _low_utilization_check와
-    #    100% 동일 — 계산 위치만 옮겼다.
+    # ── 3) EC2 저사용률(유휴) — 트리거 앙상블의 예외 경로로 유지 (2026-09-13 재확인) ──
+    # ec2_idle_flag feature 자체가 윈도우 전체 판정을 내포하므로(_derived_features
+    # 문서 참고) PERSISTENCE_WINDOW_POINTS 지속성 체크 없이 flag==1을 그대로
+    # 트리거로 쓴다. 판정 기준 자체는 기존 _low_utilization_check와 100% 동일.
+    #
+    # ⚠️ 아래 4)/5)(Lambda)와 달리 EC2만 직접 트리거를 유지하는 이유(실측 근거,
+    # 2026-09-13): 학습된 IForest 트리 100개 중 17개만 루트에서, 46개만 상위
+    # 3레벨 이내에 onehot_* 컬럼으로 분할한다(트리 구조 직접 확인) — 나머지
+    # 다수는 리소스 타입을 구분하지 않고 "cpu_utilization≈0 AND network_in≈0"라는
+    # 값 자체로 판단하는데, 이 값은 Lambda/S3/AutoScaling처럼 해당 지표가 없는
+    # 타입이 전부 0으로 채워 넣은 학습 데이터(전체 버퍼의 60%)와 겹친다. 그래서
+    # "진짜 EC2 유휴"와 "다른 타입이라 원래 0"이 IForest 입장에서 구분이 안 돼
+    # raw decision_function이 항상 양수(정상)로 나옴 — 실측: 9/9 실 EC2 데이터
+    # 5건 중 4건은 Z-score(network_in 튐)가 우연히 잡아주지만 1건(무변동 유휴)은
+    # Z-score도 IForest도 임계값 미달로 완전히 놓침. mock 재학습으로 해결 안 되는
+    # 통합모델 구조적 한계라 EC2는 결정론적 게이트를 그대로 둔다.
     derived = _derived_features(resource_type, metrics, resource_age_seconds)
 
     ec2_idle_flag = derived["ec2_idle_flag"]
@@ -964,39 +988,43 @@ def detection_node(state: PipelineState) -> PipelineState:
             if m not in triggered_metrics:
                 triggered_metrics.append(m)
 
-    # ── 4) Lambda 에러 재시도 폭증 — lambda_error_rate는 시점별 값이라 기존
-    #    _lambda_error_rate_check와 동일하게 "최근 k개 전부" 지속성 체크(Z-score와
-    #    같은 패턴)를 그대로 적용한다. 임계값(LAMBDA_ERROR_RATE_THRESHOLD)도 동일.
+    # ── 4) Lambda 에러 재시도 폭증 — 2026-09-13부터 직접 트리거 아님, IForest에 위임 ──
+    # EC2 idle과 달리 이 feature의 "이상" 값(에러율 50%+)은 다른 타입의 0(해당없음)
+    # 이나 Lambda 자체 정상 베이스라인(0~2%)과 겹치지 않는 전역적으로 희귀한 값이라
+    # (실측: raw decision_function이 뚜렷한 음수로 나옴 — EC2 idle의 "항상 양수"와
+    # 대조적), 트리가 타입을 못 갈라도 IForest가 잘 잡는다. 그래서 여기는 별도
+    # 결정론적 게이트를 유지할 필요가 없다고 판단해 제거 — 단, 아래 계산은 그대로
+    # 남겨서 triggered_metrics(error_count/invocation_count) 라벨링에는 계속
+    # 쓴다. IForest가 이 케이스를 잡았을 때 CLF-002가 정상적으로 매칭되게 하려면
+    # 이 라벨이 필요하기 때문 — error_surge_detected 자체는 anomaly_flag 계산에는
+    # 안 들어간다.
     lambda_error_rate = derived["lambda_error_rate"]
     k_eff = min(PERSISTENCE_WINDOW_POINTS, len(lambda_error_rate))
-    error_surge_triggered = bool(lambda_error_rate) and all(
+    error_surge_detected = bool(lambda_error_rate) and all(
         v >= LAMBDA_ERROR_RATE_THRESHOLD for v in lambda_error_rate[-k_eff:]
     )
-    if error_surge_triggered:
+    if error_surge_detected:
         for m in ("error_count", "invocation_count"):
             if m not in triggered_metrics:
                 triggered_metrics.append(m)
 
-    # ── 5) Lambda 스로틀 재시도 폭증 — throttle_rate도 시점별 값이라 lambda_error_rate와
-    #    동일한 "최근 k개 전부" 지속성 체크를 적용한다. triggered_metrics는
-    #    "throttle_count" 단독만 채운다(invocation_count는 안 넣음) — 이 시나리오는
-    #    invocation_count/error_count가 정상 범위에 머무는 게 특징이라(F-1 실측:
-    #    Errors는 시종 0), CLF 규칙도 throttle_count 단독 조건으로 매칭한다
-    #    (classification_rules.json CLF-007 참고).
+    # ── 5) Lambda 스로틀 재시도 폭증 — 마찬가지로 2026-09-13부터 직접 트리거 아님 ──
+    # 위 4)와 동일한 이유(전역적으로 희귀한 값, raw decision_function 음수 실측
+    # 확인). throttle_surge_detected도 anomaly_flag에는 안 쓰고 triggered_metrics
+    # ("throttle_count" 단독, CLF-007용) 라벨링에만 쓴다.
     throttle_rate = derived["throttle_rate"]
     k_eff = min(PERSISTENCE_WINDOW_POINTS, len(throttle_rate))
-    throttle_surge_triggered = bool(throttle_rate) and all(
+    throttle_surge_detected = bool(throttle_rate) and all(
         v >= THROTTLE_RATE_THRESHOLD for v in throttle_rate[-k_eff:]
     )
-    if throttle_surge_triggered:
+    if throttle_surge_detected:
         if "throttle_count" not in triggered_metrics:
             triggered_metrics.append("throttle_count")
 
-    # ── 6) OR 앙상블 결합 ─────────────────────────────────────────────────
-    anomaly_flag = (
-        bool(triggered_metrics) or iforest_triggered or idle_triggered
-        or error_surge_triggered or throttle_surge_triggered
-    )
+    # ── 6) OR 앙상블 결합 (2026-09-13 축소: Z-score / IForest / EC2 idle 3개만) ──
+    # Lambda error_rate/throttle_rate는 더 이상 이 OR에 직접 참여하지 않는다 —
+    # IForest 입력으로만 작동하고, 최종 판단은 IForest(위 2번)에 위임한다.
+    anomaly_flag = zscore_triggered or iforest_triggered or idle_triggered
 
     state["anomaly_flag"] = anomaly_flag
     state["anomaly_score_zscore"] = round(max_abs_z, 4)

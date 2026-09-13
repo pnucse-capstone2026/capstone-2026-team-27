@@ -710,9 +710,35 @@ def test_detection_node_flags_lambda_error_surge_and_activates_clf002():
     """detection_node 통합 테스트 + CLF-002가 실제로 살아나는지까지 확인.
     CLF-002(schema/rules/classification_rules.json)는 오늘 이전까지 triggered_metrics에
     error_count가 절대 안 들어가서 죽어있던 규칙이었다 -- 이번 체크가 그걸 살리는 게
-    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다."""
+    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다.
+
+    ⚠️ 2026-09-13: Lambda error_rate가 detection_node의 직접 트리거에서 빠지고
+    IForest 전용 입력으로 바뀌면서, 이 테스트도 예전처럼 cold-start(모델 없음)로
+    돌리면 무조건 실패한다 -- IForest가 아예 없으면 iforest_triggered가 항상
+    False이기 때문(실제 운영은 MOCK_SEED_BUFFER_FROZEN=True로 항상 사전학습된
+    모델이 있어서 이 조건 자체가 비현실적). 그래서 cold-start 대신 실제 운영과
+    동일하게 정상 Lambda mock 윈도우로 모델을 미리 학습시켜두고 검증한다."""
     if os.path.exists(IFOREST_MODEL_DIR):
         shutil.rmtree(IFOREST_MODEL_DIR)
+
+    # ⚠️ 처음엔 invocation~20 x error_rate 0~2%로 직접 mock을 만들었는데, 반올림하면
+    # error_count가 항상 정확히 0(분산 0)이 돼서 모델이 이 컬럼으로 아무것도
+    # 구분 못 하는 상태가 됐었다(디버깅으로 확인). 실제 프로덕션 시딩 스크립트
+    # (seed_mock_iforest_buffer.make_lambda_window)는 invocation 10/50/150을
+    # 섞어써서 이 문제가 없으므로 그걸 그대로 재사용한다.
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE,
+        _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
 
     fake_state = {
         "resource_id": "func-retry-storm",
