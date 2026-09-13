@@ -1,0 +1,609 @@
+{
+  "scenarios": {
+    "S3 (bytes_downloaded 유출 탐지)": {
+      "file": "s3_repeated_trial__window2.5h_objsize50kb_n8-5_scriptv5_20260910.json",
+      "n_trials": 13,
+      "methods": {
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321226,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        }
+      }
+    },
+    "EC2 좀비(사용 안 되는 유휴 인스턴스)": {
+      "file": "ec2_repeated_trial__n8-5_scriptv1_20260912.json",
+      "n_trials": 13,
+      "methods": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 5,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6153846153846154,
+          "accuracy_ci_95": [
+            0.31577760291406304,
+            0.8614206611098394
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "precision": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 1.0,
+          "accuracy_ci_95": [
+            0.752947361999529,
+            1.0
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "teammate_compat": {
+          "confusion_matrix": {
+            "TP": 1,
+            "FN": 4,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6923076923076923,
+          "accuracy_ci_95": [
+            0.38573833824929465,
+            0.9090796054279033
+          ],
+          "recall": 0.2,
+          "recall_ci_95": [
+            0.005050763379468061,
+            0.7164179361180895
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.96875,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 5,
+          "p_value": 0.0625,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs production: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "iforest_only_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 1,
+          "p_value": 1.0,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "production_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 4,
+          "c_only_b_correct": 0,
+          "p_value": 0.125,
+          "significant_at_0.05": false,
+          "interpretation": "production vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        }
+      }
+    },
+    "EC2 오버프로비저닝": {
+      "file": "ec2_overprovision_repeated_trial__converted.json",
+      "n_trials": 13,
+      "methods": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 5,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6153846153846154,
+          "accuracy_ci_95": [
+            0.31577760291406304,
+            0.8614206611098394
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "precision": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 1.0,
+          "accuracy_ci_95": [
+            0.752947361999529,
+            1.0
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "teammate_compat": {
+          "confusion_matrix": {
+            "TP": 1,
+            "FN": 4,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6923076923076923,
+          "accuracy_ci_95": [
+            0.38573833824929465,
+            0.9090796054279033
+          ],
+          "recall": 0.2,
+          "recall_ci_95": [
+            0.005050763379468061,
+            0.7164179361180895
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.3694166475528192
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.96875,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 5,
+          "p_value": 0.0625,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs production: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "iforest_only_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 1,
+          "p_value": 1.0,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "production_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 4,
+          "c_only_b_correct": 0,
+          "p_value": 0.125,
+          "significant_at_0.05": false,
+          "interpretation": "production vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        }
+      }
+    },
+    "Lambda (호출/에러 급증)": {
+      "file": "lambda_repeated_trial__n8-5_scriptv1_20260909.json",
+      "n_trials": 13,
+      "methods": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321226,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321226,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "teammate_compat": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 4,
+            "TN": 4
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6923076923076923,
+          "accuracy_ci_95": [
+            0.38573833824929465,
+            0.9090796054279033
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.5555555555555556,
+          "false_positive_rate": 0.5,
+          "fpr_ci_95": [
+            0.15701277048705797,
+            0.842987229512942
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "recall이 우연(50%)보다 유의하게 높음"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.63671875,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          }
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 0,
+          "p_value": null,
+          "note": "두 방식이 모든 샘플에서 동일하게 판정함(불일치 쌍 없음) — 검정 불가"
+        },
+        "iforest_only_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 3,
+          "c_only_b_correct": 0,
+          "p_value": 0.25,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "production_vs_teammate_compat": {
+          "n_compared": 13,
+          "b_only_a_correct": 3,
+          "c_only_b_correct": 0,
+          "p_value": 0.25,
+          "significant_at_0.05": false,
+          "interpretation": "production vs teammate_compat: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        }
+      }
+    },
+    "AutoScaling EDoS (request_count 기반, v5)": {
+      "file": "autoscaling_edos_traffic_trial__n5-5_scriptv4_20260913.json",
+      "n_trials": 10,
+      "methods": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 4,
+            "FN": 1,
+            "FP": 0,
+            "TN": 5
+          },
+          "n_anomaly": 5,
+          "n_normal": 5,
+          "accuracy": 0.9,
+          "accuracy_ci_95": [
+            0.5549838829718046,
+            0.9974714214555382
+          ],
+          "recall": 0.8,
+          "recall_ci_95": [
+            0.28358206388191054,
+            0.9949492366205319
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.1875,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 4,
+            "FN": 1,
+            "FP": 0,
+            "TN": 5
+          },
+          "n_anomaly": 5,
+          "n_normal": 5,
+          "accuracy": 0.9,
+          "accuracy_ci_95": [
+            0.5549838829718046,
+            0.9974714214555382
+          ],
+          "recall": 0.8,
+          "recall_ci_95": [
+            0.28358206388191054,
+            0.9949492366205319
+          ],
+          "precision": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.1875,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        },
+        "zscore_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 5,
+            "FP": 0,
+            "TN": 5
+          },
+          "n_anomaly": 5,
+          "n_normal": 5,
+          "accuracy": 0.5,
+          "accuracy_ci_95": [
+            0.18708602844739858,
+            0.8129139715526015
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "precision": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false,
+            "interpretation": "표본이 작아 우연과 통계적으로 구분 안 됨(유의하지 않음)"
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true,
+            "interpretation": "오탐률이 우연(50%)보다 유의하게 낮음"
+          }
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 10,
+          "b_only_a_correct": 0,
+          "c_only_b_correct": 0,
+          "p_value": null,
+          "note": "두 방식이 모든 샘플에서 동일하게 판정함(불일치 쌍 없음) — 검정 불가"
+        },
+        "iforest_only_vs_zscore_only": {
+          "n_compared": 10,
+          "b_only_a_correct": 4,
+          "c_only_b_correct": 0,
+          "p_value": 0.125,
+          "significant_at_0.05": false,
+          "interpretation": "iforest_only vs zscore_only: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        },
+        "production_vs_zscore_only": {
+          "n_compared": 10,
+          "b_only_a_correct": 4,
+          "c_only_b_correct": 0,
+          "p_value": 0.125,
+          "significant_at_0.05": false,
+          "interpretation": "production vs zscore_only: 표본이 작아 두 방식 차이가 우연과 통계적으로 구분 안 됨"
+        }
+      }
+    }
+  },
+  "notes": {
+    "hyperparameter_tuning": "playground/eval_outputs/phase5_tuning_results.json에 IsolationForest contamination/tau/k 그리드서치 결과 있음(mock/시뮬레이션 데이터 기반, 247개 조합). 실제 AWS 트래픽 기반 실험(v1~v6)에서는 이 튜닝된 값을 참고해 임계값을 실측 기반으로 수동 조정함 — 정식 그리드서치는 아님.",
+    "train_eval_independence_caveat": "detection_agent.py의 _get_or_train_iforest()는 온라인 학습 구조라, '정상으로 판단된' 윈도우가 즉시 훈련 버퍼에 편입되고 모델이 재학습된다. EDoS 실험 패턴상 같은 리소스의 베이스라인(before) 구간이 먼저 버퍼에 들어간 뒤, 그 리소스의 공격 후(after) 구간을 채점하므로 완전한 훈련/평가 데이터 독립은 아니다. 온라인 학습 설계상 의도된 부분이지만 보고서에 한계점으로 명시 필요.",
+    "mcnemar_method": "statsmodels 미설치 환경이라 scipy binomtest만으로 계산되는 정확(exact) McNemar 검정을 사용함: 불일치 쌍 b, c에 대해 binomtest(min(b,c), b+c, p=0.5, alternative='two-sided')."
+  }
+}

@@ -166,7 +166,8 @@ def _build_state(resource_id: str, resource_type: str, raw_metrics: dict,
 
 
 def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict,
-            resource_age_seconds: float | None, measured_at: str | None = None) -> dict:
+            resource_age_seconds: float | None, measured_at: str | None = None,
+            bypass_approval_for_timing: bool = False) -> dict:
     """저장된 지표로 detection부터 시작해 파이프라인을 끝까지 흘린다."""
     timings: dict[str, float] = {}
     t_total = time.time()
@@ -210,7 +211,16 @@ def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict
         print(f"[{label} {resource_id}] decision -> {state['selected_action']} "
               f"risk={state['risk_level']} approval={state['requires_approval']}")
 
-        if state["requires_approval"]:
+        out["approval_bypassed_for_timing"] = False
+        if state["requires_approval"] and bypass_approval_for_timing:
+            # [측정 전용] Resize는 ACTION_RISK_FLOOR상 MED라 실제 운영에서는 항상
+            # 사람 승인이 필요하다. 승인 대기시간은 무한정이라 자동 측정이 불가능
+            # 하므로, Action/QA/timing 측정을 위해서만 여기서 우회한다 — 실제
+            # 승인 게이트 정책을 바꾸는 게 아니다 (Lambda cost_spike와 동일한 사유).
+            print(f"[{label} {resource_id}] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함")
+            state["requires_approval"] = False
+            out["approval_bypassed_for_timing"] = True
+        elif state["requires_approval"]:
             # 승인 게이트를 우회하지 않는다 — 실제 운영 동작 그대로 기록.
             timings["total"] = time.time() - t_total
             out["stopped_at"] = "approval_gate"
@@ -343,6 +353,9 @@ def main() -> None:
     parser.add_argument("--ensure-running", action="store_true",
                         help="대상 인스턴스가 stopped면 먼저 start하고 running까지 대기")
     parser.add_argument("--max-workers", type=int, default=13)
+    parser.add_argument("--bypass-approval", action="store_true",
+                        help="[측정 전용] Resize 등 MED 위험도라 항상 승인이 필요한 액션도 "
+                             "Action/QA/timing 측정을 위해 승인 게이트를 우회한다")
     args = parser.parse_args()
 
     caller_arn = _freeze_credentials_for_threads()
@@ -369,7 +382,7 @@ def main() -> None:
                 continue
             fut = ex.submit(run_one, t["resource"], t["label"], t.get("profile"),
                             after["raw_metrics"], after.get("resource_age_seconds"),
-                            after.get("measured_at"))
+                            after.get("measured_at"), args.bypass_approval)
             futs[fut] = t["resource"]
         for f in as_completed(futs):
             results.append(f.result())

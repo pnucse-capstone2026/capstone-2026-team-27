@@ -86,13 +86,24 @@ def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> li
     stress-ng 등 별도 설치 없이 AL2023 기본 셸만으로 동작하도록 설계."""
     busy = round(DUTY_CYCLE_PERIOD_SEC * target_pct / 100, 3)
     idle = round(DUTY_CYCLE_PERIOD_SEC - busy, 3)
+    # [버그 수정, 2026-09-11] \$로 이스케이프해야 한다 — bash -c "..."로 한 겹 더
+    # 감싸므로, 안 하면 바깥 셸이 $(date +%s)를 dispatch 시점에 한 번만 계산해
+    # 고정값으로 박아버려서 반복문이 살아있는 시계를 못 본다(실측으로 확인).
     loop = (
-        f'END=$(( $(date +%s) + {duration_sec} )); '
-        f'while [ $(date +%s) -lt $END ]; do '
+        f'END=\\$(( \\$(date +%s) + {duration_sec} )); '
+        f'while [ \\$(date +%s) -lt \\$END ]; do '
         f'timeout {busy} yes > /dev/null 2>&1; sleep {idle}; '
         f'done'
     )
-    return [f'nohup bash -c "{loop}" >/dev/null 2>&1 &' for _ in range(n_vcpu)]
+    # [버그 수정, 2026-09-11] nohup bash -c "..." & 만으로는 SSM RunCommand 세션이
+    # 종료될 때 프로세스 그룹째 정리돼서 백그라운드 루프가 죽어버린다(실측으로 확인 —
+    # 13대 전부 실제 CPU가 계속 ~0.2%로 남아있었음, 목표 12%/45%가 전혀 반영 안 됨).
+    # systemd-run으로 SSM 세션과 완전히 독립된 transient 서비스로 띄워야 살아남는다.
+    return [
+        f'sudo systemd-run --unit=cpuload-{i} --property=Type=simple '
+        f'-- bash -c "{loop}"'
+        for i in range(n_vcpu)
+    ]
 
 
 def _launch_instances(label: str, n: int, name_prefix: str) -> list[str]:
