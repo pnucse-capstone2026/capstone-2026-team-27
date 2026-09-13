@@ -1,0 +1,9 @@
+priority_weight: 15
+polling_interval: 5
+llm_cost_limit: 0.08
+resources:
+  EC2: true
+  Lambda: true
+  S3: false
+  RDS: true
+  AutoScaling: true
