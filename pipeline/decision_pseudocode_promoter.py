@@ -65,8 +65,14 @@ def _is_verified(entry: dict) -> bool:
 
 
 def _normalize_pseudo_code(pseudo_code: str) -> str:
-    """공백/대소문자 차이를 무시하고 비교하기 위한 정규화."""
-    return re.sub(r"\s+", " ", pseudo_code.strip().lower())
+    """공백/대소문자/따옴표 차이를 무시하고 비교하기 위한 정규화.
+
+    2026-09-12: 프롬프트에 변수명을 고정해준 뒤에도, target=one_tier_down 처럼
+    문자열 파라미터에 따옴표를 붙이거나(target='one_tier_down') 안 붙이거나
+    하는 사소한 스타일 차이가 남아 동일한 판단 로직이 다른 패턴으로 갈리는 경우가
+    있었다. 따옴표를 전부 제거해서 이 차이를 흡수한다."""
+    normalized = re.sub(r"\s+", " ", pseudo_code.strip().lower())
+    return normalized.replace("'", "").replace('"', "")
 
 
 def find_patterns(logs: list[dict], min_count: int) -> list[dict]:

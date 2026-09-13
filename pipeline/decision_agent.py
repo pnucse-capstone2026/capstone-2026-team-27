@@ -246,6 +246,51 @@ BOTO3_SPEC: dict[str, dict] = {
     },
 }
 
+# 2026-09-12 버그 수정: ALLOWED_ACTIONS(schema/state.py)가 anomaly_type만 보고
+# resource_type을 안 보다 보니, 예를 들어 Lambda(cost_spike)에도 ScaleDown/Block이
+# "허용 액션"으로 잡혀서 LLM 프롬프트에 올라갔다. ScaleDown은 Lambda용 실행 로직이
+# action_agent.py에 아예 없고(not_implemented로 빠짐), Block은 실행은 되지만
+# (동시성 0으로 처리) 위 BOTO3_SPEC["Block"]은 S3 기준으로 적혀 있어 LLM한테
+# 완전히 엉뚱한 API 설명을 보여주는 문제가 있었다.
+#
+# action_agent.py의 실제 dispatcher(execute_action)와 반드시 일치시킬 것 - 여기서
+# "구현됨"이라고 적어놓고 실제로는 action_agent.py에 없으면 not_implemented로
+# 빠지는 액션이 또 생긴다.
+RESOURCE_IMPLEMENTED_ACTIONS: dict[str, set[str]] = {
+    "EC2": {"NoAction", "Stop", "Resize", "Block"},  # Block은 ALB 연결된 경우만(action_agent 내부 조건)
+    "Lambda": {"NoAction", "Throttle", "Block"},
+    "AutoScaling": {"NoAction", "ScaleDown", "Block"},
+    "S3": {"NoAction", "Block"},
+    "RDS": {"NoAction"},  # RDS 액션 미구현 - action_agent.py 주석 "RDS는 추후 각자 확장" 참고
+}
+
+# Block처럼 액션 이름은 같아도 리소스마다 실제 동작(API)이 다른 경우의 리소스별
+# 오버라이드. 여기 없으면 BOTO3_SPEC[action](기본값, 처음 만들어질 때 기준이 된
+# 리소스 - Block은 S3)을 그대로 쓴다.
+BOTO3_SPEC_BY_RESOURCE: dict[tuple[str, str], dict] = {
+    ("Lambda", "Block"): {
+        "api": "lambda.put_function_concurrency(FunctionName='string', ReservedConcurrentExecutions=0)",
+        "description": "Lambda 함수 동시 실행 수를 0으로 예약해 호출 자체를 완전 차단.",
+        "cost_effect": "해당 함수 호출로 인한 비용을 100% 제거.",
+        "side_effects": "정상 호출도 전부 차단됨(요청 시 즉시 실패).",
+        "reversible": True,
+        "exceptions": ["InvalidParameterValueException", "ResourceNotFoundException"],
+    },
+    ("AutoScaling", "Block"): {
+        "api": "autoscaling.update_auto_scaling_group(MaxSize=2) + WAF Rate-based Rule 적용",
+        "description": "ScaleDown(용량 축소)에 더해 WAF Rate-based Rule로 요청 자체도 제한.",
+        "cost_effect": "급증 인스턴스 비용 차단 + 공격 트래픽 자체를 요청 단계에서 제한.",
+        "side_effects": "Rate limit에 걸리면 동일 IP의 정상 요청도 함께 차단될 수 있음.",
+        "reversible": True,
+        "exceptions": ["ResourceContentionFault", "WAFLimitsExceededException"],
+    },
+}
+
+
+def _get_boto3_spec(action: str, resource_type: str) -> dict:
+    """action의 리소스별 오버라이드가 있으면 그걸, 없으면 기본 BOTO3_SPEC을 반환."""
+    return BOTO3_SPEC_BY_RESOURCE.get((resource_type, action)) or BOTO3_SPEC.get(action, {})
+
 # 2. 헬퍼 함수들
 def _clamp01(value: float) -> float:
     """
@@ -460,7 +505,7 @@ def _build_action_selection_prompt(
     """
     spec_text = ""
     for action in allowed_actions:
-        spec = BOTO3_SPEC.get(action, {})
+        spec = _get_boto3_spec(action, resource_type)
         spec_text += f"""
 [{action}]
   API: {spec.get('api', 'N/A')}
@@ -496,6 +541,15 @@ def _build_action_selection_prompt(
 
     priority_weight = get_priority_weight()
 
+    # [ADDED] 2026-09-12: pseudo_code에서 쓸 변수명을 미리 고정해서 프롬프트에 못박아준다.
+    # 예전엔 "cpu_mean" 대신 "avg_cpu"/"cpu_avg" 등으로 매번 다르게 표현해서, 같은
+    # 판단 로직인데도 decision_pseudocode_promoter.py의 문자열 일치 비교(정규화 후에도)
+    # 에서 다른 패턴으로 취급되는 문제가 있었다(pseudo_code 일관성이 액션 일관성보다
+    # 훨씬 낮게 나옴). 여기서 쓸 수 있는 변수명 목록을 명시하고 그것만 쓰도록 강제한다.
+    metric_var_names = [f"{key}_mean" for key in metrics_summary] + [f"{key}_latest" for key in metrics_summary]
+    action_var_names = [f"action_scores['{a}']['saving_rate']" for a in allowed_actions] + \
+                        [f"action_scores['{a}']['estimated_saving_usd_per_hr']" for a in allowed_actions]
+
     return f"""당신은 AWS FinOps 전문가입니다.
 클라우드 리소스 이상 탐지 후 실행할 최적 액션 1개를 선택해주세요.
 
@@ -516,11 +570,21 @@ def _build_action_selection_prompt(
 3. 이상 유형에 맞는 액션을 선택할 것
 4. 부작용이 최소화되는 방향으로 보수적으로 판단할 것
 
+## pseudo_code 작성 규칙 (중요 - Rule Book 승격 후보 분석에 쓰이므로 반드시 지킬 것)
+1. 아래 변수명만 사용하세요. 동의어나 줄임말을 새로 만들지 마세요:
+   지표 변수: {", ".join(metric_var_names) if metric_var_names else "(해당 없음)"}
+   비용 변수: {", ".join(action_var_names)}
+2. 조건은 "if 조건1 and 조건2: return 액션(파라미터)" 형태로, 실제 위 수치에 등장하는
+   구체적인 숫자를 임계값으로 써서 최소 2개 이상의 조건을 명시하세요(가능하면).
+   막연한 표현("spike_detected", "적절한 경우" 등) 금지 - 반드시 "{{변수명}} {{비교연산자}} {{숫자}}"
+   형태로만 조건을 쓰세요.
+3. 예시: "if cpu_utilization_mean < 5.0 and action_scores['Resize']['saving_rate'] > 0.3: return 'Resize'(target=one_tier_down)"
+
 아래 JSON 형식으로만 응답하세요. 설명, 마크다운, 다른 텍스트 절대 포함 금지:
 {{
   "action": "<액션명>",
   "reason": "<선택 이유 한 문장>",
-  "pseudo_code": "<판단 로직을 if-else 형태의 pseudo code 한 줄로. 예: if cpu_mean < 5.0 and cost_spike_detected: return 'Resize'(target=one_tier_down)>"
+  "pseudo_code": "<위 pseudo_code 작성 규칙을 지킨 if-else 한 줄>"
 }}
 """
 
@@ -795,6 +859,14 @@ def decision_node(state: PipelineState) -> PipelineState:
     if not allowed_actions:
         allowed_actions = ["NoAction"]
 
+    # 2026-09-12 버그 수정: anomaly_type 기준 허용 목록을 리소스 타입에 실제로
+    # 구현된 액션과 교집합으로 다시 좁힌다 - 안 그러면 Lambda가 ScaleDown을(구현
+    # 안 됨) 제안받거나, Block의 API 설명이 리소스와 안 맞는 채로 LLM에게 간다.
+    # action_agent.py의 실제 dispatcher와 RESOURCE_IMPLEMENTED_ACTIONS를 반드시
+    # 같이 갱신할 것.
+    implemented = RESOURCE_IMPLEMENTED_ACTIONS.get(resource_type, {"NoAction"})
+    allowed_actions = [a for a in allowed_actions if a in implemented] or ["NoAction"]
+
     # ── Rule Book 기반 사전 매칭 (LLM 호출 전) ─────────────────────────────────
     rule_engine = get_rule_engine()
     matched_rule = rule_engine.match_decision_rules(state)
@@ -895,6 +967,17 @@ def decision_node(state: PipelineState) -> PipelineState:
     state["risk_level"] = risk
     state["requires_approval"] = risk in ("MED", "HIGH")
     state["target_instance_type"] = target_instance_type
+
+    # AutoScaling EDoS 의심 시 ScaleDown만으로는 공격 트래픽 자체가 안 막힌다(인스턴스
+    # 수만 줄임) — action_agent.py에 이미 구현된 WAF Rate-based Rule을 병행 적용해야
+    # 하는데, apply_waf 기본값(False)을 아무도 True로 설정하지 않아 지금까지 한 번도
+    # 실제로 발동한 적이 없었다(2026-09-11 발견). ScaleDown+risk_security 조합에서만
+    # 켠다 — 다른 리소스/액션까지 WAF를 걸면 안 되므로 조건을 좁게 유지.
+    state["apply_waf"] = (
+        resource_type == "AutoScaling"
+        and selected["action"] == "ScaleDown"
+        and anomaly_type == "risk_security"
+    )
     state["decision_pseudo_code"] = pseudo_code  # [ADDED]
     state["decision_reasoning"] = (
         f"LLM boto3 스펙 기반 선택: '{selected_action}' - {llm_reason} "
