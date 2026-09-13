@@ -7,25 +7,26 @@
       "AutoScaling"
     ],
     "conditions": {
-      "metric_thresholds": {
-        "group_desired_capacity": {
-          "op": ">",
-          "ref": "mean",
-          "factor": 2.0
-        }
-      }
+      "sustained_fraction": {
+        "metric": "request_count",
+        "factor": 2.0,
+        "min_fraction": 0.6,
+        "recent_window_ratio": 0.2,
+        "min_recent_points": 3
+      },
+      "skip_if_whitelisted": true
     },
     "result": {
       "anomaly_type": "risk_security",
       "interim_action": "AutoScaling 최대 인스턴스 수 임시 제한",
-      "reasoning_template": "AutoScaling 인스턴스 수가 평균 대비 {factor}배 이상 급증 -> EDoS 의심"
+      "reasoning_template": "ALB 요청 수(request_count)가 평균 대비 {factor}배 이상 급증하고 최근 구간에도 계속 유지됨 -> EDoS 의심 (순간 스파이크였다면 단순 인기 폭증으로 간주)"
     },
     "priority": 10,
     "enabled": true,
     "created_at": "2025-01-01T00:00:00Z",
-    "updated_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2026-09-13T00:00:00Z",
     "author": "system",
-    "rationale": "AutoScaling 그룹의 desired capacity가 평균 대비 2배 이상 급증하면 EDoS(Economic Denial of Service) 공격 가능성"
+    "rationale": "2026-09-13 metric을 group_desired_capacity에서 request_count로 변경. 실측 결과(autoscaling_edos_trial v1~v3) capacity는 '순간 인스턴스 개수'라 값의 가짓수가 극히 적어(우리 실험 규모 1~4대) 통계적 탐지에 불리함을 확인했고, ALB RequestCount(누적 합계, 연속값에 가까움)로 바꿨더니 IForest recall이 0%->80%로 개선됨을 실측으로 검증(v4/v5, 2026-09-12~13). EDoS의 원인은 애초에 capacity(결과)가 아니라 트래픽(원인)이므로 개념적으로도 request_count가 더 맞다. sustained_fraction 지속성 조건(최소 3포인트, 윈도우의 20%의 60% 이상 유지) 자체는 그대로 유지 - 순간 스파이크와 지속 공격을 구분하는 목적은 capacity든 request_count든 동일하게 필요하다."
   },
   {
     "rule_id": "CLF-002",

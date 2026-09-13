@@ -37,6 +37,11 @@ class AutoScalingMetrics(TypedDict):
     group_desired_capacity:    list[float]  # 목표 인스턴스 수
     group_in_service_instances: list[float] # 실행 중 인스턴스 수
     cost:                      list[float]  # USD
+    # 2026-09-12 추가: EDoS는 트래픽(원인)이 capacity(결과)를 밀어올리는 구조인데,
+    # group_desired_capacity는 "순간 인스턴스 개수"라 값의 가짓수가 극히 적어(이산적)
+    # 통계적 탐지(z-score/IForest)에 불리함을 실측으로 확인했다. ALB의 RequestCount처럼
+    # 일정 기간 누적되는 지표는 값의 폭이 넓어 탐지에 유리할 것으로 보고 추가한다.
+    request_count:             list[float]  # ALB RequestCount(Sum) - 원인(트래픽) 직접 관측용
 
 
 # ── pre_action_snapshot 리소스별 구조 ────────────────────────────────────────

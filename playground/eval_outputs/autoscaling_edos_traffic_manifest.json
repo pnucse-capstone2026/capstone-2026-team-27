@@ -1,0 +1,18 @@
+{
+  "alb_dns": "detection-traffic-alb-331415101.ap-northeast-2.elb.amazonaws.com",
+  "ports": {
+    "detection-traffic-asg-anomaly-0": 8001,
+    "detection-traffic-asg-anomaly-1": 8002,
+    "detection-traffic-asg-anomaly-2": 8003,
+    "detection-traffic-asg-anomaly-3": 8004,
+    "detection-traffic-asg-anomaly-4": 8005,
+    "detection-traffic-asg-normal-0": 8011,
+    "detection-traffic-asg-normal-1": 8012,
+    "detection-traffic-asg-normal-2": 8013,
+    "detection-traffic-asg-normal-3": 8014,
+    "detection-traffic-asg-normal-4": 8015,
+    "detection-traffic-asg-normal-5": 8016,
+    "detection-traffic-asg-normal-6": 8017,
+    "detection-traffic-asg-normal-7": 8018
+  }
+}

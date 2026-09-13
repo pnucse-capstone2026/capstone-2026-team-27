@@ -134,7 +134,12 @@ RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다
 # 있어서 추가 코드 변경이 필요 없다(단, Stage 2 후보A 확정 후 전환 권장 —
 # 그 전엔 정상운영 판정 자체가 아직 미확정이라 어떤 실데이터를 받아들일지
 # 기준이 없음).
-MOCK_SEED_BUFFER_FROZEN = True
+# 2026-09-12: False로 전환. EDoS 실측(autoscaling_edos_trial.py)에서 recall 0%가 나와
+# 원인을 추적한 결과, 이 플래그가 True로 계속 얼어있어서 IForest가 실측 데이터를 단
+# 한 번도 학습하지 못했던 것도 원인 중 하나였음(models/_frozen_mock_backup_20260912/에
+# 기존 mock 캐시 백업해둠 - 필요시 복구 가능). 위 TODO 그대로 False만 바꿈, 버퍼
+# 채택/FIFO/재학습 로직은 그대로.
+MOCK_SEED_BUFFER_FROZEN = False
 BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
 BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
                                     # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
@@ -156,6 +161,10 @@ Z_SCORE_TARGET_METRICS = {
     "invocation_count",
     "number_of_requests",
     "bytes_downloaded",
+    # 2026-09-12: AutoScaling EDoS 실측에서 group_desired_capacity(이산적, 값의
+    # 폭이 극히 좁음)만으로는 z-score/IForest가 유의미한 신호를 못 얻는 걸 확인.
+    # ALB RequestCount(누적 합계, 연속값에 가까움)를 원인 지표로 추가.
+    "request_count",
 }
 
 # 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
@@ -294,16 +303,22 @@ def _low_utilization_check(
     peak_cpu = max(metrics["cpu_utilization"])
     network_io_bytes = sum(metrics["network_in"]) + sum(metrics["network_out"])
 
-    # network I/O가 정상 범위면 CPU만 낮아도 "실제로 트래픽을 처리 중"이라는 뜻이라
-    # 좀비/오버프로비저닝 둘 다 아니다(AND 조건 — 기존 좀비 체크의 회귀 테스트가
-    # 이미 검증한 시맨틱스를 오버프로비저닝에도 동일하게 유지, 2026-09-11).
-    if network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD:
-        if peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT:
-            utilization_band = "zombie"
-        elif peak_cpu <= EC2_OVERPROVISION_CPU_THRESHOLD_PCT:
-            utilization_band = "overprovisioned"
-        else:
-            utilization_band = None
+    # [2026-09-12, 실측으로 버그 발견 및 수정] 좀비(완전 유휴)는 "CPU도 network도
+    # 둘 다 낮아야" 진짜 방치 상태라고 보는 게 맞다(AND 조건, Compute Optimizer의
+    # idle 정의 그대로) — network가 정상이면 트래픽을 실제로 처리 중이라는 뜻이라
+    # 좀비가 아니다.
+    #
+    # 근데 오버프로비저닝은 다르다 — "CPU만 과사양"이면 되는 개념이라 network 상태와
+    # 무관해야 하는데, 처음엔 좀비와 같은 network AND 조건을 그대로 가져다 썼다가
+    # 실측(오버프로비저닝 t3.small 실험)에서 실제로 걸렸다: 어떤 EC2 인스턴스든
+    # OS/AWS 기본 통신만으로 network_io가 idle 임계값(546KB/2.5h)을 가볍게 넘는데,
+    # 이 AND 조건 때문에 peak CPU가 정확히 목표 범위(12%)에 들어와도 오버프로비저닝
+    # 밴드 자체가 항상 None으로 걸러졌다(recall 0% 재현, 원인 규명 완료).
+    # 그래서 오버프로비저닝은 CPU 범위만으로 판정하도록 분리한다.
+    if peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT and network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD:
+        utilization_band = "zombie"
+    elif EC2_IDLE_CPU_THRESHOLD_PCT < peak_cpu <= EC2_OVERPROVISION_CPU_THRESHOLD_PCT:
+        utilization_band = "overprovisioned"
     else:
         utilization_band = None
 
@@ -479,6 +494,36 @@ def _normalized_scores(
         return np.full_like(raw_scores, 1.0 if is_anomaly else 0.0)
 
     return np.clip((s_max - raw_scores) / (s_max - s_min), 0.0, 1.0)
+
+
+def _normalized_scores_absolute(
+    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]],
+    buffer_windows: list[np.ndarray],
+) -> np.ndarray:
+    """_normalized_scores와 달리 "이 윈도우 자기 자신"이 아니라 "학습 버퍼 전체의
+    score_samples 분포"를 min/max 기준으로 삼아 정규화한다.
+
+    ⚠️ 2026-09-12 발견(EDoS 재실험 전 스모크테스트): 윈도우 내부 min-max는 자기참조적이라,
+    정상 상태에 자연스러운 변동(jitter)을 주면 "그 윈도우 안에서 상대적으로 제일 튀는 점"이
+    항상 1.0으로 정규화되어 정상 윈도우까지 트리거되는 오탐이 생긴다 — z-score의
+    masking effect와 같은 계열의 문제(자기 자신을 기준으로 스스로를 평가하는 구조적 결함).
+    버퍼(다른 시점들의 누적 데이터, 훨씬 크고 안정적인 기준)를 정규화 기준으로 삼으면
+    이 문제가 없다. 버퍼가 비어있으면(콜드스타트) 다른 기준이 없으니 기존 방식으로 폴백.
+    """
+    if not buffer_windows:
+        return _normalized_scores(model, resource_type, metrics)
+
+    buffer_matrix = np.vstack(buffer_windows)
+    buffer_raw = model.score_samples(buffer_matrix)
+    b_min, b_max = buffer_raw.min(), buffer_raw.max()
+
+    X = build_unified_feature_matrix(resource_type, metrics)
+    raw = model.score_samples(X)
+
+    if b_max == b_min:
+        return _normalized_scores(model, resource_type, metrics)
+
+    return np.clip((b_max - raw) / (b_max - b_min), 0.0, 1.0)
 
 
 # Stage 2 후보 A 그리드 실험(2026-09-09) 결과 채택값 — 실측 근거:
@@ -723,7 +768,12 @@ def _iforest_score_and_trigger(
     if model is None:
         return 0.0, False
 
-    normalized = _normalized_scores(model, resource_type, metrics)
+    # 2026-09-12: 윈도우 자기참조(min-max) 대신 학습 버퍼 기준 절대 정규화로 전환
+    # (자기 윈도우 안에서 상대적으로 튀는 점이 항상 1.0이 되어 정상 상태의 자연스러운
+    # jitter까지 오탐으로 잡히던 문제 수정 — _normalized_scores_absolute 참고).
+    buffer_by_type, _ = _load_training_buffer()
+    buffer_windows = buffer_by_type.get(resource_type, [])
+    normalized = _normalized_scores_absolute(model, resource_type, metrics, buffer_windows)
     latest_score = float(normalized[-1])
 
     k_eff = min(k, len(normalized))

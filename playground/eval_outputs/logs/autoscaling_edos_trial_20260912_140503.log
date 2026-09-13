@@ -1,0 +1,76 @@
+2026-09-12 14:05:03,586 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_trial_20260912_140503.log (SCRIPT_VERSION=2)
+2026-09-12 14:05:04,777 [INFO] 예상 최대 동시 인스턴스 23대 (기존 0 + 이번 23)
+2026-09-12 14:05:04,778 [INFO]   vCPU: 46 (쿼터 64)
+2026-09-12 14:05:04,778 [INFO]   EBS: 184GB (프리티어 30GB) -> 초과분은 시간비례 과금
+2026-09-12 14:05:04,778 [INFO]   인스턴스-시간: 약 74.8 (프리티어 월 750시간)
+2026-09-12 14:05:04,789 [WARNING] 프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 - 12개월 초과 계정이면 위 한도가 없고 전부 과금됨. Billing 콘솔에서 확인할 것.
+2026-09-12 14:05:04,791 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 ===
+2026-09-12 14:05:04,800 [INFO] [normal rep=0] asg=detection-trial-asg-normal-0 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,801 [INFO] [normal rep=1] asg=detection-trial-asg-normal-1 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,804 [INFO] [normal rep=2] asg=detection-trial-asg-normal-2 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,805 [INFO] [normal rep=3] asg=detection-trial-asg-normal-3 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,807 [INFO] [normal rep=4] asg=detection-trial-asg-normal-4 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,808 [INFO] [normal rep=5] asg=detection-trial-asg-normal-5 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,809 [INFO] [normal rep=6] asg=detection-trial-asg-normal-6 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,810 [INFO] [normal rep=7] asg=detection-trial-asg-normal-7 capacity=1 유지 (총 165분 후 측정)
+2026-09-12 14:05:04,866 [INFO] [anomaly rep=0] asg=detection-trial-asg-anomaly-0 베이스라인 150분 유지 후 capacity 1->3
+2026-09-12 14:05:04,873 [INFO] [anomaly rep=3] asg=detection-trial-asg-anomaly-3 베이스라인 150분 유지 후 capacity 1->3
+2026-09-12 14:05:04,876 [INFO] [anomaly rep=4] asg=detection-trial-asg-anomaly-4 베이스라인 150분 유지 후 capacity 1->3
+2026-09-12 14:05:04,882 [INFO] [anomaly rep=1] asg=detection-trial-asg-anomaly-1 베이스라인 150분 유지 후 capacity 1->3
+2026-09-12 14:05:04,884 [INFO] [anomaly rep=2] asg=detection-trial-asg-anomaly-2 베이스라인 150분 유지 후 capacity 1->3
+2026-09-12 17:00:00,447 [INFO] [normal rep=4] before production.or_gate=False
+2026-09-12 17:00:00,513 [INFO] [normal rep=5] before production.or_gate=False
+2026-09-12 17:00:00,527 [INFO] [anomaly rep=3] before production.or_gate=False
+2026-09-12 17:00:00,576 [INFO] [normal rep=7] before production.or_gate=False
+2026-09-12 17:00:00,581 [INFO] [anomaly rep=4] before production.or_gate=False
+2026-09-12 17:00:00,594 [INFO] [anomaly rep=0] before production.or_gate=False
+2026-09-12 17:00:00,597 [INFO] [normal rep=0] before production.or_gate=False
+2026-09-12 17:00:00,603 [INFO] [normal rep=6] before production.or_gate=False
+2026-09-12 17:00:00,609 [INFO] [anomaly rep=2] before production.or_gate=False
+2026-09-12 17:00:00,613 [INFO] [anomaly rep=1] before production.or_gate=False
+2026-09-12 17:00:00,618 [INFO] [normal rep=1] before production.or_gate=False
+2026-09-12 17:00:00,627 [INFO] [normal rep=3] before production.or_gate=False
+2026-09-12 17:00:00,632 [INFO] [normal rep=2] before production.or_gate=False
+2026-09-12 17:00:00,689 [INFO] [anomaly rep=3] capacity=3 설정, 인스턴스 기동 대기 600초...
+2026-09-12 17:00:00,749 [INFO] [anomaly rep=0] capacity=3 설정, 인스턴스 기동 대기 600초...
+2026-09-12 17:00:00,764 [INFO] [anomaly rep=4] capacity=3 설정, 인스턴스 기동 대기 600초...
+2026-09-12 17:00:00,770 [INFO] [anomaly rep=2] capacity=3 설정, 인스턴스 기동 대기 600초...
+2026-09-12 17:00:00,813 [INFO] [anomaly rep=1] capacity=3 설정, 인스턴스 기동 대기 600초...
+2026-09-12 17:10:00,889 [INFO] [anomaly rep=0] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 17:10:00,905 [INFO] [anomaly rep=3] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 17:10:00,906 [INFO] [anomaly rep=2] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 17:10:00,936 [INFO] [anomaly rep=4] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 17:10:00,945 [INFO] [anomaly rep=1] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 17:15:00,954 [INFO] [normal rep=5] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:00,970 [INFO] [normal rep=4] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,037 [INFO] [normal rep=7] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,060 [INFO] [normal rep=2] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,070 [INFO] [normal rep=0] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,091 [INFO] [normal rep=6] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,113 [INFO] [normal rep=3] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:15:01,131 [INFO] [normal rep=1] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:40:01,191 [INFO] [anomaly rep=0] 메트릭 반영 대기 300초...
+2026-09-12 17:40:01,205 [INFO] [anomaly rep=2] 메트릭 반영 대기 300초...
+2026-09-12 17:40:01,205 [INFO] [anomaly rep=3] 메트릭 반영 대기 300초...
+2026-09-12 17:40:01,236 [INFO] [anomaly rep=4] 메트릭 반영 대기 300초...
+2026-09-12 17:40:01,252 [INFO] [anomaly rep=1] 메트릭 반영 대기 300초...
+2026-09-12 17:45:02,043 [INFO] [anomaly rep=1] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:45:02,088 [INFO] [anomaly rep=3] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:45:02,128 [INFO] [anomaly rep=2] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:45:02,130 [INFO] [anomaly rep=0] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:45:02,144 [INFO] [anomaly rep=4] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 17:45:02,289 [INFO] [anomaly rep=1] capacity=1로 복구
+2026-09-12 17:45:02,304 [INFO] [anomaly rep=2] capacity=1로 복구
+2026-09-12 17:45:02,304 [INFO] [anomaly rep=4] capacity=1로 복구
+2026-09-12 17:45:02,336 [INFO] [anomaly rep=0] capacity=1로 복구
+2026-09-12 17:45:02,378 [INFO] [anomaly rep=3] capacity=1로 복구
+2026-09-12 17:45:02,390 [INFO] [production(detection_node 실제 방식)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0% FPR=0.0%
+2026-09-12 17:45:02,390 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 17:45:02,391 [INFO] [iforest_only(persistence 적용)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0% FPR=0.0%
+2026-09-12 17:45:02,391 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 17:45:02,391 [INFO] [zscore_only(persistence 적용)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0% FPR=0.0%
+2026-09-12 17:45:02,391 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 17:45:02,391 [INFO] [teammate_compat(v1까지의 방식)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0% FPR=0.0%
+2026-09-12 17:45:02,391 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 17:45:02,400 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\autoscaling_edos_trial__capacity3_wait300s_n8-5_scriptv2_20260912.json
+2026-09-12 17:45:02,400 [WARNING] 테스트 후 반드시 정리하세요: --teardown --n-anomaly 5 --n-normal 8

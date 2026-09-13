@@ -1,0 +1,15 @@
+2026-09-13 15:00:41,751 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_150041.log (SCRIPT_VERSION=4)
+2026-09-13 15:00:42,673 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 (트래픽 기반) ===
+2026-09-13 15:00:42,726 [INFO] [anomaly rep=0] detection-traffic-asg-anomaly-0 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,780 [INFO] [anomaly rep=1] detection-traffic-asg-anomaly-1 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,830 [INFO] [anomaly rep=2] detection-traffic-asg-anomaly-2 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,881 [INFO] [anomaly rep=3] detection-traffic-asg-anomaly-3 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,934 [INFO] [anomaly rep=4] detection-traffic-asg-anomaly-4 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,979 [INFO] [normal rep=0] detection-traffic-asg-normal-0 rps=1.0 계속 유지
+2026-09-13 15:00:43,033 [INFO] [normal rep=1] detection-traffic-asg-normal-1 rps=1.0 계속 유지
+2026-09-13 15:00:43,085 [INFO] [normal rep=2] detection-traffic-asg-normal-2 rps=1.0 계속 유지
+2026-09-13 15:00:43,136 [INFO] [normal rep=3] detection-traffic-asg-normal-3 rps=1.0 계속 유지
+2026-09-13 15:00:43,187 [INFO] [normal rep=4] detection-traffic-asg-normal-4 rps=1.0 계속 유지
+2026-09-13 15:00:43,238 [INFO] [normal rep=5] detection-traffic-asg-normal-5 rps=1.0 계속 유지
+2026-09-13 15:00:43,284 [INFO] [normal rep=6] detection-traffic-asg-normal-6 rps=1.0 계속 유지
+2026-09-13 15:00:43,338 [INFO] [normal rep=7] detection-traffic-asg-normal-7 rps=1.0 계속 유지

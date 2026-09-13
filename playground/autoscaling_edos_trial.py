@@ -27,7 +27,16 @@ TP/TN/FP/FN, accuracy, recall(+ Clopper-Pearson 95% CI)을 계산한다.
 
 from __future__ import annotations
 
-SCRIPT_VERSION = "2"
+SCRIPT_VERSION = "3"
+# v3 (2026-09-12): recall 0% 실측 후 원인 3가지(z-score masking effect,
+#     MOCK_SEED_BUFFER_FROZEN으로 IForest가 실측 데이터를 전혀 학습 안 함, 정상
+#     baseline이 완벽히 flat이라 IsolationForest가 배울 분산이 없음)를 진단하고,
+#     세 번째 원인을 합성 노이즈 시뮬레이션(playground/analyze_iforest_edos_real_data.py)
+#     으로 검증(recall 0%->100%)한 뒤, 실제 AWS 재실험으로 다시 확인하기 위해:
+#   (1) normal/anomaly baseline capacity를 1로 고정하지 않고 1<->2로 주기적으로
+#       흔들어(jitter) 진짜 자연스러운 변동을 만든다 (ASG max_size도 그만큼 올림).
+#   (2) MOCK_SEED_BUFFER_FROZEN=False로 전환(별도 커밋, detection_agent.py)해서
+#       IForest가 이번엔 실측 데이터로 진짜 학습하게 한다.
 # v1 (2026-09-09): 최초 작성.
 # v2 (2026-09-09): 아래 7가지 수정.
 #   (1) 판정 로직 교체 — _zscore_max/_iforest_score(옛 phase_g 헬퍼)는 detection_node와
@@ -58,11 +67,15 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")  # Windows 콘솔 기본 cp949가 em-dash 등에서 죽는 문제 방지
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -87,7 +100,13 @@ ASG_PREFIX = "detection-trial-asg"
 LAUNCH_TEMPLATE_NAME = "detection-trial-lt"
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 
-NORMAL_CAPACITY = 1
+NORMAL_CAPACITY = 1  # 하위호환용 별칭 - 기존 로그 문구/필드에서 그대로 참조
+# v3: 정상 상태를 1로 완전 고정하지 않고 1<->2로 흔들어(jitter) 실제 자연스러운
+# 변동을 만든다 - 2026-09-12 실측/시뮬레이션으로 확인: capacity가 완벽히 flat이면
+# IsolationForest가 학습할 분산이 없어서 스파이크를 걸러내지 못한다.
+NORMAL_CAPACITY_LOW = 1
+NORMAL_CAPACITY_HIGH = 2
+JITTER_INTERVAL_SEC = 1200  # 20분마다 low<->high 토글 (150분 baseline에 약 7회)
 # v1 기본값은 5였으나 쿼터/프리티어를 넘겨서 3으로 낮춤 (--anomaly-capacity로 조정 가능)
 DEFAULT_ANOMALY_CAPACITY = 3
 
@@ -137,12 +156,23 @@ def check_capacity_budget(n_anomaly: int, n_normal: int, anomaly_capacity: int,
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
     current = ec2.describe_instances(
         Filters=[{"Name": "instance-state-name", "Values": ["pending", "running"]}])
-    current_instances = sum(len(r["Instances"]) for r in current["Reservations"])
+    # 이번 트라이얼의 ASG가 이미 --setup으로 baseline capacity(1)만큼 띄워둔 인스턴스는
+    # peak_instances 계산식(n_anomaly*anomaly_capacity + n_normal*NORMAL_CAPACITY)에
+    # 이미 포함되어 있다. 여기서 또 더하면 이중 계산되어 실제보다 부풀려진 쿼터 초과로
+    # 오판한다(실측 2026-09-12: 실제 46vCPU인데 72vCPU로 잘못 계산됨) -> 우리 트라이얼
+    # 태그(Purpose=detection-trial)가 붙은 인스턴스는 "기존"에서 제외한다.
+    current_instances = sum(
+        1 for r in current["Reservations"] for inst in r["Instances"]
+        if not any(t.get("Key") == "Purpose" and t.get("Value") == "detection-trial"
+                   for t in inst.get("Tags", []))
+    )
 
-    peak_instances = current_instances + n_normal * NORMAL_CAPACITY + n_anomaly * anomaly_capacity
+    # v3: normal/anomaly baseline이 jitter로 최대 NORMAL_CAPACITY_HIGH까지 올라갈 수
+    # 있으므로 최악의 경우(모든 ASG가 동시에 high인 순간)를 기준으로 잡는다.
+    peak_instances = current_instances + n_normal * NORMAL_CAPACITY_HIGH + n_anomaly * anomaly_capacity
     peak_vcpu = peak_instances * VCPU_PER_INSTANCE
     peak_ebs = peak_instances * EBS_GB_PER_INSTANCE
-    instance_hours = (n_normal * NORMAL_CAPACITY + n_anomaly * anomaly_capacity) * hours_estimate
+    instance_hours = (n_normal * NORMAL_CAPACITY_HIGH + n_anomaly * anomaly_capacity) * hours_estimate
 
     logger.info("예상 최대 동시 인스턴스 %d대 (기존 %d + 이번 %d)",
                 peak_instances, current_instances, peak_instances - current_instances)
@@ -150,7 +180,7 @@ def check_capacity_budget(n_anomaly: int, n_normal: int, anomaly_capacity: int,
     logger.info("  EBS: %dGB (프리티어 %dGB) %s", peak_ebs, FREE_TIER_EBS_GB,
                 "-> 초과분은 시간비례 과금" if peak_ebs > FREE_TIER_EBS_GB else "-> 프리티어 내")
     logger.info("  인스턴스-시간: 약 %.1f (프리티어 월 %d시간)", instance_hours, FREE_TIER_INSTANCE_HOURS)
-    logger.warning("프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 — 12개월 초과 계정이면 "
+    logger.warning("프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 - 12개월 초과 계정이면 "
                     "위 한도가 없고 전부 과금됨. Billing 콘솔에서 확인할 것.")
 
     if peak_vcpu > vcpu_limit:
@@ -158,7 +188,7 @@ def check_capacity_budget(n_anomaly: int, n_normal: int, anomaly_capacity: int,
                f"--anomaly-capacity 축소, --n-anomaly/--n-normal 축소, 기존 인스턴스 정리, "
                f"또는 쿼터 증설 중 하나가 필요합니다.")
         if skip_quota_check:
-            logger.warning("%s (--skip-quota-check 지정으로 계속 진행 — launch 실패 시 "
+            logger.warning("%s (--skip-quota-check 지정으로 계속 진행 - launch 실패 시 "
                             "desired만 오르고 in_service는 안 오르는 왜곡된 측정이 될 수 있음)", msg)
         else:
             raise RuntimeError(msg)
@@ -256,13 +286,16 @@ def setup_asgs(n_anomaly: int, n_normal: int, anomaly_capacity: int) -> tuple[li
     anomaly_names = [_asg_name("anomaly", i) for i in range(n_anomaly)]
     normal_names = [_asg_name("normal", i) for i in range(n_normal)]
 
+    # anomaly ASG는 baseline 구간에도 1<->2 jitter를 하므로 max_size가 최소
+    # NORMAL_CAPACITY_HIGH는 돼야 하고, 스파이크 때는 anomaly_capacity까지 가야 한다.
+    anomaly_max = max(anomaly_capacity, NORMAL_CAPACITY_HIGH)
     for name in anomaly_names:
-        _ensure_asg(autoscaling, name, lt_id, subnet_ids, NORMAL_CAPACITY, max_size=anomaly_capacity)
+        _ensure_asg(autoscaling, name, lt_id, subnet_ids, NORMAL_CAPACITY_LOW, max_size=anomaly_max)
     for name in normal_names:
-        _ensure_asg(autoscaling, name, lt_id, subnet_ids, NORMAL_CAPACITY, max_size=NORMAL_CAPACITY)
+        _ensure_asg(autoscaling, name, lt_id, subnet_ids, NORMAL_CAPACITY_LOW, max_size=NORMAL_CAPACITY_HIGH)
 
-    logger.info("ASG 준비 완료: anomaly=%d개, normal=%d개 (모두 capacity=%d)",
-                n_anomaly, n_normal, NORMAL_CAPACITY)
+    logger.info("ASG 준비 완료: anomaly=%d개, normal=%d개 (모두 초기 capacity=%d, jitter로 %d~%d 사이 변동 예정)",
+                n_anomaly, n_normal, NORMAL_CAPACITY_LOW, NORMAL_CAPACITY_LOW, NORMAL_CAPACITY_HIGH)
     logger.warning("생성 직후에는 CloudWatch 창(30포인트=2.5시간)의 앞부분이 0으로 채워진다. "
                     "--run의 --baseline-minutes 만큼 평상시 용량 이력을 쌓은 뒤 스파이크를 걸어야 "
                     "'0에서 급증'이 아닌 실제 EDoS 패턴을 측정하게 된다.")
@@ -342,6 +375,27 @@ def detect(resource_type: str, resource_id: str, end_time: datetime | None = Non
     return detect_both(resource_type, resource_id, usage=usage)
 
 
+def _jitter_loop(asg_name: str, stop_event: threading.Event, label: str, rep: int) -> None:
+    """정상(또는 anomaly baseline) 상태에 자연스러운 소폭 변동을 준다 - capacity를
+    NORMAL_CAPACITY_LOW<->HIGH로 JITTER_INTERVAL_SEC마다 토글.
+
+    2026-09-12 발견: capacity가 완벽히 flat이면 z-score/IForest 둘 다 실패한다
+    (z-score는 masking effect, IForest는 학습할 분산 자체가 없어서). 합성 노이즈
+    시뮬레이션(analyze_iforest_edos_real_data.py --inject-noise-std)으로 "약간의
+    변동만 있으면 IForest가 recall 100%까지 개선된다"를 확인했고, 이번엔 그걸
+    실제 AWS에서 재현하기 위해 진짜로 이렇게 흔든다(시뮬레이션이 아니라 실측).
+    """
+    autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
+    current = NORMAL_CAPACITY_LOW
+    while not stop_event.wait(JITTER_INTERVAL_SEC):
+        current = NORMAL_CAPACITY_HIGH if current == NORMAL_CAPACITY_LOW else NORMAL_CAPACITY_LOW
+        try:
+            autoscaling.set_desired_capacity(AutoScalingGroupName=asg_name, DesiredCapacity=current)
+            logger.info("[%s rep=%d] jitter: %s capacity -> %d", label, rep, asg_name, current)
+        except Exception as exc:
+            logger.warning("[%s rep=%d] jitter 실패(%s): %s", label, rep, asg_name, exc)
+
+
 def _in_service_count(autoscaling, asg_name: str) -> int:
     groups = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
     if not groups["AutoScalingGroups"]:
@@ -353,14 +407,25 @@ def _in_service_count(autoscaling, asg_name: str) -> int:
 # ── 시행 실행 ─────────────────────────────────────────────────────────────────
 
 def run_anomaly_trial(asg_name: str, rep: int, anomaly_capacity: int, baseline_minutes: int,
-                       startup_wait_sec: int, metric_wait_sec: int) -> dict:
+                       startup_wait_sec: int, metric_wait_sec: int, sustain_minutes: int = 30) -> dict:
     t0 = time.time()
     autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
     spiked = False
-    logger.info("[anomaly rep=%d] asg=%s 베이스라인 %d분 유지 후 capacity %d->%d",
-                rep, asg_name, baseline_minutes, NORMAL_CAPACITY, anomaly_capacity)
+    logger.info("[anomaly rep=%d] asg=%s 베이스라인 %d분(jitter %d<->%d 적용) 유지 후 capacity ->%d",
+                rep, asg_name, baseline_minutes, NORMAL_CAPACITY_LOW, NORMAL_CAPACITY_HIGH, anomaly_capacity)
+
+    jitter_stop = threading.Event()
+    jitter_thread = threading.Thread(
+        target=_jitter_loop, args=(asg_name, jitter_stop, "anomaly-baseline", rep), daemon=True)
+    jitter_thread.start()
     try:
         time.sleep(baseline_minutes * 60)
+
+        # 스파이크 전에 jitter부터 멈춰야 한다 - 안 그러면 jitter 스레드가 스파이크
+        # 직후에 capacity를 low/high로 되돌려버려 스파이크가 씻겨나갈 수 있다.
+        jitter_stop.set()
+        jitter_thread.join(timeout=5)
+
         before = detect("AutoScaling", asg_name)
         logger.info("[anomaly rep=%d] before production.or_gate=%s", rep, before["production"]["or_gate"])
 
@@ -375,9 +440,17 @@ def run_anomaly_trial(asg_name: str, rep: int, anomaly_capacity: int, baseline_m
         actual_in_service = _in_service_count(autoscaling, asg_name)
         spike_realized = actual_in_service >= anomaly_capacity
         if not spike_realized:
-            logger.warning("[anomaly rep=%d] in_service=%d로 목표 %d 미달 — launch가 실패했을 수 있음"
+            logger.warning("[anomaly rep=%d] in_service=%d로 목표 %d 미달 - launch가 실패했을 수 있음"
                             "(쿼터/용량). 이 시행은 의도한 패턴이 아닐 수 있으니 해석 주의.",
                             rep, actual_in_service, anomaly_capacity)
+
+        # classification_rules.json CLF-001의 sustained_fraction 조건(최근 구간 최소
+        # 3포인트=15분의 60% 이상이 계속 높아야 함)을 만족하려면 startup_wait_sec만으로는
+        # 부족하다(2026-09-11 발견 — 기존 10분으로는 CloudWatch 포인트가 1~2개뿐이라
+        # 여유 없이 경계에 걸림). 측정 전 sustain_minutes만큼 더 유지해서 최근 구간에
+        # 확실히 여러 포인트가 쌓이게 한다.
+        logger.info("[anomaly rep=%d] 지속성 확보를 위해 %d분 추가 유지...", rep, sustain_minutes)
+        time.sleep(sustain_minutes * 60)
 
         logger.info("[anomaly rep=%d] 메트릭 반영 대기 %d초...", rep, metric_wait_sec)
         time.sleep(metric_wait_sec)
@@ -389,7 +462,7 @@ def run_anomaly_trial(asg_name: str, rep: int, anomaly_capacity: int, baseline_m
 
         return {
             "rep": rep, "resource": asg_name, "label": "anomaly",
-            "capacity_before": NORMAL_CAPACITY, "capacity_after": anomaly_capacity,
+            "capacity_before": NORMAL_CAPACITY_LOW, "capacity_after": anomaly_capacity,
             "in_service_after_spike": actual_in_service, "spike_realized": spike_realized,
             "before": before, "after": after,
             "detected_production": bool(after["production"]["or_gate"]),
@@ -404,23 +477,34 @@ def run_anomaly_trial(asg_name: str, rep: int, anomaly_capacity: int, baseline_m
                 "detected_production": None, "detected_teammate_compat": None,
                 "detected_iforest_only": None, "detected_zscore_only": None}
     finally:
+        # baseline 도중 예외가 나서 위에서 jitter_stop.set()을 못 거쳤을 경우 대비
+        # (Event.set()은 이미 set된 상태에 다시 호출해도 안전하다).
+        jitter_stop.set()
+        jitter_thread.join(timeout=5)
         # v1은 예외 시 capacity가 올라간 채로 남았다
         if spiked:
             try:
                 autoscaling.set_desired_capacity(AutoScalingGroupName=asg_name,
-                                                  DesiredCapacity=NORMAL_CAPACITY)
-                logger.info("[anomaly rep=%d] capacity=%d로 복구", rep, NORMAL_CAPACITY)
+                                                  DesiredCapacity=NORMAL_CAPACITY_LOW)
+                logger.info("[anomaly rep=%d] capacity=%d로 복구", rep, NORMAL_CAPACITY_LOW)
             except Exception as exc:
                 logger.error("[anomaly rep=%d] capacity 복구 실패(수동 확인 필요): %s", rep, exc)
 
 
 def run_normal_trial(asg_name: str, rep: int, baseline_minutes: int,
                       startup_wait_sec: int, metric_wait_sec: int) -> dict:
-    """normal 시행: capacity 유지. anomaly와 같은 시각에 측정되도록 총 대기 시간을 맞춘다
-    (v1은 normal이 훨씬 이른 시점에 측정돼서 두 그룹의 측정 시각이 어긋났다)."""
+    """normal 시행: capacity를 low<->high로 jitter하며 정상 상태를 유지한다. anomaly와
+    같은 시각에 측정되도록 총 대기 시간을 맞춘다(v1은 normal이 훨씬 이른 시점에 측정돼서
+    두 그룹의 측정 시각이 어긋났다)."""
     t0 = time.time()
-    logger.info("[normal rep=%d] asg=%s capacity=%d 유지 (총 %d분 후 측정)",
-                rep, asg_name, NORMAL_CAPACITY, baseline_minutes + (startup_wait_sec + metric_wait_sec) // 60)
+    logger.info("[normal rep=%d] asg=%s capacity %d<->%d jitter 유지 (총 %d분 후 측정)",
+                rep, asg_name, NORMAL_CAPACITY_LOW, NORMAL_CAPACITY_HIGH,
+                baseline_minutes + (startup_wait_sec + metric_wait_sec) // 60)
+
+    jitter_stop = threading.Event()
+    jitter_thread = threading.Thread(
+        target=_jitter_loop, args=(asg_name, jitter_stop, "normal", rep), daemon=True)
+    jitter_thread.start()
     try:
         time.sleep(baseline_minutes * 60)
         before = detect("AutoScaling", asg_name)
@@ -434,7 +518,7 @@ def run_normal_trial(asg_name: str, rep: int, baseline_minutes: int,
                     after["production"]["iforest_triggered"], after["teammate_compat"]["anomaly_flag"])
 
         return {
-            "rep": rep, "resource": asg_name, "label": "normal", "capacity": NORMAL_CAPACITY,
+            "rep": rep, "resource": asg_name, "label": "normal", "capacity": NORMAL_CAPACITY_LOW,
             "before": before, "after": after,
             "detected_production": bool(after["production"]["or_gate"]),
             "detected_teammate_compat": bool(after["teammate_compat"]["anomaly_flag"]),
@@ -447,6 +531,11 @@ def run_normal_trial(asg_name: str, rep: int, baseline_minutes: int,
         return {"rep": rep, "resource": asg_name, "label": "normal", "error": str(exc),
                 "detected_production": None, "detected_teammate_compat": None,
                 "detected_iforest_only": None, "detected_zscore_only": None}
+    finally:
+        jitter_stop.set()
+        jitter_thread.join(timeout=5)
+        # 마지막 상태가 low든 high든 상관없이(정상 범위 안이므로) teardown 전까지는
+        # 그대로 둬도 안전 - 굳이 강제로 low로 되돌리지 않는다.
 
 
 # ── 메인 ────────────────────────────────────────────────────────────────────
@@ -472,6 +561,9 @@ def main() -> None:
                              "0으로 채워져 탐지율이 낙관적으로 왜곡됨")
     parser.add_argument("--startup-wait-sec", type=int, default=600, help="인스턴스 기동 대기(초)")
     parser.add_argument("--metric-wait-sec", type=int, default=300, help="CloudWatch 반영 대기(초)")
+    parser.add_argument("--sustain-minutes", type=int, default=30,
+                        help="스파이크 상태를 측정 전까지 추가로 유지할 시간(분) - "
+                             "CLF-001의 sustained_fraction 조건(최근 구간 지속성) 충족용")
     parser.add_argument("--vcpu-limit", type=int, default=32, help="계정 vCPU 쿼터(L-1216C47A)")
     parser.add_argument("--skip-quota-check", action="store_true",
                         help="쿼터 초과여도 진행(권장하지 않음 - launch가 조용히 실패해 왜곡된 측정이 됨)")
@@ -489,7 +581,8 @@ def main() -> None:
         teardown_asgs(args.n_anomaly, args.n_normal)
         return
 
-    hours_estimate = (args.baseline_minutes * 60 + args.startup_wait_sec + args.metric_wait_sec) / 3600
+    hours_estimate = (args.baseline_minutes * 60 + args.startup_wait_sec
+                       + args.sustain_minutes * 60 + args.metric_wait_sec) / 3600
 
     if args.setup:
         check_capacity_budget(args.n_anomaly, args.n_normal, args.anomaly_capacity,
@@ -517,7 +610,8 @@ def main() -> None:
         for i in range(args.n_anomaly):
             futures.append(executor.submit(
                 run_anomaly_trial, anomaly_asgs[i], i, args.anomaly_capacity,
-                args.baseline_minutes, args.startup_wait_sec, args.metric_wait_sec))
+                args.baseline_minutes, args.startup_wait_sec, args.metric_wait_sec,
+                args.sustain_minutes))
         for i in range(args.n_normal):
             futures.append(executor.submit(
                 run_normal_trial, normal_asgs[i], i,
@@ -546,7 +640,7 @@ def main() -> None:
 
     unrealized = [r for r in results if r.get("label") == "anomaly" and r.get("spike_realized") is False]
     if unrealized:
-        logger.warning("스파이크가 목표 용량에 도달하지 못한 anomaly 시행 %d건 — 해당 시행은 "
+        logger.warning("스파이크가 목표 용량에 도달하지 못한 anomaly 시행 %d건 - 해당 시행은 "
                         "'desired만 급증, in_service 평탄'이라 의도한 패턴과 다름: %s",
                         len(unrealized), [r["resource"] for r in unrealized])
 
