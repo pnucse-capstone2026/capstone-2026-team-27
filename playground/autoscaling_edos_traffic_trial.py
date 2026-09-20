@@ -86,11 +86,21 @@ ALB_NAME = "detection-traffic-alb"
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 
 CAPACITY = 1  # 이번 실험은 capacity를 아예 고정 - 트래픽 지표만 단독 검증
-LISTENER_PORT_BASE = 8001  # anomaly-0..4 -> 8001..8005, normal-0..4 -> 8011..8015
-NORMAL_PORT_BASE = 8011
+LISTENER_PORT_BASE = 8001  # anomaly-0..(n_anomaly-1) -> 이 값부터 순서대로 할당
+
+# 2026-09-13 버그 수정: NORMAL_PORT_BASE가 8011로 고정돼 있어서, n_anomaly가 11 이상이면
+# anomaly용 포트(LISTENER_PORT_BASE..+n_anomaly-1)와 겹친다(예: n_anomaly=15면 anomaly가
+# 8001~8015를 쓰는데 normal도 8011부터 시작해서 8011~8015가 같은 ALB에서 리스너 포트
+# 충돌 - 실제로 n=15 설정 시 normal-0~4의 리스너 생성이 조용히 실패해 그 포트가 anomaly
+# target group에 붙은 채로 방치되는 사고가 났다). normal 포트를 anomaly 개수만큼 뒤로
+# 밀어서 항상 겹치지 않게 setup_all()에서 동적으로 계산한다.
 
 BASELINE_RPS = 1.0      # 정상/베이스라인 구간 초당 요청 수
 SPIKE_RPS = 50.0        # anomaly 구간 초당 요청 수 (폭증)
+EDGE_SPIKE_RPS = 10.0   # [2026-09-14 추가] 경계(edge) 케이스 - baseline 대비 10배(50배보다
+                        # 훨씬 완만한 증가)로, 극단적 스파이크가 아닌 애매한 트래픽 증가도
+                        # 탐지하는지 별도로 검증한다. label은 "anomaly"로 동일(진짜 이상
+                        # 상황이지만 강도만 약함) - profile 필드로 구분한다.
 
 VCPU_PER_INSTANCE = 2
 
@@ -134,8 +144,17 @@ def _get_default_vpc_subnets() -> tuple[str, list[str]]:
 
 
 def _ensure_security_groups(vpc_id: str) -> tuple[str, str]:
-    """(alb_sg_id, instance_sg_id) 반환. ALB SG: 8001~8020에서 인바운드 전체 허용.
-    인스턴스 SG: ALB SG로부터 80포트만 허용(직접 인터넷 노출 안 함)."""
+    """(alb_sg_id, instance_sg_id) 반환. ALB SG: 8001~8060에서 인바운드 전체 허용.
+    인스턴스 SG: ALB SG로부터 80포트만 허용(직접 인터넷 노출 안 함).
+
+    ⚠️ [버그 발견, 2026-09-14] 원래 8001~8020까지만 열려 있었는데, v7 실험은
+    n_anomaly=15 + n_normal=8 = 23개 포트(8001~8023)를 썼다 - 즉 8021~8023(normal
+    뒤쪽 3개)은 ALB 앞단 방화벽 자체가 막혀 있어서 트래픽 스크립트의 요청이 ALB에
+    도달하지도 못했을 가능성이 있다(도달 실패는 RequestCount에 아예 안 잡히므로
+    "낮은 트래픽=정상"처럼 보여서 겉으로는 문제가 드러나지 않았다). 지금 edge 그룹을
+    추가로 넣으면 더 많은 포트가 필요해지므로, 여유 있게 8060까지 넓혀서 이 문제가
+    재발하지 않게 한다.
+    """
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
 
     def _find_or_create(name: str, desc: str) -> str:
@@ -154,7 +173,7 @@ def _ensure_security_groups(vpc_id: str) -> tuple[str, str]:
         ec2.authorize_security_group_ingress(
             GroupId=alb_sg,
             IpPermissions=[{
-                "IpProtocol": "tcp", "FromPort": 8001, "ToPort": 8020,
+                "IpProtocol": "tcp", "FromPort": 8001, "ToPort": 8060,
                 "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
             }],
         )
@@ -347,13 +366,18 @@ def _ensure_asg(autoscaling, name: str, lt_id: str, subnet_ids: list[str], tg_ar
         )
 
 
-def setup_all(n_anomaly: int, n_normal: int) -> None:
+def setup_all(n_anomaly: int, n_normal: int, n_edge: int = 0) -> None:
     vpc_id, subnet_ids = _get_default_vpc_subnets()
     alb_sg, inst_sg = _ensure_security_groups(vpc_id)
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
     lt_id = _ensure_launch_template(ec2, inst_sg)
     alb_arn, alb_dns, _ = _ensure_alb(vpc_id, subnet_ids, alb_sg)
     autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
+
+    # [2026-09-14] edge 그룹 추가 - anomaly/edge/normal 순서로 포트를 겹치지 않게 배치.
+    # (기존 버그: normal_port_base가 n_anomaly만 고려했음 - edge까지 고려해서 확장)
+    edge_port_base = LISTENER_PORT_BASE + n_anomaly
+    normal_port_base = edge_port_base + n_edge
 
     resource_ports: dict[str, int] = {}
     for i in range(n_anomaly):
@@ -362,9 +386,15 @@ def setup_all(n_anomaly: int, n_normal: int) -> None:
         tg_arn, _ = _ensure_target_group_and_listener(vpc_id, alb_arn, f"tg-anomaly-{i}", port)
         _ensure_asg(autoscaling, name, lt_id, subnet_ids, tg_arn)
         resource_ports[name] = port
+    for i in range(n_edge):
+        name = _asg_name("edge", i)
+        port = edge_port_base + i
+        tg_arn, _ = _ensure_target_group_and_listener(vpc_id, alb_arn, f"tg-edge-{i}", port)
+        _ensure_asg(autoscaling, name, lt_id, subnet_ids, tg_arn)
+        resource_ports[name] = port
     for i in range(n_normal):
         name = _asg_name("normal", i)
-        port = NORMAL_PORT_BASE + i
+        port = normal_port_base + i
         tg_arn, _ = _ensure_target_group_and_listener(vpc_id, alb_arn, f"tg-normal-{i}", port)
         _ensure_asg(autoscaling, name, lt_id, subnet_ids, tg_arn)
         resource_ports[name] = port
@@ -378,11 +408,11 @@ def setup_all(n_anomaly: int, n_normal: int) -> None:
     logger.info("인스턴스가 헬스체크를 통과하려면(user-data 실행 시간 포함) 2~3분 정도 걸릴 수 있습니다.")
 
 
-def teardown_all(n_anomaly: int, n_normal: int) -> None:
+def teardown_all(n_anomaly: int, n_normal: int, n_edge: int = 0) -> None:
     autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
     elb = boto3.client("elbv2", region_name=AWS_REGION)
 
-    for label, count in (("anomaly", n_anomaly), ("normal", n_normal)):
+    for label, count in (("anomaly", n_anomaly), ("edge", n_edge), ("normal", n_normal)):
         for i in range(count):
             name = _asg_name(label, i)
             try:
@@ -404,7 +434,7 @@ def teardown_all(n_anomaly: int, n_normal: int) -> None:
         logger.warning("ALB 삭제 실패: %s", exc)
 
     time.sleep(15)  # target group은 ALB 완전 삭제 후에나 지워짐
-    for label, count in (("anomaly", n_anomaly), ("normal", n_normal)):
+    for label, count in (("anomaly", n_anomaly), ("edge", n_edge), ("normal", n_normal)):
         for i in range(count):
             tg_name = f"tg-{label}-{i}"
             try:
@@ -577,7 +607,8 @@ def run_full_pipeline_from_metrics(asg_name: str, raw_metrics: dict, bypass_appr
 
 def run_anomaly_trial(asg_name: str, rep: int, port: int, alb_dns: str, alb_id_suffix: str, tg_id_suffix: str,
                        baseline_minutes: int, spike_minutes: int, metric_wait_sec: int,
-                       bypass_approval: bool = False) -> dict:
+                       bypass_approval: bool = False, spike_rps: float = SPIKE_RPS,
+                       profile: str = "extreme_spike") -> dict:
     t0 = time.time()
     url = f"http://{alb_dns}:{port}/"
     current_rps = [BASELINE_RPS]
@@ -585,14 +616,14 @@ def run_anomaly_trial(asg_name: str, rep: int, port: int, alb_dns: str, alb_id_s
     traffic_thread = threading.Thread(
         target=_traffic_loop, args=(url, lambda: current_rps[0], stop_event, "anomaly", rep), daemon=True)
     traffic_thread.start()
-    logger.info("[anomaly rep=%d] %s baseline rps=%.1f로 %d분 유지", rep, asg_name, BASELINE_RPS, baseline_minutes)
+    logger.info("[anomaly rep=%d, profile=%s] %s baseline rps=%.1f로 %d분 유지", rep, profile, asg_name, BASELINE_RPS, baseline_minutes)
     try:
         time.sleep(baseline_minutes * 60)
         before = detect(asg_name, alb_id_suffix, tg_id_suffix)
-        logger.info("[anomaly rep=%d] before or_gate=%s", rep, before["production"]["or_gate"])
+        logger.info("[anomaly rep=%d, profile=%s] before or_gate=%s", rep, profile, before["production"]["or_gate"])
 
-        current_rps[0] = SPIKE_RPS
-        logger.info("[anomaly rep=%d] rps=%.1f로 폭증, %d분 유지...", rep, SPIKE_RPS, spike_minutes)
+        current_rps[0] = spike_rps
+        logger.info("[anomaly rep=%d, profile=%s] rps=%.1f로 폭증, %d분 유지...", rep, profile, spike_rps, spike_minutes)
         time.sleep(spike_minutes * 60)
 
         logger.info("[anomaly rep=%d] 메트릭 반영 대기 %d초...", rep, metric_wait_sec)
@@ -616,7 +647,7 @@ def run_anomaly_trial(asg_name: str, rep: int, port: int, alb_dns: str, alb_id_s
             )
 
         return {
-            "rep": rep, "resource": asg_name, "label": "anomaly",
+            "rep": rep, "resource": asg_name, "label": "anomaly", "profile": profile,
             "before": before, "after": after,
             "detected_production": bool(after["production"]["or_gate"]),
             "detected_iforest_only": bool(after["production"]["iforest_triggered"]),
@@ -625,8 +656,8 @@ def run_anomaly_trial(asg_name: str, rep: int, port: int, alb_dns: str, alb_id_s
             "elapsed_sec": round(time.time() - t0, 1),
         }
     except Exception as exc:
-        logger.error("[anomaly rep=%d] 실패: %s\n%s", rep, exc, traceback.format_exc())
-        return {"rep": rep, "resource": asg_name, "label": "anomaly", "error": str(exc),
+        logger.error("[anomaly rep=%d, profile=%s] 실패: %s\n%s", rep, profile, exc, traceback.format_exc())
+        return {"rep": rep, "resource": asg_name, "label": "anomaly", "profile": profile, "error": str(exc),
                 "detected_production": None, "detected_iforest_only": None, "detected_zscore_only": None}
     finally:
         stop_event.set()
@@ -679,9 +710,10 @@ def run_normal_trial(asg_name: str, rep: int, port: int, alb_dns: str, alb_id_su
 
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
-def result_filename(n_normal: int, n_anomaly: int) -> Path:
+def result_filename(n_normal: int, n_anomaly: int, n_edge: int = 0) -> Path:
     date_str = datetime.now().strftime("%Y%m%d")
-    return RESULT_DIR / f"autoscaling_edos_traffic_trial__n{n_normal}-{n_anomaly}_scriptv{SCRIPT_VERSION}_{date_str}.json"
+    suffix = f"n{n_normal}-{n_anomaly}" + (f"-edge{n_edge}" if n_edge else "")
+    return RESULT_DIR / f"autoscaling_edos_traffic_trial__{suffix}_scriptv{SCRIPT_VERSION}_{date_str}.json"
 
 
 def main() -> None:
@@ -691,6 +723,10 @@ def main() -> None:
     parser.add_argument("--teardown", action="store_true")
     parser.add_argument("--n-anomaly", type=int, default=5)
     parser.add_argument("--n-normal", type=int, default=5)
+    parser.add_argument("--n-edge", type=int, default=0,
+                        help="[2026-09-14 추가] 경계 케이스 개수 - baseline 대비 %.0fx(극단적 "
+                             "50x보다 완만한) 트래픽 증가. label은 anomaly와 동일하게 취급되고 "
+                             "profile 필드로만 구분됨." % EDGE_SPIKE_RPS)
     parser.add_argument("--baseline-minutes", type=int, default=150)
     parser.add_argument("--spike-minutes", type=int, default=35,
                         help="anomaly의 트래픽 폭증 유지 시간(sustained_fraction 지속성 조건 고려)")
@@ -705,11 +741,11 @@ def main() -> None:
     logger.info("로그 파일: %s (SCRIPT_VERSION=%s)", log_path, SCRIPT_VERSION)
 
     if args.teardown:
-        teardown_all(args.n_anomaly, args.n_normal)
+        teardown_all(args.n_anomaly, args.n_normal, args.n_edge)
         return
 
     if args.setup:
-        setup_all(args.n_anomaly, args.n_normal)
+        setup_all(args.n_anomaly, args.n_normal, args.n_edge)
         return
 
     if not args.run:
@@ -731,20 +767,28 @@ def main() -> None:
         return _tg_dimension_value(tg["TargetGroupArn"])
 
     anomaly_asgs = [_asg_name("anomaly", i) for i in range(args.n_anomaly)]
+    edge_asgs = [_asg_name("edge", i) for i in range(args.n_edge)]
     normal_asgs = [_asg_name("normal", i) for i in range(args.n_normal)]
 
-    logger.info("=== anomaly %d개 + normal %d개, 총 %d개 시행 동시 병렬 시작 (트래픽 기반) ===",
-                args.n_anomaly, args.n_normal, args.n_anomaly + args.n_normal)
+    logger.info("=== anomaly %d개 + edge %d개 + normal %d개, 총 %d개 시행 동시 병렬 시작 (트래픽 기반) ===",
+                args.n_anomaly, args.n_edge, args.n_normal, args.n_anomaly + args.n_edge + args.n_normal)
 
     results = []
-    total_workers = args.n_anomaly + args.n_normal
+    total_workers = args.n_anomaly + args.n_edge + args.n_normal
     with ThreadPoolExecutor(max_workers=total_workers) as executor:
         futures = []
         for i in range(args.n_anomaly):
             name = anomaly_asgs[i]
             futures.append(executor.submit(
                 run_anomaly_trial, name, i, ports[name], alb_dns, alb_id_suffix, _tg_suffix(f"tg-anomaly-{i}"),
-                args.baseline_minutes, args.spike_minutes, args.metric_wait_sec, args.bypass_approval))
+                args.baseline_minutes, args.spike_minutes, args.metric_wait_sec, args.bypass_approval,
+                SPIKE_RPS, "extreme_spike"))
+        for i in range(args.n_edge):
+            name = edge_asgs[i]
+            futures.append(executor.submit(
+                run_anomaly_trial, name, i, ports[name], alb_dns, alb_id_suffix, _tg_suffix(f"tg-edge-{i}"),
+                args.baseline_minutes, args.spike_minutes, args.metric_wait_sec, args.bypass_approval,
+                EDGE_SPIKE_RPS, "edge_spike"))
         for i in range(args.n_normal):
             name = normal_asgs[i]
             futures.append(executor.submit(
@@ -753,7 +797,7 @@ def main() -> None:
         for future in as_completed(futures):
             results.append(future.result())
 
-    results.sort(key=lambda r: (r["label"], r["rep"]))
+    results.sort(key=lambda r: (r["label"], r.get("profile", ""), r["rep"]))
 
     metrics = {
         "production(detection_node 실제 방식)": compute_metrics(results, "detected_production"),
@@ -770,7 +814,26 @@ def main() -> None:
             lo, hi = m["recall_ci_95_clopper_pearson"]
             logger.info("    recall 95%% CI = [%.1f%%, %.1f%%]", lo * 100, hi * 100)
 
-    out_path = result_filename(args.n_normal, args.n_anomaly)
+    # [2026-09-14 추가] profile별(극단 스파이크 vs 경계 스파이크) recall을 따로 계산 -
+    # 합쳐서만 보면 "극단은 다 맞고 경계는 다 놓쳐도" recall이 좋게 보일 수 있어서,
+    # 반드시 나눠서 봐야 경계 케이스의 실제 탐지력을 알 수 있다.
+    normal_results = [r for r in results if r["label"] == "normal"]
+    profile_metrics: dict[str, dict] = {}
+    if args.n_edge > 0:
+        for profile_name in ("extreme_spike", "edge_spike"):
+            subset = [r for r in results if r["label"] == "anomaly" and r.get("profile") == profile_name] + normal_results
+            if any(r["label"] == "anomaly" for r in subset):
+                profile_metrics[profile_name] = {
+                    "production": compute_metrics(subset, "detected_production"),
+                    "iforest_only": compute_metrics(subset, "detected_iforest_only"),
+                    "zscore_only": compute_metrics(subset, "detected_zscore_only"),
+                }
+                pm = profile_metrics[profile_name]["production"]
+                logger.info("[profile=%s] production recall=%s (n_anomaly=%d)",
+                            profile_name, f"{pm['recall']:.1%}" if pm["recall"] is not None else "N/A",
+                            pm["n_anomaly"])
+
+    out_path = result_filename(args.n_normal, args.n_anomaly, args.n_edge)
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
@@ -778,14 +841,16 @@ def main() -> None:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "params": {
                 "baseline_minutes": args.baseline_minutes, "spike_minutes": args.spike_minutes,
-                "baseline_rps": BASELINE_RPS, "spike_rps": SPIKE_RPS,
-                "n_normal": args.n_normal, "n_anomaly": args.n_anomaly,
+                "baseline_rps": BASELINE_RPS, "spike_rps": SPIKE_RPS, "edge_spike_rps": EDGE_SPIKE_RPS,
+                "n_normal": args.n_normal, "n_anomaly": args.n_anomaly, "n_edge": args.n_edge,
             },
             "metrics": metrics,
+            "metrics_by_profile": profile_metrics,
             "trials": results,
         }, f, ensure_ascii=False, indent=2)
     logger.info("결과 저장: %s", out_path)
-    logger.warning("테스트 후 반드시 정리하세요: --teardown --n-anomaly %d --n-normal %d", args.n_anomaly, args.n_normal)
+    logger.warning("테스트 후 반드시 정리하세요: --teardown --n-anomaly %d --n-normal %d --n-edge %d",
+                   args.n_anomaly, args.n_normal, args.n_edge)
 
 
 if __name__ == "__main__":

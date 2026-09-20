@@ -33,6 +33,7 @@ from schema.state import PipelineState, SlaCheckResult
 from pipeline.action_agent import rollback_action
 from pipeline.orchestrator import assemble_resource
 from pipeline.rule_engine import get_rule_engine
+from pipeline.inbound_handlers import remove_waf_rate_based_rule
 from utils.slack_notifier import send_slack_alert
 
 logger = logging.getLogger(__name__)
@@ -41,8 +42,17 @@ logger = logging.getLogger(__name__)
 # 가져온 것 그대로였다 — cost_ok/cpu_ok 체크가 "액션 후 실제 효과"가 아니라
 # "액션 전 트렌드"만 보고 있었던 구조적 문제(세션에서 확인, 팀원 B 승인 후 적용).
 # CloudWatch가 5분 단위 구간이라 액션 직후 조회해도 새 구간이 안 잡혀서, 짧게라도
-# 기다렸다가 재조회해야 의미가 있다. 300초(5분)는 최소 한 구간이 지나가는 시간 —
-# 더 길게 주면 더 안정적인 데이터를 얻지만 파이프라인이 그만큼 느려지는 트레이드오프.
+# 기다렸다가 재조회해야 의미가 있다.
+#
+# 2026-09-14: 중간에 짧은 주기로 폴링하며 "값이 바뀌면 조기 종료"하는 방식을
+# 검토했으나 폐기했다 — 조회 윈도우가 항상 "지금부터 과거 300초"를 담는
+# 슬라이딩 윈도우라서, 300초가 채 지나기 전에 재조회하면 액션 전후 데이터가
+# 섞인 값만 얻는다. 섞인 값에서 감지되는 "변화"는 판단에 쓸 만큼 깨끗한
+# 신호가 아니라서(액션 전 구간이 아직 다수 섞여 있음), SLA 판단은 액션 이후
+# 데이터로만 온전히 채워지는 시점 — 즉 정확히 POST_ACTION_WAIT_SECONDS(300초)
+# 경과 시점의 값으로만 한다. 리소스 타입(EC2/Lambda/S3 등)과 무관하게 조회
+# 윈도우 폭 자체가 300초로 통일되어 있으므로, 이 상수도 리소스 타입 구분 없이
+# 동일하게 적용한다.
 POST_ACTION_WAIT_SECONDS = 300
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
@@ -54,13 +64,23 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
     LLM 판단 로그에 QA 결과를 추가.
     trace_id로 해당 로그 엔트리를 찾아 qa_result 필드를 업데이트.
 
-    LLM 판단이 아닌 경우(matched_rule_id가 있는 경우)는 스킵.
+    Decision 단계가 LLM 판단이 아닌 경우는 스킵.
+
+    ⚠️ 2026-09-12 버그 수정: 원래 이 조건이 state["matched_rule_id"]를 봤는데, 그건
+    Decision이 아니라 Classification 단계가 채우는 필드다(schema/state.py 참고 -
+    classification_agent.py의 CLF-xxx 규칙 매칭 결과). Classification은 거의 항상
+    규칙에 매칭되므로, Decision이 실제로 LLM을 썼어도 이 조건 때문에 매번 "LLM
+    판단 아님"으로 오판해 로깅을 건너뛰었다 - 그 결과 llm_decision_log.jsonl의
+    모든 LLM 판단 항목이 qa_result=null로 남아 decision_pseudocode_promoter.py가
+    검증된 패턴을 하나도 못 찾는 상태였다. Decision이 LLM을 썼는지는
+    decision_agent.py가 LLM 경로에서만 채우는 state["decision_pseudo_code"]로
+    판단해야 정확하다.
     """
     trace_id = state.get("trace_id")
-    matched_rule_id = state.get("matched_rule_id")
+    decision_used_llm = bool(state.get("decision_pseudo_code"))
 
-    # LLM 판단이 아니면 (Rule Book으로 분류됨) 로깅 스킵
-    if not trace_id or matched_rule_id is not None:
+    # Decision이 LLM 판단이 아니면(Rule Book으로 결정됨) 로깅 스킵
+    if not trace_id or not decision_used_llm:
         return
 
     qa_result = {
@@ -387,10 +407,45 @@ def _apply_rule_based_qa(state: PipelineState) -> Optional[tuple[SlaCheckResult,
             None,
         )
 
+    # 2026-09-14 버그 수정: action_result.status가 "failed"가 아니라 "not_implemented"인
+    # 경우(예: EC2에 ScaleDown처럼 execute_action()에 분기 자체가 없는 액션이 선택된 경우)를
+    # 위 "failed" 체크가 못 잡아서, 아무 조치도 안 됐는데 뒤이은 일반 SLA 체크(지표가 우연히
+    # 정상이면 통과)로 새서 qa_passed=True로 잘못 기록되는 사례가 실측(batch_pipeline_replay
+    # __EC2_20260912_134432.json의 i-018cb1f361adb89e8, ScaleDown)으로 확인됐다. "액션을
+    # 선택했는데 실행 자체가 안 된 것"은 "실패"보다도 더 명확한 검증 실패이므로 별도로 우선
+    # 처리한다.
+    if action_result.get("status") == "not_implemented":
+        return (
+            {
+                "cpu_ok": True,
+                "cost_ok": True,
+                "availability_ok": False,
+                "detail": f"액션 미구현: {action_executed} (resource_type={state.get('resource_type')})",
+            },
+            False,
+            f"[Rule] {action_executed} 액션이 이 리소스 타입에 구현되지 않아 실행되지 않음 "
+            f"— SLA 검증 실패로 처리",
+            None,
+        )
+
     # 4. 개별 SLA 체크
     cpu_ok, cpu_detail = _check_cpu_sla(state)
     cost_ok, cost_detail = _check_cost_sla(state)
     avail_ok, avail_detail = _check_availability_sla(state)
+
+    # 2026-09-14 버그 수정: 이 함수는 모든 분기에서 tuple을 반환해서 qa_node의
+    # `if rule_result is not None` 조건이 항상 참이 되고, 그 아래 LLM 기반 QA
+    # (_call_llm_qa, "모호한 케이스"를 처리하도록 설계된 폴백)가 실제로는 한 번도
+    # 호출되지 않는 죽은 코드였다(실측 확인). 규칙 기반 체크가 판단할 데이터 자체가
+    # 부족해서 "일단 통과"로 낙관 처리한 경우(_check_cpu_sla/_check_cost_sla가
+    # "지표 없음"/"데이터 부족"으로 자동 True를 준 경우)는 규칙만으로 확신할 수 없는
+    # 모호한 케이스이므로, 여기서 None을 반환해 LLM 검증으로 위임한다.
+    ambiguous = (
+        "체크할 트리거 지표 없음" in cpu_detail
+        or "데이터 부족" in cost_detail
+    )
+    if ambiguous:
+        return None
 
     all_ok = cpu_ok and cost_ok and avail_ok
 
@@ -499,6 +554,42 @@ def _call_llm_qa(state: PipelineState) -> tuple[SlaCheckResult, bool, str]:
     )
 
 
+def _release_waf_rate_limit_if_resolved(state: PipelineState) -> None:
+    """AutoScaling EDoS 대응으로 WAF Rate-based Rule을 걸었던 경우, QA가 트래픽
+    정상화를 확인했으면(qa_passed=True) 그 규칙을 자동으로 해제한다.
+
+    inbound_handlers.py의 remove_waf_rate_based_rule()은 이미 구현·테스트돼 있었지만
+    지금까지 파이프라인 어디서도 호출되지 않아 한 번도 실제로 해제된 적이 없었다
+    (2026-09-11 발견, 팀원 B 구현 + 여기서 연동). 이게 없으면 공격이 끝난 뒤에도
+    Rate-based Rule이 계속 남아 정상 트래픽까지 제한하게 된다."""
+    if state.get("resource_type") != "AutoScaling":
+        return
+    if state.get("action_executed") != "ScaleDown":
+        return
+
+    waf_result = (state.get("action_result") or {}).get("waf_result")
+    if not waf_result or waf_result.get("status") != "success":
+        return  # WAF가 애초에 안 걸렸으면(ALB 미연결 등) 해제할 것도 없음
+
+    log_entries = state.get("log_entries", [])
+    try:
+        release_result = remove_waf_rate_based_rule(
+            rule_name=waf_result["rule_name"],
+            web_acl_name=waf_result["web_acl_name"],
+            web_acl_id=waf_result["web_acl_id"],
+            dry_run=False,
+        )
+        log_entries.append(
+            f"[QA] 트래픽 정상화 확인 -> WAF Rate-based Rule 자동 해제 "
+            f"(status={release_result.get('status')})"
+        )
+        logger.info("[QA] WAF Rule 자동 해제: %s", release_result.get("status"))
+    except Exception as exc:
+        log_entries.append(f"[QA] WAF Rule 자동 해제 시도 실패: {exc}")
+        logger.warning("[QA] WAF Rule 자동 해제 실패: %s", exc)
+    state["log_entries"] = log_entries
+
+
 def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
     """
     QA 실패 확정 시 pre_action_snapshot으로 즉시 롤백을 실행한다.
@@ -565,6 +656,11 @@ def _refresh_metrics_after_action(state: PipelineState) -> None:
       "실측 후 -vs- 실측 전 기준선" 비교로 자연스럽게 성립한다.
     - 재조회 실패(권한 없음/리소스 삭제 등) 시 기존 raw_metrics를 그대로 유지하고
       경고만 남긴다 — QA가 죽지 않고 기존(액션 전) 데이터 기준으로라도 판단한다.
+    - 중간에 값이 바뀌었는지 짧은 주기로 미리 엿보고 조기 종료하는 방식은 의도적으로
+      쓰지 않는다 — 조회 윈도우가 "지금부터 과거 300초"를 담는 슬라이딩 윈도우라
+      300초가 되기 전에는 액션 전후 데이터가 섞인 값만 나오고, 그 상태에서 감지되는
+      변화는 SLA 판단에 쓸 만큼 깨끗한 신호가 아니다. 따라서 판단은 항상 정확히
+      POST_ACTION_WAIT_SECONDS(300초)가 지난 시점의 값으로만 한다.
     """
     action_executed = state.get("action_executed")
     if action_executed in (None, "NoAction"):
@@ -670,6 +766,10 @@ def qa_node(state: PipelineState) -> PipelineState:
                 f"사유: {reasoning}\n"
                 f"더 이상 자동 재시도하지 않습니다 — 관리자 확인이 필요합니다."
             )
+    else:
+        # 검증 통과: 문제가 해소됐으니, EDoS 대응으로 걸어둔 WAF Rate-based Rule이
+        # 있었다면 여기서 자동 해제한다 (안 그러면 정상 트래픽까지 계속 제한됨).
+        _release_waf_rate_limit_if_resolved(state)
 
     # 로그 엔트리 추가
     log_entries.append(f"[QA] {reasoning}")

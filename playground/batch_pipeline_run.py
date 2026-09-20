@@ -46,6 +46,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -65,19 +67,21 @@ RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 # EC2 좀비 실험에 쓴 13대 (ec2_zombie_manifest.json과 동일 — 라벨은 원래 실험 기준)
 EC2_INSTANCES = [
-    ("i-00f27d6650869a74d", "anomaly", "silent"),
-    ("i-094595e331b19be17", "anomaly", "silent"),
-    ("i-0238a05593fbcf2f2", "anomaly", "whisper"),
-    ("i-046cbf400dd6dc9d7", "anomaly", "whisper"),
-    ("i-013a9d143009d1376", "anomaly", "whisper_more"),
-    ("i-0e810265b88caeac5", "normal",  "light"),
-    ("i-0cd6cf73f56959d2e", "normal",  "light"),
-    ("i-07c77db4628d7e7ca", "normal",  "moderate"),
-    ("i-04cec80c3045da327", "normal",  "moderate"),
-    ("i-0380a0b372a973a5c", "normal",  "heavy"),
-    ("i-053230c6e903132f8", "normal",  "heavy"),
-    ("i-01aed37041b8e6946", "normal",  "bursty"),
-    ("i-0973aa83fa2ba0dd9", "normal",  "bursty"),
+    # 2026-09-14 EC2 좀비 v3(버그 수정판) 재실험 인스턴스로 갱신
+    # (manifest: playground/eval_outputs/ec2_zombie_manifest_20260914_170255.json)
+    ("i-0235ed717f891d57f", "anomaly", "idle_zombie"),
+    ("i-0b46188f0826d02e0", "anomaly", "idle_zombie"),
+    ("i-0b72ef53db68ffc5c", "anomaly", "idle_zombie"),
+    ("i-06c05ee2590c7cd99", "anomaly", "idle_zombie"),
+    ("i-01352f48e6f59c28f", "anomaly", "idle_zombie"),
+    ("i-0b0c24e9fc5067b21", "normal",  "target_cpu_45pct"),
+    ("i-06c8c47b5258182b7", "normal",  "target_cpu_45pct"),
+    ("i-0b927c4bc65ddeaa0", "normal",  "target_cpu_45pct"),
+    ("i-0a1a8de488307c4d3", "normal",  "target_cpu_45pct"),
+    ("i-01ad15e6c71c81dfb", "normal",  "target_cpu_45pct"),
+    ("i-0e13c3b6e9b0cb5cf", "normal",  "target_cpu_45pct"),
+    ("i-08e70038077d060c7", "normal",  "target_cpu_45pct"),
+    ("i-0656dbb14338c5a3d", "normal",  "target_cpu_45pct"),
 ]
 
 

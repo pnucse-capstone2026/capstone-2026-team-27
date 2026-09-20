@@ -216,5 +216,10 @@ class PipelineState(TypedDict):
         EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
     ]
 
+    # [ADDED] 단계별(detection/classification/decision/action/qa) 소요 시간(ms).
+    # pipeline/graph.py가 각 노드 호출을 감싸며 채우고, logging_agent.py가
+    # agent_steps.duration_ms(그동안 항상 NULL이었음)에 그대로 기록한다.
+    step_timings: dict[str, int]
+
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────
     log_entries: list[str]

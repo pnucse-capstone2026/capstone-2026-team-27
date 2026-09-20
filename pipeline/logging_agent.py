@@ -200,6 +200,10 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
         }),
     ]
 
+    # [ADDED] pipeline/graph.py의 _timed() 래퍼가 채워주는 단계별 실행 시간(ms).
+    # 예전엔 계측 자체가 없어서 항상 None이었다.
+    step_timings = state.get("step_timings") or {}
+
     records = []
     for step_name, output in steps:
         status = "skipped" if all(v is None for v in output.values()) else "success"
@@ -207,7 +211,7 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
             "step_name":   step_name,
             "status":      status,
             "output":      output,
-            "duration_ms": None,  # TODO: timing instrumentation 추가 후 채움
+            "duration_ms": step_timings.get(step_name),
         })
     return records
 

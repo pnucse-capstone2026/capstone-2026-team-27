@@ -29,3 +29,7 @@ pytest
 
 # 그래프 시각화
 grandalf==0.8
+
+# 웹 제어판 - 파이프라인 프로세스 제어(psutil) / 설정 YAML 내보내기(PyYAML)
+psutil==6.0.0
+PyYAML==6.0.2

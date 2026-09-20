@@ -35,9 +35,11 @@ from __future__ import annotations
 import os
 import logging
 import time
+import uuid
 from typing import Literal
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -47,15 +49,23 @@ DEFAULT_WAF_RATE_LIMIT = 2000  # 5분간 최대 요청 수 (AWS 최소값은 100
 DEFAULT_LAMBDA_THROTTLE_LIMIT = 0  # 동시성 0 = 완전 차단
 DEFAULT_ASG_SCALEDOWN_CAPACITY = 2  # 스케일다운 목표 용량
 MAX_WAF_RETRY = 2  # WAFOptimisticLockException 재시도 횟수
+MAX_WAF_ASSOCIATE_RETRY = 5  # AssociateWebACL의 WAFUnavailableEntityException(전파 지연) 재시도 횟수
+WAF_ASSOCIATE_RETRY_WAIT_SECONDS = 30  # 실측(2026-09-14)상 전파 지연이 수십 초 단위라 30초로 설정
 
 
 def _get_wafv2_client(scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL"):
     """
     boto3 WAFv2 클라이언트 생성.
     scope="CLOUDFRONT"일 경우 반드시 us-east-1 리전 사용.
+
+    2026-09-15 버그 수정: AutoScaling EDoS(n=23) 실험처럼 여러 리소스를
+    ThreadPoolExecutor로 동시에 처리하면 WAFv2 API에 짧은 시간에 요청이 몰려
+    ThrottlingException이 발생하는 사례가 실측으로 확인됐다. boto3 기본
+    재시도(standard, 3회)로는 부족해 adaptive 모드로 재시도 횟수를 늘림.
     """
     region = "us-east-1" if scope == "CLOUDFRONT" else os.getenv("AWS_DEFAULT_REGION")
-    return boto3.client("wafv2", region_name=region)
+    config = Config(retries={"mode": "adaptive", "max_attempts": 8})
+    return boto3.client("wafv2", region_name=region, config=config)
 
 
 def _get_lambda_client():
@@ -214,8 +224,14 @@ def _create_web_acl_with_rate_rule(
     aggregate_key: str,
     scope: str,
 ) -> dict:
-    """새 Web ACL을 생성하고 Rate-based Rule을 추가한 뒤 리소스에 연결."""
-    acl_name = f"auto-rate-limit-{int(time.time())}"
+    """새 Web ACL을 생성하고 Rate-based Rule을 추가한 뒤 리소스에 연결.
+
+    2026-09-15 버그 수정: 이름이 int(time.time())(초 단위)만으로 구성돼 있어서,
+    ThreadPoolExecutor로 여러 리소스를 동시에 처리하면 같은 초에 여러 스레드가
+    create_web_acl을 호출해 이름이 충돌 -> WAFDuplicateItemException이 8/8 재현됨
+    (실측, AutoScaling EDoS n=23 실험). uuid4 접미사를 붙여 동시 호출에서도 이름이
+    겹치지 않도록 수정."""
+    acl_name = f"auto-rate-limit-{int(time.time())}-{uuid.uuid4().hex[:8]}"
 
     try:
         rate_rule = _build_rate_based_rule(rule_name, limit, aggregate_key, priority=0)
@@ -235,8 +251,33 @@ def _create_web_acl_with_rate_rule(
         web_acl_arn = create_resp["Summary"]["ARN"]
         web_acl_id = create_resp["Summary"]["Id"]
 
-        # 리소스에 연결
-        waf.associate_web_acl(WebACLArn=web_acl_arn, ResourceArn=resource_arn)
+        # 2026-09-14 버그 수정(1차, 불충분): create_web_acl() 직후 바로 associate_web_acl()을
+        # 호출하면 AWS 내부적으로 방금 만든 ALB/Web ACL이 아직 WAF 쪽에 전파(propagate)되기
+        # 전이라 WAFUnavailableEntityException("...Retry your request.")이 뜬다. 실측(v7,
+        # n=15 EDoS 실험)에서 ScaleDown+WAF 8건 전부 이 이유로 동일하게 실패하는 걸
+        # 확인했다. 1차 수정은 2초→4초(총 6초, MAX_WAF_RETRY=2) 재시도였는데 여전히 8/8
+        # 실패했다 — 전파 지연이 6초보다 훨씬 길다는 뜻이었다.
+        #
+        # 2026-09-14 버그 수정(2차, 근본 해결): 별도 재현 스크립트로 신규 ALB+Web ACL을
+        # 만들어 직접 재시도 간격을 늘려가며 관찰한 결과, 30초 대기 후 1회 재시도만으로
+        # 성공을 확인했다(`playground/eval_outputs/logs/waf_association_repro_20260914.log`
+        # 참고). 전파 지연은 실제로는 수십 초 수준이었고, 기존 6초 재시도가 그 앞에서
+        # 항상 포기했던 것이 8/8 실패의 진짜 원인이었다. 재시도 간격을 30초로 늘리고
+        # 횟수도 늘려서(association 전용 상수) 재발을 방지한다.
+        for attempt in range(MAX_WAF_ASSOCIATE_RETRY + 1):
+            try:
+                waf.associate_web_acl(WebACLArn=web_acl_arn, ResourceArn=resource_arn)
+                break
+            except ClientError as assoc_exc:
+                error_code = assoc_exc.response.get("Error", {}).get("Code", "")
+                if error_code == "WAFUnavailableEntityException" and attempt < MAX_WAF_ASSOCIATE_RETRY:
+                    logger.warning(
+                        "WAFUnavailableEntityException(전파 지연) — %d초 대기 후 재시도 %d/%d",
+                        WAF_ASSOCIATE_RETRY_WAIT_SECONDS, attempt + 1, MAX_WAF_ASSOCIATE_RETRY,
+                    )
+                    time.sleep(WAF_ASSOCIATE_RETRY_WAIT_SECONDS)
+                    continue
+                raise
 
         logger.info(
             "새 Web ACL '%s' 생성 및 리소스 연결 완료 (ARN: %s)", acl_name, web_acl_arn

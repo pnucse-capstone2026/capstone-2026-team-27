@@ -40,6 +40,14 @@ _STATE_CHANGE_EVENTS: dict[str, dict[str, str]] = {
 
 EC2_HOURLY_RATE: dict[str, float] = {
     "t3.micro": 0.013,
+    # t3.small 이상 tier 추가 (2026-09-11) — 오버프로비저닝 실험에서 t3.small을
+    # 처음 실측하며 "단가 미등록" 에러로 발견. decision_agent.py의
+    # EC2_HOURLY_PRICE_USD(리사이즈 tier 계산용, ap-northeast-2 2026-07 근사치)와
+    # 값을 맞춰서 두 표가 서로 다른 단가를 쓰지 않게 통일.
+    "t3.small":  0.0210,
+    "t3.medium": 0.0420,
+    "t3.large":  0.0830,
+    "t3.xlarge": 0.1660,
 }
 
 RDS_HOURLY_RATE: dict[str, float] = {

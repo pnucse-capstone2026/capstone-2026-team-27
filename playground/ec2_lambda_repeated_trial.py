@@ -181,8 +181,26 @@ def detect_both(resource_type: str, resource_id: str, resource_age_seconds: floa
             z_persist = True
 
     if_score_p, if_trig_p = da._iforest_score_and_trigger(resource_type, usage_with_cost)
-    _, idle_trig, _ = da._low_utilization_check(resource_type, usage_with_cost, resource_age_seconds)
+    # [버그 수정, 2026-09-14] _low_utilization_check()의 세 번째 반환값(utilization_band)이
+    # "zombie"/"overprovisioned"/None을 정확히 구분해주는데, 이 함수는 그동안 그 값을
+    # 버리고(_) 두 번째 값(단순 트리거 여부)만 보고 무조건 "idle"로 라벨링했다. 그 결과
+    # EC2 좀비 v2(엣지케이스) 실험에서 CPU 7%대(오버프로비저닝 밴드)인 edge_normal
+    # 인스턴스가 "idle"로 잘못 표시되어 오탐으로 집계되는 사고가 실측으로 확인됐다.
+    # detection_node()(pipeline/detection_agent.py:895)는 원래도 이 세 번째 값을
+    # state["ec2_utilization_band"]에 정확히 저장하고 있었으므로, 실제 프로덕션
+    # 파이프라인이 아니라 이 측정 스크립트만의 버그였다.
+    idle_metrics, idle_trig, utilization_band = da._low_utilization_check(
+        resource_type, usage_with_cost, resource_age_seconds)
     _, surge_trig = da._lambda_error_rate_check(resource_type, usage_with_cost)
+
+    if utilization_band == "zombie":
+        absolute_kind = "idle"
+    elif utilization_band == "overprovisioned":
+        absolute_kind = "overprovisioned"
+    elif surge_trig:
+        absolute_kind = "error_surge"
+    else:
+        absolute_kind = None
 
     out["production"] = {
         "zscore_persistent": bool(z_persist),
@@ -190,7 +208,8 @@ def detect_both(resource_type: str, resource_id: str, resource_age_seconds: floa
         "iforest_score": round(if_score_p, 4),
         "iforest_triggered": bool(if_trig_p),
         "absolute_triggered": bool(idle_trig or surge_trig),
-        "absolute_kind": "idle" if idle_trig else ("error_surge" if surge_trig else None),
+        "absolute_kind": absolute_kind,
+        "ec2_utilization_band": utilization_band,
         "or_gate": bool(z_persist or if_trig_p or idle_trig or surge_trig),
     }
     return out
@@ -339,9 +358,16 @@ def compute_metrics(results: list[dict], detect_key: str) -> dict:
     }
 
 
-def result_filename(scenario: str, n_normal: int, n_anomaly: int) -> Path:
+def result_filename(scenario: str, n_normal: int, n_anomaly: int, tag: str | None = None) -> Path:
+    # [버그 수정, 2026-09-14] scenario가 항상 "ec2"/"lambda"뿐이라, 같은 --scenario ec2로
+    # 좀비/오버프로비저닝처럼 서로 다른 매니페스트를 측정해도 결과 파일명이 구분되지 않아
+    # 나중에 통계 리포트에서 다른 실험의 결과를 잘못 골라 쓰는 사고가 실제로 있었다
+    # (ec2_repeated_trial__n8-5_scriptv1_20260912.json이 오버프로비저닝 재측정 데이터였는데
+    # "EC2 좀비" 데이터로 잘못 참조됨). tag가 있으면(매니페스트의 "scenario" 필드) 파일명에
+    # 그대로 반영해 어떤 실험인지 파일명만 보고 알 수 있게 한다.
     date_str = datetime.now().strftime("%Y%m%d")
-    return RESULT_DIR / (f"{scenario}_repeated_trial__n{n_normal}-{n_anomaly}_"
+    name_scenario = tag or scenario
+    return RESULT_DIR / (f"{name_scenario}_repeated_trial__n{n_normal}-{n_anomaly}_"
                           f"scriptv{SCRIPT_VERSION}_{date_str}.json")
 
 
@@ -361,6 +387,7 @@ def main() -> None:
         parser.print_help()
         return
 
+    manifest_tag = None
     if args.scenario == "lambda":
         logger.info("=== Lambda 13개 함수 동시 병렬 시행 (anomaly 5 + normal 8) ===")
         results = []
@@ -375,7 +402,8 @@ def main() -> None:
     else:
         if not args.manifest:
             parser.error("--scenario ec2 에는 --manifest 가 필요합니다")
-        logger.info("=== EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===")
+        manifest_tag = json.loads(Path(args.manifest).read_text(encoding="utf-8")).get("scenario")
+        logger.info("=== EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 (manifest scenario=%s) ===", manifest_tag)
         try:
             results = run_ec2_trials(Path(args.manifest))
         except RuntimeError as exc:
@@ -402,12 +430,14 @@ def main() -> None:
 
     n_norm = metrics["production(detection_node 실제 방식)"]["n_normal"]
     n_anom = metrics["production(detection_node 실제 방식)"]["n_anomaly"]
-    out_path = result_filename(args.scenario, n_norm, n_anom)
+    out_path = result_filename(args.scenario, n_norm, n_anom, tag=manifest_tag)
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "script_version": SCRIPT_VERSION,
             "scenario": args.scenario,
+            "manifest_scenario": manifest_tag,
+            "source_manifest": args.manifest,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "params": {"phase_minutes": args.phase_minutes, "wait_sec": args.wait_sec,
                         "n_normal": n_norm, "n_anomaly": n_anom},

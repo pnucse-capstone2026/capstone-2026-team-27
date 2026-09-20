@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import pickle
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Iterator, Optional
@@ -82,10 +83,15 @@ EC2_IDLE_CPU_THRESHOLD_PCT = 5.0   # peak(윈도우 내 최댓값) 기준
 #   peak CPU > 20%         → 정상
 EC2_OVERPROVISION_CPU_THRESHOLD_PCT = 20.0
 
-_EC2_IDLE_NETWORK_IO_MB_PER_DAY = 5.0
+_EC2_IDLE_NETWORK_IO_MB_PER_DAY = 10.0
+# [버그 수정, 2026-09-14] 원래 5.0MB/day였으나, 완전 유휴 인스턴스에서도 SSM
+# 에이전트 자체의 하트비트/폴링 트래픽만으로 네트워크 I/O가 하루 환산 약 7.75MB/day
+# 나오는 것을 실측으로 확인함(2026-09-14 EC2 좀비 n=13 재실험, idle 인스턴스 5대
+# 전부 CPU는 0%대인데 network_io 조건에 걸려 좀비로 탐지되지 않던 문제). 여유
+# 마진을 두어 10.0MB/day로 상향.
 _EC2_IDLE_WINDOW_HOURS = (30 * 300) / 3600  # n_points × period_seconds 기본값 = 2.5시간
-# 5MB/day를 윈도우 길이에 비례 환산 (network_in/network_out은 Sum 스탯이라
-# 누적량이므로 비례식이 그대로 성립) → 약 546,133 bytes(~0.52MB)
+# 위 MB/day를 윈도우 길이에 비례 환산 (network_in/network_out은 Sum 스탯이라
+# 누적량이므로 비례식이 그대로 성립)
 EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD = (
     _EC2_IDLE_NETWORK_IO_MB_PER_DAY * 1024 * 1024 * (_EC2_IDLE_WINDOW_HOURS / 24)
 )
@@ -629,6 +635,20 @@ def _model_independent_seed_check(
     return z_max, believed_normal
 
 
+# [버그 수정, 2026-09-14] AutoScaling EDoS v7 실험(23개 리소스를 ThreadPoolExecutor로
+# 동시 처리)에서, 같은 리소스의 같은 raw_metrics로 detection_node()를 두 번 연달아
+# 호출했는데(after 스냅샷 계산 1회 + run_full_pipeline_from_metrics 내부에서 1회)
+# 두 호출 사이에 anomaly_flag가 True→False로 바뀌는 사고가 실측으로 확인됐다.
+# 원인: 이 함수가 모델/학습버퍼를 파일(pickle)로 읽고 쓰는데 락이 전혀 없어서,
+# 같은 프로세스 안의 다른 스레드(다른 리소스)가 그 사이에 버퍼를 갱신·재학습해
+# 파일을 덮어써버리면 바로 이어지는 두 번째 호출이 "방금 바뀐 모델"을 읽어버린다.
+# threading.Lock으로 이 함수 전체(모델 로드~버퍼 갱신~재학습~저장)를 임계구역으로
+# 묶어 같은 프로세스 내 스레드 간 경합은 막는다. (별도 프로세스 여러 개가 동시에
+# 이 파일들에 접근하는 경우까지는 이 락으로 못 막음 — 그건 파일 시스템 레벨 락이
+# 필요한데, 지금 파이프라인은 단일 워커 프로세스로만 운영되므로 별도 처리 안 함.)
+_IFOREST_TRAIN_LOCK = threading.Lock()
+
+
 def _get_or_train_iforest(
     resource_type: str, metrics: dict[str, list[float]]
 ) -> Optional[IsolationForest]:
@@ -639,6 +659,13 @@ def _get_or_train_iforest(
        모델이 잠정적으로 정상이라고 판단한 것들을 리소스 타입별로 모은 누적 버퍼.
        AWS 연동 후엔 이 버퍼링 정책을 유지하면서 데이터 소스만 확장하면 된다.
     """
+    with _IFOREST_TRAIN_LOCK:
+        return _get_or_train_iforest_locked(resource_type, metrics)
+
+
+def _get_or_train_iforest_locked(
+    resource_type: str, metrics: dict[str, list[float]]
+) -> Optional[IsolationForest]:
     cached = _load_cached_model(IFOREST_UNIFIED_MODEL_NAME)
     n = len(next(iter(metrics.values())))
 
@@ -936,6 +963,7 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "qa_matched_rule_id": None,
         "whitelisted":       False,
 
+        "step_timings": {},
         "log_entries": [],
     }
 
