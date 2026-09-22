@@ -43,6 +43,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -50,7 +52,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
-from config import decision_policy, pipeline_live_status
+from config import decision_policy, pipeline_live_status, last_normal_check
 from pipeline.resource_discovery import discover_all_resources
 from pipeline.orchestrator import assemble_resource
 from pipeline.detection_agent import _build_initial_state
@@ -150,6 +152,7 @@ def _run_once(app, resource_types: list[str] | None = None) -> tuple[int, int]:
 
     if n_anomaly == 0:
         print(f"  이상 없음 ({n_scanned}개 리소스 정상)")
+        last_normal_check.write()
     return n_scanned, n_anomaly
 
 
