@@ -142,6 +142,7 @@ def _log_cost_prediction(
     except Exception as e:
         logger.warning("cost_prediction_log 기록 실패: %s", e)
 
+
 # 1. 설정값
 # JSON 파싱 재시도 최대 횟수
 MAX_LLM_RETRIES = 2
@@ -164,6 +165,9 @@ EC2_HOURLY_PRICE_USD: list[tuple[str, float]] = [
 # 단순화된 가정. 실제 스케줄 정책이 정해지면 이 상수를 정교화해야 한다.
 STOP_SCHEDULE_DUTY_CYCLE_ASSUMPTION = 0.5
 
+COST_METRIC_PERIOD_SECONDS = 300
+SECONDS_PER_HOUR = 3600
+
 # Throttle/ScaleDown의 "급증분 대비 기준선" 계산에 필요한 최소 cost 데이터 포인트 수.
 # 이보다 적으면 급증 구간과 평상 구간을 나눌 수 없어 LLM/규칙 기반 fallback으로 넘어간다.
 MIN_COST_POINTS_FOR_TREND = 4
@@ -176,13 +180,13 @@ MIN_RECENT_SPIKE_POINTS = 3
 # NoAction의 기본값이자, LLM 미설정/완전 실패 시 fallback 테이블로도 쓰인다.
 # (saving_rate 항목은 이제 cost 결정론적 계산이 불가능한 예외 상황에서만 참조된다)
 RULE_BASED_SCORE_TABLE: dict[str, tuple[float, float, float]] = {
-    "NoAction":      (0.0, 0.0, 1.0),
-    "Stop":          (0.9, 0.1, 0.8),
+    "NoAction": (0.0, 0.0, 1.0),
+    "Stop": (0.9, 0.1, 0.8),
     "Stop+Schedule": (0.7, 0.2, 0.8),
-    "Resize":        (0.5, 0.3, 0.7),
-    "Throttle":      (0.4, 0.2, 0.8),
-    "Block":         (0.6, 0.4, 0.6),
-    "ScaleDown":     (0.6, 0.3, 0.7),
+    "Resize": (0.5, 0.3, 0.7),
+    "Throttle": (0.4, 0.2, 0.8),
+    "Block": (0.6, 0.4, 0.6),
+    "ScaleDown": (0.6, 0.3, 0.7),
 }
 
 # [ADDED] 액션 선택을 LLM에게 맡기기 위한 boto3 공식 API 스펙 테이블.
@@ -210,7 +214,10 @@ BOTO3_SPEC: dict[str, dict] = {
         "cost_effect": "단가 차이만큼 절감. t3.medium → t3.small: 약 50% 절감.",
         "side_effects": "재시작 필요 (다운타임 발생). 일부 타입 간 변경 불가.",
         "reversible": True,
-        "exceptions": ["IncorrectInstanceState", "InvalidParameterValue(타입 변경 불가)"],
+        "exceptions": [
+            "IncorrectInstanceState",
+            "InvalidParameterValue(타입 변경 불가)",
+        ],
     },
     "Throttle": {
         "api": "lambda.put_function_concurrency(FunctionName='string', ReservedConcurrentExecutions=123)",
@@ -218,7 +225,11 @@ BOTO3_SPEC: dict[str, dict] = {
         "cost_effect": "급증분(초과 호출)만 차단. 정상 범위 내 비용은 유지.",
         "side_effects": "ReservedConcurrentExecutions=0 설정 시 함수 완전 중단. 계정 전체에 최소 100개 미예약 슬롯 필요.",
         "reversible": True,
-        "exceptions": ["InvalidParameterValueException", "ResourceNotFoundException", "TooManyRequestsException"],
+        "exceptions": [
+            "InvalidParameterValueException",
+            "ResourceNotFoundException",
+            "TooManyRequestsException",
+        ],
     },
     "ScaleDown": {
         "api": "autoscaling.update_auto_scaling_group(AutoScalingGroupName='string', MaxSize=123, MinSize=123, DesiredCapacity=123)",
@@ -246,6 +257,61 @@ BOTO3_SPEC: dict[str, dict] = {
     },
 }
 
+# 2026-09-12 버그 수정: ALLOWED_ACTIONS(schema/state.py)가 anomaly_type만 보고
+# resource_type을 안 보다 보니, 예를 들어 Lambda(cost_spike)에도 ScaleDown/Block이
+# "허용 액션"으로 잡혀서 LLM 프롬프트에 올라갔다. ScaleDown은 Lambda용 실행 로직이
+# action_agent.py에 아예 없고(not_implemented로 빠짐), Block은 실행은 되지만
+# (동시성 0으로 처리) 위 BOTO3_SPEC["Block"]은 S3 기준으로 적혀 있어 LLM한테
+# 완전히 엉뚱한 API 설명을 보여주는 문제가 있었다.
+#
+# action_agent.py의 실제 dispatcher(execute_action)와 반드시 일치시킬 것 - 여기서
+# "구현됨"이라고 적어놓고 실제로는 action_agent.py에 없으면 not_implemented로
+# 빠지는 액션이 또 생긴다.
+RESOURCE_IMPLEMENTED_ACTIONS: dict[str, set[str]] = {
+    "EC2": {
+        "NoAction",
+        "Stop",
+        "Resize",
+        "Block",
+    },  # Block은 ALB 연결된 경우만(action_agent 내부 조건)
+    "Lambda": {"NoAction", "Throttle", "Block"},
+    "AutoScaling": {"NoAction", "ScaleDown", "Block"},
+    "S3": {"NoAction", "Block"},
+    "RDS": {
+        "NoAction"
+    },  # RDS 액션 미구현 - action_agent.py 주석 "RDS는 추후 각자 확장" 참고
+}
+
+# Block처럼 액션 이름은 같아도 리소스마다 실제 동작(API)이 다른 경우의 리소스별
+# 오버라이드. 여기 없으면 BOTO3_SPEC[action](기본값, 처음 만들어질 때 기준이 된
+# 리소스 - Block은 S3)을 그대로 쓴다.
+BOTO3_SPEC_BY_RESOURCE: dict[tuple[str, str], dict] = {
+    ("Lambda", "Block"): {
+        "api": "lambda.put_function_concurrency(FunctionName='string', ReservedConcurrentExecutions=0)",
+        "description": "Lambda 함수 동시 실행 수를 0으로 예약해 호출 자체를 완전 차단.",
+        "cost_effect": "해당 함수 호출로 인한 비용을 100% 제거.",
+        "side_effects": "정상 호출도 전부 차단됨(요청 시 즉시 실패).",
+        "reversible": True,
+        "exceptions": ["InvalidParameterValueException", "ResourceNotFoundException"],
+    },
+    ("AutoScaling", "Block"): {
+        "api": "autoscaling.update_auto_scaling_group(MaxSize=2) + WAF Rate-based Rule 적용",
+        "description": "ScaleDown(용량 축소)에 더해 WAF Rate-based Rule로 요청 자체도 제한.",
+        "cost_effect": "급증 인스턴스 비용 차단 + 공격 트래픽 자체를 요청 단계에서 제한.",
+        "side_effects": "Rate limit에 걸리면 동일 IP의 정상 요청도 함께 차단될 수 있음.",
+        "reversible": True,
+        "exceptions": ["ResourceContentionFault", "WAFLimitsExceededException"],
+    },
+}
+
+
+def _get_boto3_spec(action: str, resource_type: str) -> dict:
+    """action의 리소스별 오버라이드가 있으면 그걸, 없으면 기본 BOTO3_SPEC을 반환."""
+    return BOTO3_SPEC_BY_RESOURCE.get((resource_type, action)) or BOTO3_SPEC.get(
+        action, {}
+    )
+
+
 # 2. 헬퍼 함수들
 def _clamp01(value: float) -> float:
     """
@@ -271,6 +337,7 @@ def _mean(values: list[float]) -> float:
 
 # ── saving_rate 결정론적 계산 (cost 시계열 기반) ─────────────────────────────
 
+
 def _cost_based_full_removal_saving(
     raw_metrics: dict, fraction: float
 ) -> tuple[float, float] | None:
@@ -279,15 +346,22 @@ def _cost_based_full_removal_saving(
     출력: (saving_rate, estimated_saving_usd), cost 데이터 없으면 None
 
     Stop(fraction=1.0)/Stop+Schedule(fraction=듀티사이클 가정치)에 공통 사용.
-    "현재 평균 비용 × fraction"을 절감 예상액으로, fraction 자체를
+    "현재 평균 비용(시간당 환산) × fraction"을 절감 예상액으로, fraction 자체를
     saving_rate(현재 지출 대비 제거되는 비율)로 사용한다.
+
+    [버그 수정 2026-09-20] raw_metrics["cost"]는 5분(COST_METRIC_PERIOD_SECONDS)당
+    금액이라 평균을 그대로 쓰면 estimated_saving_usd가 실제 시간당 절감액의 1/12로
+    찍혔다 - 여기서 시간당으로 환산한다.
     """
     cost_values = raw_metrics.get("cost", [])
     if not cost_values:
         return None
 
-    avg_cost = _mean(cost_values)
-    estimated_saving_usd = round(avg_cost * fraction, 6)
+    avg_cost_per_period = _mean(cost_values)
+    avg_cost_per_hour = avg_cost_per_period * (
+        SECONDS_PER_HOUR / COST_METRIC_PERIOD_SECONDS
+    )
+    estimated_saving_usd = round(avg_cost_per_hour * fraction, 6)
     saving_rate = _clamp01(fraction)
     return saving_rate, estimated_saving_usd
 
@@ -300,7 +374,9 @@ def _get_ec2_price_index(instance_type: str) -> int | None:
     return None
 
 
-def _ec2_resize_saving(raw_metrics: dict, resource_id: str | None = None) -> tuple[float, float, str]:
+def _ec2_resize_saving(
+    raw_metrics: dict, resource_id: str | None = None
+) -> tuple[float, float, str]:
     """
     입력: raw_metrics (EC2Metrics, cost 리스트 포함), resource_id (EC2 인스턴스 ID)
     출력: (saving_rate, estimated_saving_usd, target_instance_type)
@@ -325,12 +401,16 @@ def _ec2_resize_saving(raw_metrics: dict, resource_id: str | None = None) -> tup
             else:
                 logger.warning(
                     "[decision_agent] EC2 실제 타입 '%s'이 EC2_HOURLY_PRICE_USD 표에 없어 "
-                    "cost 역추정으로 폴백 (resource_id=%s)", real_type, resource_id,
+                    "cost 역추정으로 폴백 (resource_id=%s)",
+                    real_type,
+                    resource_id,
                 )
         except Exception as exc:
             logger.warning(
                 "[decision_agent] describe_instances 실패, cost 역추정으로 폴백 "
-                "(resource_id=%s): %s", resource_id, exc,
+                "(resource_id=%s): %s",
+                resource_id,
+                exc,
             )
 
     if current_idx is None:
@@ -367,6 +447,10 @@ def _trend_based_partial_saving(raw_metrics: dict) -> tuple[float, float, float]
     cost 윈도우를 앞쪽(기준선)과 뒤쪽(최근 급증 구간)으로 나눠, 급증 구간
     평균이 기준선 평균보다 얼마나 높은지를 "제거 가능한 초과분"으로 본다.
 
+    [버그 수정 2026-09-20] _cost_based_full_removal_saving()과 같은 문제 -
+    raw_metrics["cost"]가 5분(COST_METRIC_PERIOD_SECONDS)당 금액이라 excess를
+    그대로 쓰면 estimated_saving_usd가 실제 시간당 절감액의 1/12로 찍혔다.
+
     recent_avg(최근 급증 구간 평균)도 함께 반환하는 이유: 이 액션들의
     estimated_saving_usd는 raw_metrics 전체 평균이 아니라 이 recent_avg를
     기준으로 계산됐기 때문에, decision_node에서 "before -> after 비용"을
@@ -378,7 +462,9 @@ def _trend_based_partial_saving(raw_metrics: dict) -> tuple[float, float, float]
     if len(cost_values) < MIN_COST_POINTS_FOR_TREND:
         return None
 
-    recent_n = max(MIN_RECENT_SPIKE_POINTS, int(len(cost_values) * RECENT_SPIKE_WINDOW_RATIO))
+    recent_n = max(
+        MIN_RECENT_SPIKE_POINTS, int(len(cost_values) * RECENT_SPIKE_WINDOW_RATIO)
+    )
     recent_n = min(recent_n, len(cost_values) - 1)  # 기준선에 최소 1개는 남겨야 함
 
     baseline_values = cost_values[:-recent_n]
@@ -392,7 +478,8 @@ def _trend_based_partial_saving(raw_metrics: dict) -> tuple[float, float, float]
 
     excess = max(0.0, recent_avg - baseline_avg)
     saving_rate = _clamp01(excess / recent_avg)
-    estimated_saving_usd = round(excess, 6)
+    excess_per_hour = excess * (SECONDS_PER_HOUR / COST_METRIC_PERIOD_SECONDS)
+    estimated_saving_usd = round(excess_per_hour, 6)
     return saving_rate, estimated_saving_usd, recent_avg
 
 
@@ -460,14 +547,14 @@ def _build_action_selection_prompt(
     """
     spec_text = ""
     for action in allowed_actions:
-        spec = BOTO3_SPEC.get(action, {})
+        spec = _get_boto3_spec(action, resource_type)
         spec_text += f"""
 [{action}]
-  API: {spec.get('api', 'N/A')}
-  설명: {spec.get('description', '')}
-  비용 효과: {spec.get('cost_effect', '')}
-  부작용: {spec.get('side_effects', '')}
-  복구 가능: {spec.get('reversible', True)}
+  API: {spec.get("api", "N/A")}
+  설명: {spec.get("description", "")}
+  비용 효과: {spec.get("cost_effect", "")}
+  부작용: {spec.get("side_effects", "")}
+  복구 가능: {spec.get("reversible", True)}
 """
 
     # [ADDED] 액션별로 이미 결정론적으로 계산된 saving_rate/estimated_saving_usd를
@@ -488,13 +575,34 @@ def _build_action_selection_prompt(
         }
 
     metrics_summary = {}
-    for key in ["cpu_utilization", "network_in", "cost", "invocation_count",
-                "error_count", "group_in_service_instances", "bytes_downloaded"]:
+    for key in [
+        "cpu_utilization",
+        "network_in",
+        "cost",
+        "invocation_count",
+        "error_count",
+        "group_in_service_instances",
+        "bytes_downloaded",
+    ]:
         values = raw_metrics.get(key, [])
         if values:
             metrics_summary[key] = {"mean": round(_mean(values), 4), "n": len(values)}
 
     priority_weight = get_priority_weight()
+
+    # [ADDED] 2026-09-12: pseudo_code에서 쓸 변수명을 미리 고정해서 프롬프트에 못박아준다.
+    # 예전엔 "cpu_mean" 대신 "avg_cpu"/"cpu_avg" 등으로 매번 다르게 표현해서, 같은
+    # 판단 로직인데도 decision_pseudocode_promoter.py의 문자열 일치 비교(정규화 후에도)
+    # 에서 다른 패턴으로 취급되는 문제가 있었다(pseudo_code 일관성이 액션 일관성보다
+    # 훨씬 낮게 나옴). 여기서 쓸 수 있는 변수명 목록을 명시하고 그것만 쓰도록 강제한다.
+    metric_var_names = [f"{key}_mean" for key in metrics_summary] + [
+        f"{key}_latest" for key in metrics_summary
+    ]
+    action_var_names = [
+        f"action_scores['{a}']['saving_rate']" for a in allowed_actions
+    ] + [
+        f"action_scores['{a}']['estimated_saving_usd_per_hr']" for a in allowed_actions
+    ]
 
     return f"""당신은 AWS FinOps 전문가입니다.
 클라우드 리소스 이상 탐지 후 실행할 최적 액션 1개를 선택해주세요.
@@ -516,11 +624,21 @@ def _build_action_selection_prompt(
 3. 이상 유형에 맞는 액션을 선택할 것
 4. 부작용이 최소화되는 방향으로 보수적으로 판단할 것
 
+## pseudo_code 작성 규칙 (중요 - Rule Book 승격 후보 분석에 쓰이므로 반드시 지킬 것)
+1. 아래 변수명만 사용하세요. 동의어나 줄임말을 새로 만들지 마세요:
+   지표 변수: {", ".join(metric_var_names) if metric_var_names else "(해당 없음)"}
+   비용 변수: {", ".join(action_var_names)}
+2. 조건은 "if 조건1 and 조건2: return 액션(파라미터)" 형태로, 실제 위 수치에 등장하는
+   구체적인 숫자를 임계값으로 써서 최소 2개 이상의 조건을 명시하세요(가능하면).
+   막연한 표현("spike_detected", "적절한 경우" 등) 금지 - 반드시 "{{변수명}} {{비교연산자}} {{숫자}}"
+   형태로만 조건을 쓰세요.
+3. 예시: "if cpu_utilization_mean < 5.0 and action_scores['Resize']['saving_rate'] > 0.3: return 'Resize'(target=one_tier_down)"
+
 아래 JSON 형식으로만 응답하세요. 설명, 마크다운, 다른 텍스트 절대 포함 금지:
 {{
   "action": "<액션명>",
   "reason": "<선택 이유 한 문장>",
-  "pseudo_code": "<판단 로직을 if-else 형태의 pseudo code 한 줄로. 예: if cpu_mean < 5.0 and cost_spike_detected: return 'Resize'(target=one_tier_down)>"
+  "pseudo_code": "<위 pseudo_code 작성 규칙을 지킨 if-else 한 줄>"
 }}
 """
 
@@ -567,7 +685,9 @@ def _invoke_llm_with_retry(prompt: str, action: str) -> dict | None:
         if parsed is None:
             logger.warning(
                 "LLM 응답 JSON 파싱 실패 (action=%s, attempt=%d): %r",
-                action, attempt, raw_text,
+                action,
+                attempt,
+                raw_text,
             )
             continue
         return parsed
@@ -586,7 +706,9 @@ def _estimate_saving_rate_with_llm(
     (estimated_saving_usd는 이 경로에서는 근거 있는 금액을 만들 수 없으므로
      호출부에서 항상 0.0으로 둔다)
     """
-    prompt = _build_saving_rate_only_prompt(action, anomaly_type, resource_type, raw_metrics)
+    prompt = _build_saving_rate_only_prompt(
+        action, anomaly_type, resource_type, raw_metrics
+    )
     parsed = _invoke_llm_with_retry(prompt, action)
     if parsed is None:
         saving, _, _ = RULE_BASED_SCORE_TABLE.get(action, (0.0, 0.0, 1.0))
@@ -620,7 +742,11 @@ def _select_action_with_llm(
     parsed = _invoke_llm_with_retry(prompt, "action_selection")
 
     if parsed is None:
-        return _rule_based_fallback_action(allowed_actions), "LLM 실패 - 룰 기반 선택", ""
+        return (
+            _rule_based_fallback_action(allowed_actions),
+            "LLM 실패 - 룰 기반 선택",
+            "",
+        )
 
     llm_action = parsed.get("action", "NoAction")
     reason = parsed.get("reason", "")
@@ -629,9 +755,15 @@ def _select_action_with_llm(
     # 환각 방어: ALLOWED_ACTIONS 범위 밖이면 fallback
     if llm_action not in allowed_actions:
         logger.warning(
-            "LLM이 허용되지 않은 액션 추천: %s (allowed: %s)", llm_action, allowed_actions
+            "LLM이 허용되지 않은 액션 추천: %s (allowed: %s)",
+            llm_action,
+            allowed_actions,
         )
-        return _rule_based_fallback_action(allowed_actions), "허용 범위 초과 - 룰 기반 선택", ""
+        return (
+            _rule_based_fallback_action(allowed_actions),
+            "허용 범위 초과 - 룰 기반 선택",
+            "",
+        )
 
     return llm_action, reason, pseudo_code
 
@@ -706,14 +838,26 @@ def _rule_based_fallback_action(allowed_actions: list[str]) -> str:
     )
 
 
-def _score_components(action: str, state: PipelineState) -> tuple[float, float, float, float]:
+def _score_components(
+    action: str, state: PipelineState, use_live_lookup: bool = True
+) -> tuple[float, float, float, float]:
     """
-    입력: action, state (resource_type/anomaly_type/raw_metrics 사용)
+    입력: action, state (resource_type/anomaly_type/raw_metrics 사용),
+          use_live_lookup (Resize 후보의 실제 인스턴스 타입을 describe_instances()로
+          조회할지 여부 — False면 cost 평균 역추정 폴백만 사용)
     출력: 액션 1개에 대한 (saving_rate, impact_score, stability_score, estimated_saving_usd)
 
     impact_score/stability_score는 [ADDED] 액션 선택이 LLM의 boto3 스펙 기반
     직접 선택(_select_action_with_llm)으로 바뀌면서 더 이상 추정하지 않고
     0.0 고정값으로 둔다 (CandidateAction 스키마 호환을 위해 필드는 유지).
+
+    [버그 수정] 이전에는 action=="Resize"일 때 실제 선택 여부와 무관하게
+    항상 describe_instances()를 호출했다 — Resize가 선택되지 않은 경우에도
+    candidate_actions 목록 채우기용으로 매번 실제 AWS 호출이 나가, 병렬 실행 시
+    스로틀링으로 decision 단계가 수십 초씩 늘어지는 원인이 됐다(실측 확인).
+    use_live_lookup=False면 resource_id를 넘기지 않아 _ec2_resize_saving()이
+    자체 내장된 cost 평균 역추정 폴백만 쓰도록 한다 — Resize가 실제 선택된
+    경우에만 정확한 실제 조회값이 필요하므로 그때만 True로 부른다.
     """
     if action == "NoAction":
         saving, _, _ = RULE_BASED_SCORE_TABLE["NoAction"]
@@ -748,7 +892,10 @@ def _score_components(action: str, state: PipelineState) -> tuple[float, float, 
                 action, anomaly_type, resource_type, raw_metrics
             )
     elif action == "Resize":
-        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(raw_metrics, state.get("resource_id"))
+        resize_resource_id = state.get("resource_id") if use_live_lookup else None
+        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(
+            raw_metrics, resize_resource_id
+        )
     elif action in ("Throttle", "ScaleDown"):
         result = _trend_based_partial_saving(raw_metrics)
         if result is not None:
@@ -782,6 +929,14 @@ def decision_node(state: PipelineState) -> PipelineState:
     if not allowed_actions:
         allowed_actions = ["NoAction"]
 
+    # 2026-09-12 버그 수정: anomaly_type 기준 허용 목록을 리소스 타입에 실제로
+    # 구현된 액션과 교집합으로 다시 좁힌다 - 안 그러면 Lambda가 ScaleDown을(구현
+    # 안 됨) 제안받거나, Block의 API 설명이 리소스와 안 맞는 채로 LLM에게 간다.
+    # action_agent.py의 실제 dispatcher와 RESOURCE_IMPLEMENTED_ACTIONS를 반드시
+    # 같이 갱신할 것.
+    implemented = RESOURCE_IMPLEMENTED_ACTIONS.get(resource_type, {"NoAction"})
+    allowed_actions = [a for a in allowed_actions if a in implemented] or ["NoAction"]
+
     # ── Rule Book 기반 사전 매칭 (LLM 호출 전) ─────────────────────────────────
     rule_engine = get_rule_engine()
     matched_rule = rule_engine.match_decision_rules(state)
@@ -798,7 +953,8 @@ def decision_node(state: PipelineState) -> PipelineState:
         if selected_action not in allowed_actions:
             logger.warning(
                 "Decision 규칙 %s이 허용되지 않은 액션 %s 선택, NoAction으로 대체",
-                rule_id, selected_action
+                rule_id,
+                selected_action,
             )
             selected_action = "NoAction"
             llm_reason = f"규칙 {rule_id} 액션이 허용 범위 초과 - NoAction으로 대체"
@@ -808,7 +964,11 @@ def decision_node(state: PipelineState) -> PipelineState:
 
         # 규칙 기반 판단도 로깅 (used_llm=False)
         _log_llm_decision(
-            state, allowed_actions, selected_action, llm_reason, pseudo_code,
+            state,
+            allowed_actions,
+            selected_action,
+            llm_reason,
+            pseudo_code,
             used_llm=False,
         )
     else:
@@ -823,36 +983,50 @@ def decision_node(state: PipelineState) -> PipelineState:
         # LLM 판단 로깅 (pseudo_code 패턴 분석용) - pseudo_code가 비어있으면
         # 룰 기반 fallback으로 간주 (LLM 실패 또는 허용 범위 초과 시 "").
         _log_llm_decision(
-            state, allowed_actions, selected_action, llm_reason, pseudo_code,
+            state,
+            allowed_actions,
+            selected_action,
+            llm_reason,
+            pseudo_code,
             used_llm=bool(pseudo_code),
         )
 
-    # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지
-    saving_rate, _, _, estimated_saving_usd = _score_components(selected_action, state)
-
-    # candidate_actions는 allowed_actions 전체에 대해 saving_rate만 채워서 기록
+    # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지.
+    # candidate_actions는 allowed_actions 전체에 대해 saving_rate만 채워서 기록하는데,
+    # 이때 실제로 선택되지 않은 액션까지 실제 AWS 조회(describe_instances)를 태우지
+    # 않도록 선택된 액션에만 use_live_lookup=True를 준다 (위 버그 수정 참고).
+    # selected_action은 allowed_actions에 항상 포함되므로 중복 계산도 함께 없앤다.
+    saving_rate = estimated_saving_usd = None
     candidates: list[CandidateAction] = []
     for action in allowed_actions:
-        s_rate, _, _, s_usd = _score_components(action, state)
+        s_rate, _, _, s_usd = _score_components(
+            action, state, use_live_lookup=(action == selected_action)
+        )
+        if action == selected_action:
+            saving_rate, estimated_saving_usd = s_rate, s_usd
         candidates.append(
             {
                 "action": action,  # type: ignore[typeddict-item]
                 "saving_rate": s_rate,
-                "impact_score": 0.0,   # LLM 추정 제거됨
+                "impact_score": 0.0,  # LLM 추정 제거됨
                 "stability_score": 0.0,
-                "score": s_rate,       # score 필드는 saving_rate로 대체
+                "score": s_rate,  # score 필드는 saving_rate로 대체
                 "estimated_saving_usd": s_usd,
             }
         )
 
     selected = next(c for c in candidates if c["action"] == selected_action)
-    risk = resolve_risk_level(anomaly_type=anomaly_type, selected_action=selected["action"])
+    risk = resolve_risk_level(
+        anomaly_type=anomaly_type, selected_action=selected["action"]
+    )
 
     # Resize가 선택된 경우에만 cost 기반으로 역추정한 목표 인스턴스 타입을 채운다
     # (saving_rate 계산과 동일한 로직 재사용, EC2 전용).
     target_instance_type = None
     if selected["action"] == "Resize":
-        _, _, target_instance_type = _ec2_resize_saving(raw_metrics, state.get("resource_id"))
+        _, _, target_instance_type = _ec2_resize_saving(
+            raw_metrics, state.get("resource_id")
+        )
 
     # [ADDED] "비용이 얼마에서 얼마로 줄었는지"를 decision_reasoning에서 바로 확인할 수 있도록
     # 현재 비용(before)과 절감 적용 후 예상 비용(after)을 함께 계산한다.
@@ -862,15 +1036,27 @@ def decision_node(state: PipelineState) -> PipelineState:
     # (target_instance_type을 위해 _ec2_resize_saving을 다시 부르는 것과 같은 패턴).
     if selected["action"] in ("Throttle", "ScaleDown", "Block"):
         trend_result = _trend_based_partial_saving(raw_metrics)
-        current_cost_usd = trend_result[2] if trend_result is not None else _mean(raw_metrics.get("cost", []))
+        current_cost_per_period = (
+            trend_result[2]
+            if trend_result is not None
+            else _mean(raw_metrics.get("cost", []))
+        )
     else:
-        current_cost_usd = _mean(raw_metrics.get("cost", []))
+        current_cost_per_period = _mean(raw_metrics.get("cost", []))
+    current_cost_usd = current_cost_per_period * (
+        SECONDS_PER_HOUR / COST_METRIC_PERIOD_SECONDS
+    )
     after_cost_usd = max(0.0, current_cost_usd - estimated_saving_usd)
 
     _log_cost_prediction(
-        state, selected["action"], state.get("matched_decision_rule_id"),
-        risk, risk in ("MED", "HIGH"),
-        current_cost_usd, after_cost_usd, estimated_saving_usd,
+        state,
+        selected["action"],
+        state.get("matched_decision_rule_id"),
+        risk,
+        risk in ("MED", "HIGH"),
+        current_cost_usd,
+        after_cost_usd,
+        estimated_saving_usd,
     )
 
     state["candidate_actions"] = candidates
@@ -878,6 +1064,17 @@ def decision_node(state: PipelineState) -> PipelineState:
     state["risk_level"] = risk
     state["requires_approval"] = risk in ("MED", "HIGH")
     state["target_instance_type"] = target_instance_type
+
+    # AutoScaling EDoS 의심 시 ScaleDown만으로는 공격 트래픽 자체가 안 막힌다(인스턴스
+    # 수만 줄임) — action_agent.py에 이미 구현된 WAF Rate-based Rule을 병행 적용해야
+    # 하는데, apply_waf 기본값(False)을 아무도 True로 설정하지 않아 지금까지 한 번도
+    # 실제로 발동한 적이 없었다(2026-09-11 발견). ScaleDown+risk_security 조합에서만
+    # 켠다 — 다른 리소스/액션까지 WAF를 걸면 안 되므로 조건을 좁게 유지.
+    state["apply_waf"] = (
+        resource_type == "AutoScaling"
+        and selected["action"] == "ScaleDown"
+        and anomaly_type == "risk_security"
+    )
     state["decision_pseudo_code"] = pseudo_code  # [ADDED]
     state["decision_reasoning"] = (
         f"LLM boto3 스펙 기반 선택: '{selected_action}' - {llm_reason} "
