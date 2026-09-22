@@ -1,0 +1,89 @@
+원본: lambda_retry_repeated_trial__phase15m_n8-5_scriptv1_20260910.json (측정 2026-09-09T18:09:52.888348+00:00, 시행 13개 - 같은 함수를 순차 재생하므로 병렬 실행 안 함)
+=== Lambda 13개 순차 재생 파이프라인 시작 ===
+[anomaly rep=0] detection 0.010s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=0] decision -> Throttle risk=MED approval=True
+[anomaly rep=1] detection 0.009s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=1] decision -> Throttle risk=MED approval=True
+[anomaly rep=2] detection 0.010s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=2] decision -> Throttle risk=MED approval=True
+[anomaly rep=3] detection 0.010s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=3] decision -> Throttle risk=MED approval=True
+[anomaly rep=4] detection 0.010s -> flag=True triggered=['invocation_count', 'cost', 'error_count']
+[anomaly rep=4] decision -> Throttle risk=MED approval=True
+[normal rep=0] detection 0.011s -> flag=False triggered=[]
+[normal rep=1] detection 0.009s -> flag=False triggered=[]
+[normal rep=2] detection 0.009s -> flag=False triggered=[]
+[normal rep=3] detection 0.009s -> flag=False triggered=[]
+[normal rep=4] detection 0.008s -> flag=False triggered=[]
+[normal rep=5] detection 0.009s -> flag=False triggered=[]
+[normal rep=6] detection 0.009s -> flag=False triggered=[]
+[normal rep=7] detection 0.007s -> flag=True triggered=['invocation_count', 'cost']
+[normal rep=7] decision -> Throttle risk=MED approval=True
+
+=== 집계 ===
+{
+  "n_resources": 13,
+  "n_error": 0,
+  "detection": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 1,
+      "TN": 7
+    },
+    "accuracy": 0.9230769230769231,
+    "recall": 1.0,
+    "false_positive_rate": 0.125
+  },
+  "stopped_at": {
+    "detection": 7,
+    "approval_gate": 6,
+    "null": 0
+  },
+  "action": {
+    "n_executed": 0,
+    "n_success": 0,
+    "success_rate": null,
+    "by_action": {}
+  },
+  "qa": {
+    "n_judged": 0,
+    "n_passed": 0,
+    "pass_rate": null
+  },
+  "timings": {
+    "detection": {
+      "n": 13,
+      "mean_sec": 0.009,
+      "stdev_sec": 0.001,
+      "min_sec": 0.007,
+      "max_sec": 0.011
+    },
+    "classification": {
+      "n": 6,
+      "mean_sec": 0.0,
+      "stdev_sec": 0.001,
+      "min_sec": 0.0,
+      "max_sec": 0.002
+    },
+    "decision": {
+      "n": 6,
+      "mean_sec": 0.004,
+      "stdev_sec": 0.004,
+      "min_sec": 0.002,
+      "max_sec": 0.012
+    },
+    "action": null,
+    "qa": null,
+    "logging": null,
+    "total": {
+      "n": 13,
+      "mean_sec": 0.011,
+      "stdev_sec": 0.004,
+      "min_sec": 0.008,
+      "max_sec": 0.023
+    }
+  }
+}
+
+결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\batch_pipeline_replay__Lambda_20260910_053517.json

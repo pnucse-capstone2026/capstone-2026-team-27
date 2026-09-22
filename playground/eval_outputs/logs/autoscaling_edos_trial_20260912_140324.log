@@ -1,0 +1,35 @@
+2026-09-12 14:03:24,197 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_trial_20260912_140324.log (SCRIPT_VERSION=2)
+2026-09-12 14:03:25,335 [INFO] 예상 최대 동시 인스턴스 23대 (기존 0 + 이번 23)
+2026-09-12 14:03:25,336 [INFO]   vCPU: 46 (쿼터 64)
+2026-09-12 14:03:25,336 [INFO]   EBS: 184GB (프리티어 30GB) -> 초과분은 시간비례 과금
+2026-09-12 14:03:25,336 [INFO]   인스턴스-시간: 약 74.8 (프리티어 월 750시간)
+2026-09-12 14:03:25,348 [WARNING] 프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 — 12개월 초과 계정이면 위 한도가 없고 전부 과금됨. Billing 콘솔에서 확인할 것.
+2026-09-12 14:03:26,810 [INFO] Launch Template 생성: detection-trial-lt (AMI: ami-0c8deed47d2b6298c)
+2026-09-12 14:03:27,386 [INFO] ASG 생성: detection-trial-asg-anomaly-0 (desired=1, max=3)
+2026-09-12 14:03:28,517 [INFO] group metrics collection 활성화: detection-trial-asg-anomaly-0
+2026-09-12 14:03:28,595 [INFO] ASG 생성: detection-trial-asg-anomaly-1 (desired=1, max=3)
+2026-09-12 14:03:29,505 [INFO] group metrics collection 활성화: detection-trial-asg-anomaly-1
+2026-09-12 14:03:29,547 [INFO] ASG 생성: detection-trial-asg-anomaly-2 (desired=1, max=3)
+2026-09-12 14:03:30,480 [INFO] group metrics collection 활성화: detection-trial-asg-anomaly-2
+2026-09-12 14:03:30,519 [INFO] ASG 생성: detection-trial-asg-anomaly-3 (desired=1, max=3)
+2026-09-12 14:03:31,543 [INFO] group metrics collection 활성화: detection-trial-asg-anomaly-3
+2026-09-12 14:03:31,614 [INFO] ASG 생성: detection-trial-asg-anomaly-4 (desired=1, max=3)
+2026-09-12 14:03:32,761 [INFO] group metrics collection 활성화: detection-trial-asg-anomaly-4
+2026-09-12 14:03:32,892 [INFO] ASG 생성: detection-trial-asg-normal-0 (desired=1, max=1)
+2026-09-12 14:03:33,948 [INFO] group metrics collection 활성화: detection-trial-asg-normal-0
+2026-09-12 14:03:33,991 [INFO] ASG 생성: detection-trial-asg-normal-1 (desired=1, max=1)
+2026-09-12 14:03:35,205 [INFO] group metrics collection 활성화: detection-trial-asg-normal-1
+2026-09-12 14:03:35,302 [INFO] ASG 생성: detection-trial-asg-normal-2 (desired=1, max=1)
+2026-09-12 14:03:36,315 [INFO] group metrics collection 활성화: detection-trial-asg-normal-2
+2026-09-12 14:03:36,360 [INFO] ASG 생성: detection-trial-asg-normal-3 (desired=1, max=1)
+2026-09-12 14:03:37,678 [INFO] group metrics collection 활성화: detection-trial-asg-normal-3
+2026-09-12 14:03:37,772 [INFO] ASG 생성: detection-trial-asg-normal-4 (desired=1, max=1)
+2026-09-12 14:03:38,828 [INFO] group metrics collection 활성화: detection-trial-asg-normal-4
+2026-09-12 14:03:38,938 [INFO] ASG 생성: detection-trial-asg-normal-5 (desired=1, max=1)
+2026-09-12 14:03:40,134 [INFO] group metrics collection 활성화: detection-trial-asg-normal-5
+2026-09-12 14:03:40,182 [INFO] ASG 생성: detection-trial-asg-normal-6 (desired=1, max=1)
+2026-09-12 14:03:41,465 [INFO] group metrics collection 활성화: detection-trial-asg-normal-6
+2026-09-12 14:03:41,536 [INFO] ASG 생성: detection-trial-asg-normal-7 (desired=1, max=1)
+2026-09-12 14:03:42,602 [INFO] group metrics collection 활성화: detection-trial-asg-normal-7
+2026-09-12 14:03:42,602 [INFO] ASG 준비 완료: anomaly=5개, normal=8개 (모두 capacity=1)
+2026-09-12 14:03:42,603 [WARNING] 생성 직후에는 CloudWatch 창(30포인트=2.5시간)의 앞부분이 0으로 채워진다. --run의 --baseline-minutes 만큼 평상시 용량 이력을 쌓은 뒤 스파이크를 걸어야 '0에서 급증'이 아닌 실제 EDoS 패턴을 측정하게 된다.

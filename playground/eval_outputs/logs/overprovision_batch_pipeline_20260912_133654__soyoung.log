@@ -1,0 +1,89 @@
+자격증명 고정 완료 (원래 프로필=None, Arn=arn:aws:iam::268140507066:user/test)
+원본: ec2_repeated_trial__n8-5_scriptv1_20260912.json (측정 2026-09-12T04:34:58.090143+00:00, 시행 13개)
+=== EC2 13개 재생 파이프라인 병렬 실행 시작 ===
+[normal i-0d2c602df9fe8e1a9] detection 0.023s -> flag=False triggered=[]
+[normal i-0f32adb755ab150ff] detection 0.025s -> flag=False triggered=[]
+[anomaly i-0557e969014023641] detection 0.010s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-0e7bbc6f947db83d9] detection 0.067s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-034e381688cfb1cc1] detection 0.078s -> flag=False triggered=[]
+[anomaly i-018cb1f361adb89e8] detection 0.102s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-0b8b354431850c90b] detection 0.096s -> flag=False triggered=[]
+[anomaly i-052f85ca490476138] detection 0.097s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-00bcf958a64f0113a] detection 0.029s -> flag=False triggered=[]
+[normal i-0cc774f725222d838] detection 0.018s -> flag=False triggered=[]
+[normal i-07136de010b09d0aa] detection 0.016s -> flag=False triggered=[]
+[anomaly i-043ad8f8ff784936e] detection 0.017s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-0e7bbc6f947db83d9] decision -> Resize risk=MED approval=True
+[normal i-052aafedee6d81a0a] detection 0.018s -> flag=False triggered=[]
+[anomaly i-052f85ca490476138] decision -> Resize risk=MED approval=True
+[anomaly i-0557e969014023641] decision -> Resize risk=MED approval=True
+[anomaly i-043ad8f8ff784936e] decision -> Resize risk=MED approval=True
+[anomaly i-018cb1f361adb89e8] decision -> ScaleDown risk=MED approval=True
+
+=== 집계 ===
+{
+  "n_resources": 13,
+  "n_error": 0,
+  "detection": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0
+  },
+  "stopped_at": {
+    "detection": 8,
+    "approval_gate": 5,
+    "null": 0
+  },
+  "action": {
+    "n_executed": 0,
+    "n_success": 0,
+    "success_rate": null,
+    "by_action": {}
+  },
+  "qa": {
+    "n_judged": 0,
+    "n_passed": 0,
+    "pass_rate": null
+  },
+  "timings": {
+    "detection": {
+      "n": 13,
+      "mean_sec": 0.046,
+      "stdev_sec": 0.036,
+      "min_sec": 0.01,
+      "max_sec": 0.102
+    },
+    "classification": {
+      "n": 5,
+      "mean_sec": 17.706,
+      "stdev_sec": 4.686,
+      "min_sec": 10.585,
+      "max_sec": 23.56
+    },
+    "decision": {
+      "n": 5,
+      "mean_sec": 3.097,
+      "stdev_sec": 6.143,
+      "min_sec": 0.338,
+      "max_sec": 14.087
+    },
+    "action": null,
+    "qa": null,
+    "logging": null,
+    "total": {
+      "n": 13,
+      "mean_sec": 12.352,
+      "stdev_sec": 11.207,
+      "min_sec": 3.081,
+      "max_sec": 34.276
+    }
+  }
+}
+
+결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\batch_pipeline_replay__EC2_20260912_133733.json

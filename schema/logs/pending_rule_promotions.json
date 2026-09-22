@@ -52,18 +52,6 @@
       "sample_reasoning": "[LLM] EC2 인스턴스의 네트워크 지표가 0으로 떨어지고 CPU 사용률이 낮게 유지되며 비용은 동일합니다. 이는 리소스가 유휴 상태이거나 좀비 리소스일 가능성이 높습니다.",
       "sample_interim_action": "EC2 인스턴스 사용량 확인 및 종료/축소 고려",
       "queued_at": "2026-09-09T18:38:18Z"
-    },
-    {
-      "id": "pending-clf-5",
-      "resource_type": "Lambda",
-      "triggered_metrics": [
-        "invocation_count"
-      ],
-      "anomaly_type": "cost_spike",
-      "count": 3,
-      "sample_reasoning": "[LLM] Lambda 호출 횟수가 평균 대비 3배 이상 급증하고 평균 실행 시간도 증가하여 트래픽 폭증으로 인한 비용 급증이 예상됩니다.",
-      "sample_interim_action": "Lambda 호출 소스 및 트래픽 패턴 즉시 확인",
-      "queued_at": "2026-09-13T03:32:20Z"
     }
   ],
   "decision": [

@@ -1,0 +1,62 @@
+EC2 좀비 v3(버그 수정판) 전체 파이프라인 실측 — 콘솔 출력 원본 보존
+실행 시각: 2026-09-14 19:49 KST (10:49 UTC)
+실행 명령: python playground/batch_pipeline_run.py --resource-type EC2 --max-workers 13
+매니페스트: playground/eval_outputs/ec2_zombie_manifest_20260914_170255.json
+참고: measure_pipeline_timing.py의 한글 콘솔 출력 인코딩 버그(em-dash, cp949)로 인해
+정상(anomaly_flag=False) 8건을 출력하는 시점에 스크립트가 크래시하여 결과 JSON 파일
+저장에는 실패했음. 단, 크래시 이전에 출력된 아래 로그에 5건의 이상(anomaly) 케이스의
+탐지~QA 전체 결과가 모두 남아있어 이를 근거로 사용함. 버그 자체는
+playground/measure_pipeline_timing.py, playground/batch_pipeline_run.py에
+sys.stdout.reconfigure(encoding="utf-8") 추가로 수정 완료.
+
+[detection] 0.041s -> anomaly_flag=False
+[detection] 0.154s -> anomaly_flag=False
+[detection] 0.168s -> anomaly_flag=False
+[detection] 0.200s -> anomaly_flag=True
+[detection] 0.224s -> anomaly_flag=False
+[detection] 0.249s -> anomaly_flag=False
+[detection] 0.269s -> anomaly_flag=False
+[detection] 0.274s -> anomaly_flag=True
+[detection] 0.391s -> anomaly_flag=True
+[detection] 0.399s -> anomaly_flag=True
+[detection] 0.408s -> anomaly_flag=False
+[detection] 0.411s -> anomaly_flag=False
+[detection] 0.022s -> anomaly_flag=True
+[classification] 9.290s -> anomaly_type=cost_inefficiency
+[decision] 0.002s -> action=Stop, risk=LOW, requires_approval=False
+[action] 0.738s -> action_executed=Stop, result={'status': 'success', 'raw': [{'InstanceId': 'i-06c05ee2590c7cd99', 'CurrentState': {'Code': 64, 'Name': 'stopping'}, 'PreviousState': {'Code': 16, 'Name': 'running'}}]}
+[classification] 11.103s -> anomaly_type=cost_inefficiency
+[decision] 0.002s -> action=Stop, risk=LOW, requires_approval=False
+[action] 0.756s -> action_executed=Stop, result={'status': 'success', 'raw': [{'InstanceId': 'i-01352f48e6f59c28f', 'CurrentState': {'Code': 64, 'Name': 'stopping'}, 'PreviousState': {'Code': 16, 'Name': 'running'}}]}
+[classification] 12.180s -> anomaly_type=cost_inefficiency
+[decision] 0.002s -> action=Stop, risk=LOW, requires_approval=False
+[action] 0.715s -> action_executed=Stop, result={'status': 'success', 'raw': [{'InstanceId': 'i-0b72ef53db68ffc5c', 'CurrentState': {'Code': 64, 'Name': 'stopping'}, 'PreviousState': {'Code': 16, 'Name': 'running'}}]}
+[classification] 12.459s -> anomaly_type=cost_inefficiency
+[decision] 0.001s -> action=Stop, risk=LOW, requires_approval=False
+[action] 0.710s -> action_executed=Stop, result={'status': 'success', 'raw': [{'InstanceId': 'i-0235ed717f891d57f', 'CurrentState': {'Code': 64, 'Name': 'stopping'}, 'PreviousState': {'Code': 16, 'Name': 'running'}}]}
+[classification] 18.883s -> anomaly_type=cost_inefficiency
+[decision] 0.001s -> action=Stop, risk=LOW, requires_approval=False
+[action] 0.730s -> action_executed=Stop, result={'status': 'success', 'raw': [{'InstanceId': 'i-0b46188f0826d02e0', 'CurrentState': {'Code': 64, 'Name': 'stopping'}, 'PreviousState': {'Code': 16, 'Name': 'running'}}]}
+[qa] 300.774s -> qa_passed=True (POST_ACTION_WAIT_SECONDS 대기 포함된 소요 시간)
+[logging_node] DB 저장 성공 (run_id=5f719159-d7b4-4614-9def-b3ba7eab0580)
+[logging] 0.055s
+[qa] 300.699s -> qa_passed=True (POST_ACTION_WAIT_SECONDS 대기 포함된 소요 시간)
+[logging_node] DB 저장 성공 (run_id=2ba0f92c-f9f6-41d9-9a9a-a1bcd01a21f2)
+[logging] 0.035s
+[qa] 300.768s -> qa_passed=True (POST_ACTION_WAIT_SECONDS 대기 포함된 소요 시간)
+[logging_node] DB 저장 성공 (run_id=221e1e16-5ab5-4dea-8aff-1b5d2878752e)
+[logging] 0.053s
+[qa] 300.714s -> qa_passed=True (POST_ACTION_WAIT_SECONDS 대기 포함된 소요 시간)
+[logging_node] DB 저장 성공 (run_id=08693386-fea4-480c-9083-d6188626b2fc)
+[logging] 0.069s
+[qa] 300.710s -> qa_passed=True (POST_ACTION_WAIT_SECONDS 대기 포함된 소요 시간)
+[logging_node] DB 저장 성공 (run_id=74447b75-a0ec-46bf-8908-0021b7e96db3)
+[logging] 0.059s
+
+집계(수기 재구성, 5건 이상 케이스 전량):
+- 탐지: TP=5, FN=0 (전체 True 5건 = anomaly_flag=True 5건, 별도 ec2_lambda_repeated_trial.py
+  --run 실행분에서 FP=0, TN=8 확인 -> playground/eval_outputs/ec2_zombie_repeated_trial__n8-5_scriptv1_20260914.json)
+- 분류: 5/5 cost_inefficiency (정답)
+- 결정: 5/5 Stop 선택 (RESOURCE_IMPLEMENTED_ACTIONS["EC2"]에 유효 — 버그 #10 재발 없음)
+- 실행: 5/5 status=success
+- QA: 5/5 qa_passed=True

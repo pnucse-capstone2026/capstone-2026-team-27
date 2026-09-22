@@ -1,0 +1,18 @@
+{
+  "source_result_file": "playground\\eval_outputs\\ec2_zombie_replay_trial__n8-5_scriptv1_20260910.json",
+  "expected_label": "cost_inefficiency",
+  "rulebook": {
+    "total": 0,
+    "correct": 0,
+    "accuracy": null
+  },
+  "llm": {
+    "total": 5,
+    "correct": 5,
+    "accuracy": 1.0
+  },
+  "p_rulebook": 0.0,
+  "p_llm": 1.0,
+  "combined_classification_accuracy": 1.0,
+  "false_positive_classification_notes": []
+}

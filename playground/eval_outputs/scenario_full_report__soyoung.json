@@ -1,0 +1,912 @@
+{
+  "scenarios": {
+    "S3 대량다운로드": {
+      "detection": {
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321225,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "f1_score": 0.9090909090909091,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true
+          }
+        }
+      },
+      "classification": {
+        "rulebook": {
+          "total": 5,
+          "correct": 5,
+          "accuracy": 1.0
+        },
+        "llm": {
+          "total": 0,
+          "correct": 0,
+          "accuracy": null
+        },
+        "combined_classification_accuracy": 1.0
+      },
+      "pipeline": {
+        "n_action_triggered": 3,
+        "action_success_rate": 1.0,
+        "qa_pass_rate": 1.0,
+        "qa_fail_count": 0,
+        "rollback_occurred_count": 0
+      },
+      "timing": {
+        "n_samples": 3,
+        "stages": {
+          "detection": {
+            "n": 3,
+            "mean": 0.02642711003621419,
+            "std": 0.005797612766370548,
+            "min": 0.01834583282470703,
+            "max": 0.03166699409484863
+          },
+          "classification": {
+            "n": 3,
+            "mean": 0.0044155120849609375,
+            "std": 0.0062444770753740594,
+            "min": 0.0,
+            "max": 0.013246536254882812
+          },
+          "decision": {
+            "n": 3,
+            "mean": 0.01588861147562663,
+            "std": 0.00414715172936841,
+            "min": 0.010565757751464844,
+            "max": 0.020682811737060547
+          },
+          "action": {
+            "n": 3,
+            "mean": 0.30815553665161133,
+            "std": 0.01873067230691338,
+            "min": 0.29464292526245117,
+            "max": 0.3346428871154785
+          },
+          "qa": {
+            "n": 3,
+            "mean": 300.1401267846425,
+            "std": 0.014183047534773454,
+            "min": 300.1226327419281,
+            "max": 300.1573712825775
+          },
+          "logging": {
+            "n": 3,
+            "mean": 0.007120450337727864,
+            "std": 0.005018283222189448,
+            "min": 0.0030393600463867188,
+            "max": 0.01418924331665039
+          },
+          "total": {
+            "n": 3,
+            "mean": 300.63392718633014,
+            "std": 0.03007886297272724,
+            "min": 300.5972800254822,
+            "max": 300.67095494270325
+          }
+        },
+        "mttd_seconds": 0.02642711003621419,
+        "mttr_seconds": {
+          "n": 3,
+          "mean": 0.3548867702484131,
+          "median": 0.3474559783935547
+        }
+      },
+      "mcnemar": null
+    },
+    "EC2 좀비(유휴 리소스)": {
+      "detection": {
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 1.0,
+          "accuracy_ci_95": [
+            0.752947361999529,
+            1.0
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        }
+      },
+      "classification": {
+        "rulebook": {
+          "total": 0,
+          "correct": 0,
+          "accuracy": null
+        },
+        "llm": {
+          "total": 5,
+          "correct": 5,
+          "accuracy": 1.0
+        },
+        "combined_classification_accuracy": 1.0
+      },
+      "pipeline": null,
+      "timing": null,
+      "mcnemar": null
+    },
+    "EC2 오버프로비저닝": {
+      "detection": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 5,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6153846153846154,
+          "accuracy_ci_95": [
+            0.31577760291406304,
+            0.8614206611098394
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "precision": null,
+          "f1_score": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 1.0,
+          "accuracy_ci_95": [
+            0.752947361999529,
+            1.0
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        },
+        "teammate_compat": {
+          "confusion_matrix": {
+            "TP": 1,
+            "FN": 4,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6923076923076923,
+          "accuracy_ci_95": [
+            0.38573833824929565,
+            0.9090796054279033
+          ],
+          "recall": 0.2,
+          "recall_ci_95": [
+            0.005050763379468061,
+            0.7164179361180895
+          ],
+          "precision": 1.0,
+          "f1_score": 0.33333333333333337,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.96875,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        }
+      },
+      "classification": {
+        "rulebook": {
+          "total": 0,
+          "correct": 0,
+          "accuracy": null
+        },
+        "llm": {
+          "total": 5,
+          "correct": 4,
+          "accuracy": 0.8
+        },
+        "combined_classification_accuracy": 0.8
+      },
+      "pipeline": {
+        "n_action_triggered": 5,
+        "action_success_rate": 0.8,
+        "qa_pass_rate": 1.0,
+        "qa_fail_count": 0,
+        "rollback_occurred_count": 0
+      },
+      "timing": {
+        "n_samples": 13,
+        "stages": {
+          "detection": {
+            "n": 13,
+            "mean": 0.10615384615384617,
+            "std": 0.03142230015045942,
+            "min": 0.044,
+            "max": 0.164
+          },
+          "classification": {
+            "n": 5,
+            "mean": 16.942,
+            "std": 3.6377877893027244,
+            "min": 10.503,
+            "max": 20.809
+          },
+          "decision": {
+            "n": 5,
+            "mean": 4.4632,
+            "std": 8.2934096823924,
+            "min": 0.301,
+            "max": 21.05
+          },
+          "action": {
+            "n": 5,
+            "mean": 17.272199999999998,
+            "std": 10.416624355327402,
+            "min": 0.247,
+            "max": 33.154
+          },
+          "qa": {
+            "n": 5,
+            "mean": 301.13100000000003,
+            "std": 0.38327692338567093,
+            "min": 300.725,
+            "max": 301.756
+          },
+          "logging": {
+            "n": 5,
+            "mean": 2.042,
+            "std": 0.00901110426085512,
+            "min": 2.033,
+            "max": 2.056
+          },
+          "total": {
+            "n": 13,
+            "mean": 134.93746153846155,
+            "std": 166.37269880260976,
+            "min": 3.356,
+            "max": 350.333
+          }
+        },
+        "mttd_seconds": 0.10615384615384617,
+        "mttr_seconds": {
+          "n": 5,
+          "mean": 38.775800000000004,
+          "median": 38.114999999999995
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b": 0,
+          "c": 5,
+          "p_value": 0.0625,
+          "significant_at_0.05": false
+        },
+        "iforest_only_vs_teammate_compat": {
+          "n_compared": 13,
+          "b": 0,
+          "c": 1,
+          "p_value": 1.0,
+          "significant_at_0.05": false
+        },
+        "production_vs_teammate_compat": {
+          "n_compared": 13,
+          "b": 4,
+          "c": 0,
+          "p_value": 0.125,
+          "significant_at_0.05": false
+        }
+      }
+    },
+    "Lambda(구버전, 호출/에러 급증)": {
+      "detection": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321225,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "f1_score": 0.9090909090909091,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.9230769230769231,
+          "accuracy_ci_95": [
+            0.6397025647321225,
+            0.9980543715026533
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.8333333333333334,
+          "f1_score": 0.9090909090909091,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true
+          }
+        },
+        "teammate_compat": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 4,
+            "TN": 4
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6923076923076923,
+          "accuracy_ci_95": [
+            0.38573833824929565,
+            0.9090796054279033
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.5555555555555556,
+          "f1_score": 0.7142857142857143,
+          "false_positive_rate": 0.5,
+          "fpr_ci_95": [
+            0.15701277048705797,
+            0.842987229512942
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.63671875,
+            "significant_at_0.05": false
+          }
+        }
+      },
+      "classification": null,
+      "pipeline": null,
+      "timing": null,
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b": 0,
+          "c": 0,
+          "p_value": null,
+          "note": "두 방식이 모든 샘플에서 동일 판정(불일치 쌍 없음) — 검정 불가"
+        },
+        "iforest_only_vs_teammate_compat": {
+          "n_compared": 13,
+          "b": 3,
+          "c": 0,
+          "p_value": 0.25,
+          "significant_at_0.05": false
+        },
+        "production_vs_teammate_compat": {
+          "n_compared": 13,
+          "b": 3,
+          "c": 0,
+          "p_value": 0.25,
+          "significant_at_0.05": false
+        }
+      }
+    },
+    "Lambda 스로틀(신버전, 팀원 PR#40)": {
+      "detection": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 3,
+            "TN": 5
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.7692307692307693,
+          "accuracy_ci_95": [
+            0.46186846076595905,
+            0.9496189265088485
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.625,
+          "f1_score": 0.7692307692307693,
+          "false_positive_rate": 0.375,
+          "fpr_ci_95": [
+            0.08523341413725355,
+            0.7551367836334484
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.36328125,
+            "significant_at_0.05": false
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 5,
+            "FN": 0,
+            "FP": 3,
+            "TN": 5
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.7692307692307693,
+          "accuracy_ci_95": [
+            0.46186846076595905,
+            0.9496189265088485
+          ],
+          "recall": 1.0,
+          "recall_ci_95": [
+            0.47817624989501856,
+            1.0
+          ],
+          "precision": 0.625,
+          "f1_score": 0.7692307692307693,
+          "false_positive_rate": 0.375,
+          "fpr_ci_95": [
+            0.08523341413725355,
+            0.7551367836334484
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.03125,
+            "significant_at_0.05": true
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.36328125,
+            "significant_at_0.05": false
+          }
+        },
+        "zscore_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 5,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 5,
+          "n_normal": 8,
+          "accuracy": 0.6153846153846154,
+          "accuracy_ci_95": [
+            0.31577760291406304,
+            0.8614206611098394
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.5218237501049814
+          ],
+          "precision": null,
+          "f1_score": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        }
+      },
+      "classification": {
+        "rulebook": {
+          "total": 9,
+          "correct": 8,
+          "accuracy": 0.8888888888888888
+        },
+        "llm": {
+          "total": 0,
+          "correct": 0,
+          "accuracy": null
+        },
+        "combined_classification_accuracy": 0.8888888888888888
+      },
+      "pipeline": {
+        "n_action_triggered": 8,
+        "action_success_rate": 1.0,
+        "qa_pass_rate": 1.0,
+        "qa_fail_count": 0,
+        "rollback_occurred_count": 0
+      },
+      "timing": {
+        "n_samples": 13,
+        "stages": {
+          "detection": {
+            "n": 13,
+            "mean": 0.3428598917447604,
+            "std": 0.2955126680886331,
+            "min": 0.011114358901977539,
+            "max": 1.020148515701294
+          },
+          "classification": {
+            "n": 8,
+            "mean": 0.0002516210079193115,
+            "std": 0.0005079479142680212,
+            "min": 5.4836273193359375e-05,
+            "max": 0.0015954971313476562
+          },
+          "decision": {
+            "n": 8,
+            "mean": 0.0019510984420776367,
+            "std": 0.00018164018457151267,
+            "min": 0.0016536712646484375,
+            "max": 0.002256631851196289
+          },
+          "action": {
+            "n": 8,
+            "mean": 0.8880986273288727,
+            "std": 0.039315522156546275,
+            "min": 0.845895528793335,
+            "max": 0.9772069454193115
+          },
+          "qa": {
+            "n": 8,
+            "mean": 300.92685854434967,
+            "std": 0.04389902448963045,
+            "min": 300.87410593032837,
+            "max": 300.99695801734924
+          },
+          "logging": {
+            "n": 8,
+            "mean": 0.09022942185401917,
+            "std": 0.014335866913949311,
+            "min": 0.07453584671020508,
+            "max": 0.11561703681945801
+          },
+          "total": {
+            "n": 13,
+            "mean": 187.19094041677621,
+            "std": 146.9900247645533,
+            "min": 0.9117705821990967,
+            "max": 304.0654900074005
+          }
+        },
+        "mttd_seconds": 0.3428598917447604,
+        "mttr_seconds": {
+          "n": 8,
+          "mean": 1.4385177195072174,
+          "median": 1.3706045150756836
+        }
+      },
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 13,
+          "b": 0,
+          "c": 0,
+          "p_value": null,
+          "note": "두 방식이 모든 샘플에서 동일 판정(불일치 쌍 없음) — 검정 불가"
+        },
+        "iforest_only_vs_zscore_only": {
+          "n_compared": 13,
+          "b": 5,
+          "c": 3,
+          "p_value": 0.7265625,
+          "significant_at_0.05": false
+        },
+        "production_vs_zscore_only": {
+          "n_compared": 13,
+          "b": 5,
+          "c": 3,
+          "p_value": 0.7265625,
+          "significant_at_0.05": false
+        }
+      }
+    },
+    "AutoScaling EDoS (v7, n=15+8)": {
+      "detection": {
+        "iforest_only": {
+          "confusion_matrix": {
+            "TP": 10,
+            "FN": 5,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 15,
+          "n_normal": 8,
+          "accuracy": 0.7391304347826086,
+          "accuracy_ci_95": [
+            0.5159480295975618,
+            0.8977138660846415
+          ],
+          "recall": 0.6666666666666666,
+          "recall_ci_95": [
+            0.3838037325411542,
+            0.881758896633119
+          ],
+          "precision": 0.9090909090909091,
+          "f1_score": 0.7692307692307692,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.15087890624999997,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true
+          }
+        },
+        "production": {
+          "confusion_matrix": {
+            "TP": 10,
+            "FN": 5,
+            "FP": 1,
+            "TN": 7
+          },
+          "n_anomaly": 15,
+          "n_normal": 8,
+          "accuracy": 0.7391304347826086,
+          "accuracy_ci_95": [
+            0.5159480295975618,
+            0.8977138660846415
+          ],
+          "recall": 0.6666666666666666,
+          "recall_ci_95": [
+            0.3838037325411542,
+            0.881758896633119
+          ],
+          "precision": 0.9090909090909091,
+          "f1_score": 0.7692307692307692,
+          "false_positive_rate": 0.125,
+          "fpr_ci_95": [
+            0.003159723531251909,
+            0.5265096708752065
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 0.15087890624999997,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.03515625,
+            "significant_at_0.05": true
+          }
+        },
+        "zscore_only": {
+          "confusion_matrix": {
+            "TP": 0,
+            "FN": 15,
+            "FP": 0,
+            "TN": 8
+          },
+          "n_anomaly": 15,
+          "n_normal": 8,
+          "accuracy": 0.34782608695652173,
+          "accuracy_ci_95": [
+            0.1637635983749499,
+            0.5726560369635056
+          ],
+          "recall": 0.0,
+          "recall_ci_95": [
+            0.0,
+            0.21801936091053403
+          ],
+          "precision": null,
+          "f1_score": null,
+          "false_positive_rate": 0.0,
+          "fpr_ci_95": [
+            0.0,
+            0.36941664755281917
+          ],
+          "recall_vs_chance_binomial_test": {
+            "p_value": 1.0,
+            "significant_at_0.05": false
+          },
+          "fpr_vs_chance_binomial_test": {
+            "p_value": 0.00390625,
+            "significant_at_0.05": true
+          }
+        }
+      },
+      "classification": null,
+      "pipeline": {
+        "n_action_triggered": 8,
+        "action_success_rate": 1.0,
+        "qa_pass_rate": 0.0,
+        "qa_fail_count": 8,
+        "rollback_occurred_count": 8,
+        "waf_association_fail_count": 8
+      },
+      "timing": null,
+      "mcnemar": {
+        "iforest_only_vs_production": {
+          "n_compared": 23,
+          "b": 0,
+          "c": 0,
+          "p_value": null,
+          "note": "두 방식이 모든 샘플에서 동일 판정(불일치 쌍 없음) — 검정 불가"
+        },
+        "iforest_only_vs_zscore_only": {
+          "n_compared": 23,
+          "b": 10,
+          "c": 1,
+          "p_value": 0.01171875,
+          "significant_at_0.05": true
+        },
+        "production_vs_zscore_only": {
+          "n_compared": 23,
+          "b": 10,
+          "c": 1,
+          "p_value": 0.01171875,
+          "significant_at_0.05": true
+        }
+      }
+    }
+  },
+  "pooled": {
+    "scenarios_included": [
+      "S3 대량다운로드",
+      "EC2 좀비(유휴 리소스)",
+      "EC2 오버프로비저닝",
+      "Lambda(구버전, 호출/에러 급증)",
+      "Lambda 스로틀(신버전, 팀원 PR#40)",
+      "AutoScaling EDoS (v7, n=15+8)"
+    ],
+    "confusion_matrix": {
+      "TP": 35,
+      "FN": 5,
+      "FP": 6,
+      "TN": 42
+    },
+    "accuracy": 0.875,
+    "accuracy_ci_95": [
+      0.7873384127104354,
+      0.9359168024529548
+    ],
+    "recall": 0.875,
+    "recall_ci_95": [
+      0.7319670826382796,
+      0.9581403738613833
+    ],
+    "f1_score": 0.8641975308641976
+  },
+  "qualitative_notes": {
+    "train_eval_independence": "detection_agent.py의 IsolationForest는 온라인 학습 구조라, '정상으로 판단된' 윈도우가 즉시 훈련 버퍼에 편입되고 모델이 재학습된다. AutoScaling EDoS 실험 패턴상 같은 리소스의 베이스라인(전) 구간이 먼저 버퍼에 들어간 뒤 그 리소스의 공격 후 구간을 채점하므로, 완전한 훈련/평가 데이터 독립은 아니다. v6(2026-09-13)에서 이 구조로 인한 자기강화적 오탐이 실측으로 확인됨. 시나리오별 수치가 아니라 통합 모델 구조 자체의 특성이다.",
+    "overfitting_risk": "온라인 버퍼가 작을 때(특히 창 1개) 좁은 분산에 과적합되어 이후 정상 데이터도 이상으로 오판하는 자기강화적 패턴이 실측으로 확인됨(Phase 5, 창 1개 학습=정상 32.7% 오탐). MAX_WINDOWS_PER_TYPE(FIFO)로 완화하나 근본적으로 온라인 학습 특유의 리스크.",
+    "note_on_held_out_eval": "PDF 4.3.4절의 'held-out 재검증 오탐률 0%'는 이 6개 실측 시나리오가 아니라 generate_eval_dataset.py가 만든 435개 합성 평가 데이터셋 기준이며, 실제 AWS n=13/23 실험과는 다른 데이터이므로 섞어서 인용하면 안 된다."
+  }
+}

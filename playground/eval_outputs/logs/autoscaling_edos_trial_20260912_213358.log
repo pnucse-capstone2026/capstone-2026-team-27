@@ -1,0 +1,11 @@
+2026-09-12 21:33:58,641 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_trial_20260912_213358.log (SCRIPT_VERSION=3)
+2026-09-12 21:33:59,611 [INFO] ASG 삭제: detection-trial-asg-anomaly-0
+2026-09-12 21:33:59,850 [INFO] ASG 삭제: detection-trial-asg-anomaly-1
+2026-09-12 21:34:00,208 [INFO] ASG 삭제: detection-trial-asg-anomaly-2
+2026-09-12 21:34:00,526 [INFO] ASG 삭제: detection-trial-asg-anomaly-3
+2026-09-12 21:34:00,912 [INFO] ASG 삭제: detection-trial-asg-anomaly-4
+2026-09-12 21:34:01,232 [INFO] ASG 삭제: detection-trial-asg-normal-0
+2026-09-12 21:34:01,513 [INFO] ASG 삭제: detection-trial-asg-normal-1
+2026-09-12 21:34:01,832 [INFO] ASG 삭제: detection-trial-asg-normal-2
+2026-09-12 21:34:02,163 [INFO] ASG 삭제: detection-trial-asg-normal-3
+2026-09-12 21:34:02,418 [INFO] ASG 삭제: detection-trial-asg-normal-4

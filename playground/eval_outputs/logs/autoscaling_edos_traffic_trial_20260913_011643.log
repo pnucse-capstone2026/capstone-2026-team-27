@@ -1,0 +1,22 @@
+2026-09-13 01:16:43,476 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_011643.log (SCRIPT_VERSION=4)
+2026-09-13 01:16:47,365 [INFO] ASG 삭제: detection-traffic-asg-anomaly-0
+2026-09-13 01:16:47,595 [INFO] ASG 삭제: detection-traffic-asg-anomaly-1
+2026-09-13 01:16:47,932 [INFO] ASG 삭제: detection-traffic-asg-anomaly-2
+2026-09-13 01:16:48,445 [INFO] ASG 삭제: detection-traffic-asg-anomaly-3
+2026-09-13 01:16:48,824 [INFO] ASG 삭제: detection-traffic-asg-anomaly-4
+2026-09-13 01:16:49,254 [INFO] ASG 삭제: detection-traffic-asg-normal-0
+2026-09-13 01:16:49,543 [INFO] ASG 삭제: detection-traffic-asg-normal-1
+2026-09-13 01:16:49,904 [INFO] ASG 삭제: detection-traffic-asg-normal-2
+2026-09-13 01:16:50,178 [INFO] ASG 삭제: detection-traffic-asg-normal-3
+2026-09-13 01:16:50,411 [INFO] ASG 삭제: detection-traffic-asg-normal-4
+2026-09-13 01:16:51,566 [INFO] ALB 삭제: detection-traffic-alb
+2026-09-13 01:17:06,694 [INFO] Target Group 삭제: tg-anomaly-0
+2026-09-13 01:17:06,814 [INFO] Target Group 삭제: tg-anomaly-1
+2026-09-13 01:17:06,929 [INFO] Target Group 삭제: tg-anomaly-2
+2026-09-13 01:17:07,034 [INFO] Target Group 삭제: tg-anomaly-3
+2026-09-13 01:17:07,136 [INFO] Target Group 삭제: tg-anomaly-4
+2026-09-13 01:17:07,258 [INFO] Target Group 삭제: tg-normal-0
+2026-09-13 01:17:07,369 [INFO] Target Group 삭제: tg-normal-1
+2026-09-13 01:17:07,484 [INFO] Target Group 삭제: tg-normal-2
+2026-09-13 01:17:07,604 [INFO] Target Group 삭제: tg-normal-3
+2026-09-13 01:17:07,719 [INFO] Target Group 삭제: tg-normal-4

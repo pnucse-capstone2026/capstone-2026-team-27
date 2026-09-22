@@ -1,0 +1,29 @@
+2026-09-09 21:19:58,871 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\s3_repeated_trial_20260909_211958.log (SCRIPT_VERSION=2)
+2026-09-09 21:19:59,616 [INFO] 버킷 생성: detection-trial-anomaly-0
+2026-09-09 21:20:00,397 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-anomaly-0
+2026-09-09 21:20:00,541 [INFO] 버킷 생성: detection-trial-anomaly-1
+2026-09-09 21:20:01,280 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-anomaly-1
+2026-09-09 21:20:01,430 [INFO] 버킷 생성: detection-trial-anomaly-2
+2026-09-09 21:20:02,156 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-anomaly-2
+2026-09-09 21:20:02,280 [INFO] 버킷 생성: detection-trial-anomaly-3
+2026-09-09 21:20:03,016 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-anomaly-3
+2026-09-09 21:20:03,127 [INFO] 버킷 생성: detection-trial-anomaly-4
+2026-09-09 21:20:03,860 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-anomaly-4
+2026-09-09 21:20:04,029 [INFO] 버킷 생성: detection-trial-normal-0
+2026-09-09 21:20:04,752 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-0
+2026-09-09 21:20:04,856 [INFO] 버킷 생성: detection-trial-normal-1
+2026-09-09 21:20:05,585 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-1
+2026-09-09 21:20:05,749 [INFO] 버킷 생성: detection-trial-normal-2
+2026-09-09 21:20:06,594 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-2
+2026-09-09 21:20:06,705 [INFO] 버킷 생성: detection-trial-normal-3
+2026-09-09 21:20:07,434 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-3
+2026-09-09 21:20:07,537 [INFO] 버킷 생성: detection-trial-normal-4
+2026-09-09 21:20:08,601 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-4
+2026-09-09 21:20:08,700 [INFO] 버킷 생성: detection-trial-normal-5
+2026-09-09 21:20:09,472 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-5
+2026-09-09 21:20:09,573 [INFO] 버킷 생성: detection-trial-normal-6
+2026-09-09 21:20:10,272 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-6
+2026-09-09 21:20:11,610 [INFO] 버킷 생성: detection-trial-normal-7
+2026-09-09 21:20:12,352 [INFO] Request Metrics(EntireBucket) 활성화: detection-trial-normal-7
+2026-09-09 21:20:12,352 [WARNING] Request Metrics는 활성화 직후 바로 반영 안 될 수 있음 — 최소 30분~1시간 정도 워밍업 후 실제 실험(--run)을 시작할 것을 권장.
+2026-09-09 21:20:12,355 [INFO] 버킷 준비 완료: anomaly=['detection-trial-anomaly-0', 'detection-trial-anomaly-1', 'detection-trial-anomaly-2', 'detection-trial-anomaly-3', 'detection-trial-anomaly-4'], normal=['detection-trial-normal-0', 'detection-trial-normal-1', 'detection-trial-normal-2', 'detection-trial-normal-3', 'detection-trial-normal-4', 'detection-trial-normal-5', 'detection-trial-normal-6', 'detection-trial-normal-7']
