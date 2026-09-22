@@ -34,7 +34,11 @@ from botocore.exceptions import ClientError, WaiterError
 import json
 
 from schema.state import (
-    PipelineState, EC2Snapshot, LambdaSnapshot, AutoScalingSnapshot, S3Snapshot,
+    PipelineState,
+    EC2Snapshot,
+    LambdaSnapshot,
+    AutoScalingSnapshot,
+    S3Snapshot,
 )
 from pipeline.inbound_handlers import (
     throttle_lambda_concurrency,
@@ -100,6 +104,7 @@ def _get_s3_client():
 
 # ── 스냅샷 ────────────────────────────────────────────────────────────────────
 
+
 def _take_ec2_snapshot(resource_id: str) -> EC2Snapshot:
     """
     입력: resource_id (EC2 인스턴스 ID)
@@ -111,7 +116,9 @@ def _take_ec2_snapshot(resource_id: str) -> EC2Snapshot:
     snapshot: EC2Snapshot = {
         "instance_type": instance["InstanceType"],
         "state": instance["State"]["Name"],
-        "security_group_ids": [sg["GroupId"] for sg in instance.get("SecurityGroups", [])],
+        "security_group_ids": [
+            sg["GroupId"] for sg in instance.get("SecurityGroups", [])
+        ],
     }
     return snapshot
 
@@ -175,7 +182,10 @@ def _take_s3_snapshot(resource_id: str) -> S3Snapshot:
             "RestrictPublicBuckets": pab.get("RestrictPublicBuckets", False),
         }
     except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") != "NoSuchPublicAccessBlockConfiguration":
+        if (
+            exc.response.get("Error", {}).get("Code")
+            != "NoSuchPublicAccessBlockConfiguration"
+        ):
             raise
         # 설정 자체가 없었다는 뜻 -> AWS 기본값(전부 차단 안 함)과 동일하게 취급
         public_access_block = {
@@ -211,6 +221,7 @@ def take_snapshot(resource_type: str, resource_id: str) -> dict | None:
 
 
 # ── 액션 실행 ─────────────────────────────────────────────────────────────────
+
 
 def _execute_ec2_stop(resource_id: str) -> dict:
     """
@@ -308,7 +319,9 @@ def _execute_autoscaling_scaledown(
     # 기존 동작: WAF 없이 스케일다운만 수행
     asg_client = _get_autoscaling_client()
     try:
-        current = asg_client.describe_auto_scaling_groups(AutoScalingGroupNames=[resource_id])
+        current = asg_client.describe_auto_scaling_groups(
+            AutoScalingGroupNames=[resource_id]
+        )
         current_desired = current["AutoScalingGroups"][0]["DesiredCapacity"]
         new_desired = min(current_desired, max_size)
 
@@ -317,7 +330,11 @@ def _execute_autoscaling_scaledown(
             MaxSize=max_size,
             DesiredCapacity=new_desired,
         )
-        return {"status": "success", "max_size": max_size, "desired_capacity": new_desired}
+        return {
+            "status": "success",
+            "max_size": max_size,
+            "desired_capacity": new_desired,
+        }
     except ClientError as exc:
         logger.error("AutoScaling ScaleDown 실패 (%s): %s", resource_id, exc)
         return {"status": "failed", "error": str(exc)}
@@ -426,7 +443,11 @@ def execute_action(
 
     # RDS 는 추후 각자 확장
     logger.warning("리소스 타입 미구현: %s (action=%s)", resource_type, action)
-    return {"status": "not_implemented", "resource_type": resource_type, "action": action}
+    return {
+        "status": "not_implemented",
+        "resource_type": resource_type,
+        "action": action,
+    }
 
 
 def action_node(state: PipelineState) -> PipelineState:
@@ -437,6 +458,13 @@ def action_node(state: PipelineState) -> PipelineState:
                  state["associated_alb_arn"]
     출력: state["pre_action_snapshot"], state["action_executed"], state["action_result"]
     """
+    if state.get("_demo_replay"):
+        replay = state["_demo_replay"]
+        state["pre_action_snapshot"] = None
+        state["action_executed"] = replay["action_executed"]
+        state["action_result"] = replay["action_result"]
+        return state
+
     action = state["selected_action"]
     resource_type = state["resource_type"]
     resource_id = state["resource_id"]
@@ -469,7 +497,9 @@ def action_node(state: PipelineState) -> PipelineState:
 
     # 2. 실제 액션 실행 (또는 dry_run 계획)
     result = execute_action(
-        action, resource_type, resource_id,
+        action,
+        resource_type,
+        resource_id,
         target_instance_type=state.get("target_instance_type"),
         dry_run=dry_run,
         apply_waf=apply_waf,
@@ -484,6 +514,7 @@ def action_node(state: PipelineState) -> PipelineState:
 
 
 # ── 롤백 (QA Agent에서 import해서 사용) ──────────────────────────────────────
+
 
 def _rollback_ec2(resource_id: str, snapshot: EC2Snapshot) -> dict:
     """
@@ -617,7 +648,9 @@ def _rollback_s3(resource_id: str, snapshot: S3Snapshot) -> dict:
         return {"status": "failed", "error": str(exc)}
 
 
-def rollback_action(resource_type: str, resource_id: str, snapshot: dict | None) -> dict:
+def rollback_action(
+    resource_type: str, resource_id: str, snapshot: dict | None
+) -> dict:
     """
     입력: resource_type, resource_id, snapshot (take_snapshot 결과, 없으면 None)
     출력: {"status": "success"/"failed"/"not_implemented", ...}
