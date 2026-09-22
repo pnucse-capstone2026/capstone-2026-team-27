@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from api import graph_runtime, pipeline_stats as run_stats, store
 from api.pg import connection_params
-from config import decision_policy, pipeline_live_status
+from config import decision_policy, pipeline_live_status, last_normal_check
 from pipeline.rule_engine import get_rule_engine
 
 router = APIRouter(tags=["status"])
@@ -119,4 +119,5 @@ def get_status():
         "pipeline_running": pipeline_running,
         "nodes": nodes,
         "stats": store.pipeline_stats,
+        "last_normal_check_at": last_normal_check.read(),
     }

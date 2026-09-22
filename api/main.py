@@ -18,7 +18,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import admin_users, graph_runtime
 from api.auth import verify_session_token
 from api.routers import (
-    approvals, auth, failures, logs, pipeline, promotions, recent, rules, settings, status, whitelist,
+    approvals,
+    auth,
+    failures,
+    logs,
+    notifications,
+    pipeline,
+    promotions,
+    recent,
+    rules,
+    settings,
+    status,
+    whitelist,
 )
 
 
@@ -66,6 +77,7 @@ app.include_router(failures.router, dependencies=[_protected])
 app.include_router(recent.router, dependencies=[_protected])
 app.include_router(settings.router, dependencies=[_protected])
 app.include_router(pipeline.router, dependencies=[_protected])
+app.include_router(notifications.router, dependencies=[_protected])
 
 
 if __name__ == "__main__":
