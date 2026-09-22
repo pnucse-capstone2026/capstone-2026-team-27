@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { colors, font, labelStyle } from "../styles.js";
 
-// 탭이 8개라 한 줄로 늘어놓으면 너무 길어져서, 성격이 비슷한 것끼리 그룹으로
-// 묶고(depth 추가) 그룹을 펼쳐야 하위 탭이 보이게 했다. leaf 타입은 그룹 없이
-// 바로 클릭되는 최상위 항목(대시보드/시스템설정).
 const NAV = [
   { type: "leaf", key: "dashboard", label: "대시보드" },
   { type: "leaf", key: "settings", label: "시스템 설정" },
@@ -61,9 +58,14 @@ function CountBadge({ count, tone = "accent" }) {
   );
 }
 
-export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, theme, onToggleTheme, onLogout }) {
-  // 현재 활성 탭이 속한 그룹은 기본으로 펼쳐둬서, 어느 화면에 있는지 새로고침 후에도
-  // 바로 보이게 한다.
+const NORMAL_BADGE_FRESHNESS_MS = 15 * 60 * 1000;
+
+function formatHHMM(isoString) {
+  const d = new Date(isoString);
+  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, lastNormalCheckAt, theme, onToggleTheme, onLogout }) {
   const [expanded, setExpanded] = useState(() => {
     const g = findGroupLabelForTab(activeTab);
     return g ? { [g]: true } : {};
@@ -122,6 +124,12 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
             {pipelineRunning ? "RUNNING" : "STOPPED"}
           </span>
         </div>
+        {lastNormalCheckAt &&
+          Date.now() - new Date(lastNormalCheckAt).getTime() < NORMAL_BADGE_FRESHNESS_MS && (
+            <div style={{ marginTop: 6, fontFamily: font.mono, fontSize: 11, color: colors.subtext }}>
+              정상 ({formatHHMM(lastNormalCheckAt)} 기준)
+            </div>
+          )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", padding: "10px 0", flex: 1, overflowY: "auto" }}>

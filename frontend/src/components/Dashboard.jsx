@@ -1,7 +1,5 @@
 import { card, colors, font, labelStyle, badgeStyle, SEVERITY_STYLES } from "../styles.js";
 
-// 실제 파이프라인 6단계 그대로 — 예전 mock 시절엔 "Recovery"라는, 실제 에이전트에
-// 없는 이름이 들어있었다 (실제 에이전트: Detection/Classification/Decision/Action/QA/Logging).
 const NODE_LABELS = [
   { key: "detection", label: "Detection" },
   { key: "classification", label: "Classification" },
@@ -68,7 +66,7 @@ function RecentDetectionRow({ item }) {
             fontFamily: font.mono,
             fontSize: 13,
             fontWeight: 700,
-            color: display.value === "처리 완료" ? colors.subtext : "#e0654f",
+            color: display.value.startsWith("조치 완료") ? colors.subtext : "#e0654f",
           }}
         >
           {display.value}
@@ -109,14 +107,14 @@ export default function Dashboard({ status, loading, recentDetections, onNavigat
           tooltip="클릭하면 LLM 로그에서 관련 판단 근거를 볼 수 있습니다"
         />
         <StatCard
-          label="이상 처리 완료"
+          label="이상 조치 완료"
           value={stats.anomaly_completed}
           accent="#3b82f6"
           onClick={onNavigateToLogs}
           tooltip="클릭하면 LLM 로그에서 관련 판단 근거를 볼 수 있습니다"
         />
         <StatCard
-          label="처리 실패"
+          label="조치 실패"
           value={stats.anomaly_failed}
           accent={stats.anomaly_failed > 0 ? "#e0654f" : undefined}
           onClick={onNavigateToFailures}
@@ -126,7 +124,7 @@ export default function Dashboard({ status, loading, recentDetections, onNavigat
 
       <div style={card()}>
         <div style={{ ...labelStyle, marginBottom: 22, color: colors.subtext }}>
-          파이프라인 노드 상태
+          파이프라인 에이전트 상태
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {NODE_LABELS.map((node, idx) => (
