@@ -20,6 +20,7 @@ from pipeline.detection_agent import (
     build_unified_feature_matrix,
     ALL_METRICS,
     RESOURCE_TYPES,
+    DERIVED_FEATURE_NAMES,
 )
 
 def test_shape_and_mask():
@@ -31,8 +32,9 @@ def test_shape_and_mask():
     }
     X = build_unified_feature_matrix("EC2", metrics)
 
-    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 리소스타입수
-    expected_cols = len(ALL_METRICS) * 2 + len(RESOURCE_TYPES)
+    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 파생feature수(ec2_idle_flag/
+    # lambda_error_rate, 2026-09-12 추가) + 리소스타입수
+    expected_cols = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES) + len(RESOURCE_TYPES)
     assert X.shape == (3, expected_cols), f"실제 shape: {X.shape}, 기대값: (3, {expected_cols})"
 
     print("✅ shape 통과:", X.shape)
@@ -69,7 +71,7 @@ def test_one_hot():
     X_ec2 = build_unified_feature_matrix("EC2", metrics)
     X_lambda = build_unified_feature_matrix("Lambda", metrics)
 
-    onehot_start = len(ALL_METRICS) * 2  # one-hot 컬럼이 시작되는 위치
+    onehot_start = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES)  # one-hot 컬럼이 시작되는 위치
 
     ec2_onehot = X_ec2[0, onehot_start:]
     lambda_onehot = X_lambda[0, onehot_start:]
@@ -708,9 +710,35 @@ def test_detection_node_flags_lambda_error_surge_and_activates_clf002():
     """detection_node 통합 테스트 + CLF-002가 실제로 살아나는지까지 확인.
     CLF-002(schema/rules/classification_rules.json)는 오늘 이전까지 triggered_metrics에
     error_count가 절대 안 들어가서 죽어있던 규칙이었다 -- 이번 체크가 그걸 살리는 게
-    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다."""
+    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다.
+
+    ⚠️ 2026-09-13: Lambda error_rate가 detection_node의 직접 트리거에서 빠지고
+    IForest 전용 입력으로 바뀌면서, 이 테스트도 예전처럼 cold-start(모델 없음)로
+    돌리면 무조건 실패한다 -- IForest가 아예 없으면 iforest_triggered가 항상
+    False이기 때문(실제 운영은 MOCK_SEED_BUFFER_FROZEN=True로 항상 사전학습된
+    모델이 있어서 이 조건 자체가 비현실적). 그래서 cold-start 대신 실제 운영과
+    동일하게 정상 Lambda mock 윈도우로 모델을 미리 학습시켜두고 검증한다."""
     if os.path.exists(IFOREST_MODEL_DIR):
         shutil.rmtree(IFOREST_MODEL_DIR)
+
+    # ⚠️ 처음엔 invocation~20 x error_rate 0~2%로 직접 mock을 만들었는데, 반올림하면
+    # error_count가 항상 정확히 0(분산 0)이 돼서 모델이 이 컬럼으로 아무것도
+    # 구분 못 하는 상태가 됐었다(디버깅으로 확인). 실제 프로덕션 시딩 스크립트
+    # (seed_mock_iforest_buffer.make_lambda_window)는 invocation 10/50/150을
+    # 섞어써서 이 문제가 없으므로 그걸 그대로 재사용한다.
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE,
+        _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
 
     fake_state = {
         "resource_id": "func-retry-storm",
@@ -745,3 +773,234 @@ def test_detection_node_flags_lambda_error_surge_and_activates_clf002():
         shutil.rmtree(IFOREST_MODEL_DIR)
 
 test_detection_node_flags_lambda_error_surge_and_activates_clf002()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SHAP 해석가능성 프로덕션 경로 연결 (2026-09-14) — Detection/Logging/DB 담당分
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_shap_top_features_populated_when_iforest_triggered():
+    """IForest가 실제로 트리거된 경우 state["shap_top_features"]가 상위 SHAP_TOP_N개
+    (지표명 -> 기여도, 절댓값 내림차순)로 채워지는지 확인. 위 CLF-002 테스트와
+    동일한 시딩 방식(seed_mock_iforest_buffer.make_lambda_window)을 재사용한다 —
+    모델이 없으면 iforest_triggered가 항상 False라 SHAP 자체를 테스트할 수 없다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE,
+        SHAP_TOP_N, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    fake_state = {
+        "resource_id": "func-retry-storm-shap",
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],  # 75%, 80%, 90%
+        ),
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+
+    result = detection_node(fake_state)
+    assert result["_gate_iforest_triggered"] is True, "이 테스트는 IForest가 트리거되는 걸 전제로 함"
+
+    shap = result["shap_top_features"]
+    assert shap is not None, "IForest 트리거 시 shap_top_features가 채워져야 함"
+    assert isinstance(shap, dict) and len(shap) <= SHAP_TOP_N
+    values = list(shap.values())
+    assert values == sorted(values, key=abs, reverse=True), "절댓값 내림차순 정렬이어야 함"
+    # error_count/invocation_count 급증이 원인이므로 최소 하나는 상위에 있어야 함
+    assert {"error_count", "invocation_count", "lambda_error_rate"} & set(shap.keys()), (
+        f"에러 폭증과 무관한 지표만 상위에 잡힘: {shap.keys()}"
+    )
+    print(f"✅ IForest 트리거 시 SHAP 상위 {len(shap)}개 채워짐: {shap}")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_populated_when_iforest_triggered()
+
+
+def test_shap_top_features_skipped_when_only_ec2_idle_triggered():
+    """EC2 유휴 절대임계값만 트리거된 경우(IForest는 구조적으로 이 케이스를 못 잡음,
+    2.1.1절/4.4절 참고) SHAP을 계산하지 않아야 한다 — IForest의 판단이 아닌데
+    IForest 설명을 붙이면 안 되기 때문."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    fake_state = {
+        "resource_id": "i-idle-shap-check",
+        "resource_type": "EC2",
+        "raw_metrics": {
+            "cpu_utilization": [1.5] * 30,
+            "network_in":      [500.0] * 30,
+            "network_out":     [300.0] * 30,
+            "cost":            [0.05] * 30,
+        },
+        "timestamp": "2026-09-14T00:00:00Z",
+        "resource_age_seconds": 3 * 3600,  # 나이 가드(2.5시간) 통과
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+
+    result = detection_node(fake_state)
+    assert result["_gate_idle_triggered"] is True, "이 테스트는 EC2 유휴가 트리거되는 걸 전제로 함"
+    assert result["_gate_iforest_triggered"] is False, (
+        "이 테스트는 IForest가 안 잡는 케이스를 전제로 함(구조적 한계 실측 근거)"
+    )
+    assert result["anomaly_flag"] is True  # 유휴 게이트로 인해 전체 판정은 True
+    assert result["shap_top_features"] is None, "IForest 미트리거 시 SHAP을 계산하면 안 됨"
+    print("✅ EC2 유휴 단독 트리거 시 SHAP 계산 스킵 확인")
+
+test_shap_top_features_skipped_when_only_ec2_idle_triggered()
+
+
+def test_shap_top_features_skipped_when_iforest_not_triggered_with_model_present():
+    """모델이 존재하더라도(콜드스타트가 아니더라도) IForest 자체가 트리거 안 되면
+    SHAP을 계산하지 않는지 확인 — 위 idle 테스트는 모델이 아예 없는 콜드스타트라
+    "모델이 있는데도 안 잡히는" 케이스를 별도로 확인해야 게이팅 조건
+    (iforest_triggered 자체)을 제대로 검증한 게 된다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    # 학습 때 쓴 것과 같은 분포의 "평범한" 윈도우 하나를 그대로 재사용 -- 모델
+    # 입장에서 낯설지 않은 정상 패턴이라 트리거가 안 돼야 함
+    normal_metrics = make_lambda_window(np.random.default_rng(7))
+    fake_state = {
+        "resource_id": "func-normal-shap-check",
+        "resource_type": "Lambda",
+        "raw_metrics": normal_metrics,
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+    result = detection_node(fake_state)
+    assert result["_gate_iforest_triggered"] is False, "이 테스트는 모델이 있어도 안 잡히는 정상 케이스 전제"
+    assert result["shap_top_features"] is None, "IForest 미트리거 시(모델 존재해도) SHAP 계산 안 해야 함"
+    print("✅ 모델 존재 + IForest 미트리거 시에도 SHAP 계산 스킵 확인")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_skipped_when_iforest_not_triggered_with_model_present()
+
+
+def test_shap_top_features_persisted_to_db_via_logging_node():
+    """통합 테스트: detection_node -> logging_node를 실제로 이어 돌려서, IForest가
+    트리거된 케이스의 shap_top_features가 실제 PostgreSQL의
+    agent_steps.output(JSONB) 안에 그대로 저장되는지 DB를 직접 조회해 확인한다.
+    DB 접속 정보가 없거나 연결 실패하면(로컬/CI 환경) 스킵 -- 이 프로젝트의
+    logging_node 자체가 "DB 실패해도 파이프라인은 계속 진행"하는 방어적 설계라,
+    이 테스트도 같은 정신으로 DB 없으면 실패시키지 않고 건너뛴다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    from pipeline.logging_agent import logging_node, _pg_connection_params
+    import psycopg2
+
+    try:
+        conn = psycopg2.connect(**_pg_connection_params())
+        conn.close()
+    except Exception as exc:
+        print(f"⚠️ DB 연결 불가 — 통합 테스트 스킵({exc!r})")
+        return
+
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    resource_id = "func-retry-storm-shap-dbtest"
+    fake_state = {
+        "resource_id": resource_id,
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],
+        ),
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+        "log_entries": [],
+    }
+    state = detection_node(fake_state)
+    assert state["shap_top_features"] is not None, "DB 저장 확인 전에 SHAP 자체가 비어있으면 테스트 무의미"
+
+    logging_node(state)  # 실패해도 예외를 안 던지는 설계 -- 아래에서 실제 저장 여부를 직접 확인
+
+    conn = psycopg2.connect(**_pg_connection_params())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT s.output
+                FROM agent_steps s
+                JOIN agent_runs r ON r.run_id = s.run_id
+                WHERE r.resource_id = %s AND s.step_name = 'detection'
+                ORDER BY r.run_id DESC
+                LIMIT 1
+                """,
+                (resource_id,),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    assert row is not None, "logging_node가 agent_steps에 detection 행을 저장했어야 함"
+    saved_output = row[0]  # psycopg2가 JSONB를 dict로 자동 변환
+    assert saved_output.get("shap_top_features") == state["shap_top_features"], (
+        f"DB에 저장된 shap_top_features가 state와 다름: {saved_output.get('shap_top_features')} "
+        f"!= {state['shap_top_features']}"
+    )
+    print(f"✅ DB(agent_steps.output JSONB)에 shap_top_features 저장 확인: "
+          f"{saved_output['shap_top_features']}")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_persisted_to_db_via_logging_node()

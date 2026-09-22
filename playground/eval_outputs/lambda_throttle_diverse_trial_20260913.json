@@ -1,0 +1,449 @@
+{
+  "script_version": "1",
+  "scenario": "lambda_throttle_retry_storm_diverse",
+  "generated_at": "2026-09-13T11:11:48.730718+00:00",
+  "params": {
+    "n_anomaly": 5,
+    "n_normal": 8,
+    "anomaly_profiles": {
+      "severe": "concurrency=1",
+      "moderate": "concurrency=2",
+      "mild": "concurrency=3"
+    },
+    "normal_profiles": {
+      "light": "5x3",
+      "moderate": "15x3",
+      "heavy": "30x3",
+      "bursty": "40x1"
+    }
+  },
+  "metrics": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "accuracy_ci_95_clopper_pearson": [
+      0.752947361999529,
+      1.0
+    ],
+    "recall": 1.0,
+    "recall_ci_95_clopper_pearson": [
+      0.4781762498950185,
+      1.0
+    ],
+    "precision": 1.0,
+    "false_positive_rate": 0.0,
+    "fpr_ci_95_clopper_pearson": [
+      0.0,
+      0.36941664755281917
+    ]
+  },
+  "trials": [
+    {
+      "resource_id": "detection-test-lambda-anomaly-2",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.013405084609985352,
+        "classification": 5.054473876953125e-05,
+        "decision": 0.0017952919006347656,
+        "action": 0.8872485160827637,
+        "qa": 300.90755891799927,
+        "logging": 0.1326920986175537,
+        "total": 302.8284101486206
+      },
+      "anomaly_score_zscore": 1.2388,
+      "anomaly_score_iforest": 0.8461,
+      "triggered_metrics": [
+        "throttle_count"
+      ],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": true,
+      "gate_idle_triggered": false,
+      "label": "anomaly",
+      "profile": "severe",
+      "concurrency_setting": 1,
+      "burst_size": 40,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:51:04.597444+00:00",
+        "2026-09-13T10:57:28.722710+00:00",
+        "2026-09-13T11:02:45.457740+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T11:11:06.080583+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-3",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.014985322952270508,
+        "classification": 5.340576171875e-05,
+        "decision": 0.001984834671020508,
+        "action": 0.8671221733093262,
+        "qa": 300.9067862033844,
+        "logging": 0.11389708518981934,
+        "total": 302.8149724006653
+      },
+      "anomaly_score_zscore": 1.504,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "throttle_count"
+      ],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": true,
+      "gate_idle_triggered": false,
+      "label": "anomaly",
+      "profile": "severe",
+      "concurrency_setting": 1,
+      "burst_size": 40,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:51:04.604926+00:00",
+        "2026-09-13T10:57:37.473332+00:00",
+        "2026-09-13T11:02:55.201426+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T11:11:16.472970+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-4",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.012365579605102539,
+        "classification": 4.982948303222656e-05,
+        "decision": 0.002073049545288086,
+        "action": 0.8815903663635254,
+        "qa": 300.8799366950989,
+        "logging": 0.13988184928894043,
+        "total": 302.8931667804718
+      },
+      "anomaly_score_zscore": 1.3257,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "throttle_count"
+      ],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": true,
+      "gate_idle_triggered": false,
+      "label": "anomaly",
+      "profile": "moderate",
+      "concurrency_setting": 2,
+      "burst_size": 40,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:51:04.792464+00:00",
+        "2026-09-13T10:57:55.092754+00:00",
+        "2026-09-13T11:03:18.438521+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T11:11:45.686422+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-5",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.011171817779541016,
+        "classification": 8.463859558105469e-05,
+        "decision": 0.002008199691772461,
+        "action": 0.9104371070861816,
+        "qa": 300.9507791996002,
+        "logging": 0.11488938331604004,
+        "total": 303.0188615322113
+      },
+      "anomaly_score_zscore": 1.3647,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": true,
+      "gate_idle_triggered": false,
+      "label": "anomaly",
+      "profile": "moderate",
+      "concurrency_setting": 2,
+      "burst_size": 40,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:51:04.883804+00:00",
+        "2026-09-13T10:57:57.720805+00:00",
+        "2026-09-13T11:03:21.038280+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T11:11:48.711915+00:00"
+    },
+    {
+      "resource_id": "detection-retry-storm-test",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.014425516128540039,
+        "classification": 0.0013475418090820312,
+        "decision": 0.001697540283203125,
+        "action": 0.8533947467803955,
+        "qa": 300.9298343658447,
+        "logging": 0.13466095924377441,
+        "total": 302.9196057319641
+      },
+      "anomaly_score_zscore": 1.3711,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": true,
+      "gate_idle_triggered": false,
+      "label": "anomaly",
+      "profile": "mild",
+      "concurrency_setting": 3,
+      "burst_size": 40,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:51:04.559277+00:00",
+        "2026-09-13T10:57:07.632229+00:00",
+        "2026-09-13T11:02:20.946278+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T11:10:38.157351+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-1",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.010504961013793945,
+        "total": 1.0609407424926758
+      },
+      "anomaly_score_zscore": 1.144,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "light",
+      "concurrency_setting": null,
+      "burst_size": 5,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.824011+00:00",
+        "2026-09-13T10:56:05.636602+00:00",
+        "2026-09-13T11:01:08.037248+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:04:11.558212+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-2",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.015584468841552734,
+        "total": 1.0790634155273438
+      },
+      "anomaly_score_zscore": 0.9584,
+      "anomaly_score_iforest": 0.1044,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "light",
+      "concurrency_setting": null,
+      "burst_size": 5,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.742151+00:00",
+        "2026-09-13T10:56:06.006014+00:00",
+        "2026-09-13T11:01:08.450298+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:04:11.930004+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-3",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.013547658920288086,
+        "total": 1.106858491897583
+      },
+      "anomaly_score_zscore": 1.4697,
+      "anomaly_score_iforest": 0.4776,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "moderate",
+      "concurrency_setting": null,
+      "burst_size": 15,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.702322+00:00",
+        "2026-09-13T10:56:18.399256+00:00",
+        "2026-09-13T11:01:25.949186+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:04:34.516693+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-4",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.011522531509399414,
+        "total": 1.1247758865356445
+      },
+      "anomaly_score_zscore": 1.009,
+      "anomaly_score_iforest": 0.2098,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "moderate",
+      "concurrency_setting": null,
+      "burst_size": 15,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.774426+00:00",
+        "2026-09-13T10:56:18.128560+00:00",
+        "2026-09-13T11:01:25.709415+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:04:34.272736+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-5",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.009904623031616211,
+        "total": 0.9511511325836182
+      },
+      "anomaly_score_zscore": 1.4033,
+      "anomaly_score_iforest": 0.0765,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "heavy",
+      "concurrency_setting": null,
+      "burst_size": 30,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.831367+00:00",
+        "2026-09-13T10:56:32.565320+00:00",
+        "2026-09-13T11:01:45.603021+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:04:58.925595+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-6",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.015578985214233398,
+        "total": 0.8934423923492432
+      },
+      "anomaly_score_zscore": 1.1758,
+      "anomaly_score_iforest": 0.1576,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "heavy",
+      "concurrency_setting": null,
+      "burst_size": 30,
+      "n_bursts": 3,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.757487+00:00",
+        "2026-09-13T10:56:37.820494+00:00",
+        "2026-09-13T11:01:50.750051+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T11:05:04.292149+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-7",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.013107776641845703,
+        "total": 0.9053127765655518
+      },
+      "anomaly_score_zscore": 1.8186,
+      "anomaly_score_iforest": 0.3328,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "bursty",
+      "concurrency_setting": null,
+      "burst_size": 40,
+      "n_bursts": 1,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.767368+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T10:54:57.610954+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-8",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.016879558563232422,
+        "total": 1.4387171268463135
+      },
+      "anomaly_score_zscore": 1.7351,
+      "anomaly_score_iforest": 0.1945,
+      "triggered_metrics": [],
+      "gate_zscore_triggered": false,
+      "gate_iforest_triggered": false,
+      "gate_idle_triggered": false,
+      "label": "normal",
+      "profile": "bursty",
+      "concurrency_setting": null,
+      "burst_size": 40,
+      "n_bursts": 1,
+      "burst_times_utc": [
+        "2026-09-13T10:50:59.833131+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T10:54:43.629694+00:00"
+    }
+  ]
+}

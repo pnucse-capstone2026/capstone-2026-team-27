@@ -6,7 +6,7 @@
   },
   "ec2_prior_natural_finding": {
     "note": "SSM 부하 테스트 전, 실환경에서 자연 발생한 network_in 스파이크를 별도로 이미 기록함 (부팅 직후 배경 트래픽 추정, anomaly_flag=True로 정확히 탐지됨)",
-    "resource_id": "i-027447f30ea1a35e4",
+    "resource_id": "i-0dfbb2a70b2ed2de9",
     "triggered_metric": "network_in",
     "z_max": 2.9128,
     "iforest_score": 0.4522
@@ -230,11 +230,11 @@
       "scenario": "autoscaling_capacity_change",
       "before": {
         "n_points": 30,
-        "anomaly_flag": false,
+        "anomaly_flag": true,
         "z_max": 0.0,
         "z_triggered": false,
-        "iforest_score": 0.0,
-        "iforest_triggered": false,
+        "iforest_score": 1.0,
+        "iforest_triggered": true,
         "last_values": {
           "group_desired_capacity": [
             1.0,
@@ -268,8 +268,8 @@
           ]
         }
       },
-      "run_at": "2026-08-29T11:08:57.278521+00:00"
+      "run_at": "2026-09-13T17:27:45.237518+00:00"
     }
   ],
-  "last_run_at": "2026-08-29T10:50:27.920317+00:00"
+  "last_run_at": "2026-09-13T17:17:38.808940+00:00"
 }

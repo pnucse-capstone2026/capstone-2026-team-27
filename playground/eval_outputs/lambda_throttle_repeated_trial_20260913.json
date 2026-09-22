@@ -1,0 +1,310 @@
+{
+  "script_version": "1",
+  "scenario": "lambda_throttle_retry_storm",
+  "generated_at": "2026-09-13T09:30:17.830872+00:00",
+  "params": {
+    "burst_size": 40,
+    "n_bursts": 3,
+    "burst_interval_sec": 300,
+    "max_event_age_sec": 60,
+    "n_anomaly": 5,
+    "n_normal": 8
+  },
+  "metrics": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "accuracy_ci_95_clopper_pearson": [
+      0.752947361999529,
+      1.0
+    ],
+    "recall": 1.0,
+    "recall_ci_95_clopper_pearson": [
+      0.4781762498950185,
+      1.0
+    ],
+    "precision": 1.0,
+    "false_positive_rate": 0.0,
+    "fpr_ci_95_clopper_pearson": [
+      0.0,
+      0.36941664755281917
+    ]
+  },
+  "trials": [
+    {
+      "resource_id": "detection-retry-storm-test",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.015399932861328125,
+        "classification": 4.172325134277344e-05,
+        "decision": 0.0017230510711669922,
+        "action": 1.5458564758300781,
+        "qa": 300.87915802001953,
+        "logging": 0.13912153244018555,
+        "total": 303.8759660720825
+      },
+      "label": "anomaly",
+      "burst_times_utc": [
+        "2026-09-13T09:08:28.361262+00:00",
+        "2026-09-13T09:15:41.657229+00:00",
+        "2026-09-13T09:21:26.764439+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T09:30:00.484544+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-2",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.009735107421875,
+        "classification": 4.553794860839844e-05,
+        "decision": 0.0018086433410644531,
+        "action": 1.201925277709961,
+        "qa": 300.9894349575043,
+        "logging": 0.08132529258728027,
+        "total": 303.556467294693
+      },
+      "label": "anomaly",
+      "burst_times_utc": [
+        "2026-09-13T09:08:28.499569+00:00",
+        "2026-09-13T09:16:01.434259+00:00",
+        "2026-09-13T09:21:42.794870+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T09:30:17.810413+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-3",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.011065483093261719,
+        "classification": 4.1484832763671875e-05,
+        "decision": 0.0016682147979736328,
+        "action": 1.1291728019714355,
+        "qa": 301.52952766418457,
+        "logging": 0.08721399307250977,
+        "total": 303.9075939655304
+      },
+      "label": "anomaly",
+      "burst_times_utc": [
+        "2026-09-13T09:08:27.934319+00:00",
+        "2026-09-13T09:15:38.169638+00:00",
+        "2026-09-13T09:21:04.330370+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T09:29:38.660455+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-4",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.010686635971069336,
+        "classification": 0.0016188621520996094,
+        "decision": 0.001674652099609375,
+        "action": 1.914823055267334,
+        "qa": 300.91643738746643,
+        "logging": 0.21470117568969727,
+        "total": 305.36210322380066
+      },
+      "label": "anomaly",
+      "burst_times_utc": [
+        "2026-09-13T09:08:27.793750+00:00",
+        "2026-09-13T09:15:13.153583+00:00",
+        "2026-09-13T09:21:01.004657+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T09:29:36.175543+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-anomaly-5",
+      "resource_type": "Lambda",
+      "anomaly_flag": true,
+      "anomaly_type": "cost_spike",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.012249231338500977,
+        "classification": 4.8160552978515625e-05,
+        "decision": 0.001972198486328125,
+        "action": 1.7537412643432617,
+        "qa": 300.9982078075409,
+        "logging": 0.08213090896606445,
+        "total": 304.2306032180786
+      },
+      "label": "anomaly",
+      "burst_times_utc": [
+        "2026-09-13T09:08:28.486046+00:00",
+        "2026-09-13T09:15:56.340970+00:00",
+        "2026-09-13T09:21:30.255700+00:00"
+      ],
+      "detected": true,
+      "measured_at": "2026-09-13T09:30:05.608243+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-1",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.014159440994262695,
+        "total": 1.0046882629394531
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.433520+00:00",
+        "2026-09-13T09:14:43.683275+00:00",
+        "2026-09-13T09:20:09.419357+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:23:33.538142+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-2",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.015318870544433594,
+        "total": 1.5975902080535889
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.346970+00:00",
+        "2026-09-13T09:13:55.852731+00:00",
+        "2026-09-13T09:19:14.307796+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:22:34.125228+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-3",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.014857769012451172,
+        "total": 1.127403736114502
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.426351+00:00",
+        "2026-09-13T09:14:18.070422+00:00",
+        "2026-09-13T09:19:40.669260+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:23:02.650457+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-4",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.009647846221923828,
+        "total": 0.84684157371521
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.435976+00:00",
+        "2026-09-13T09:15:09.411971+00:00",
+        "2026-09-13T09:20:38.647874+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:24:05.894413+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-5",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.010939836502075195,
+        "total": 1.2900519371032715
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.509503+00:00",
+        "2026-09-13T09:14:43.715564+00:00",
+        "2026-09-13T09:20:12.725245+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:23:37.972152+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-6",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.01630091667175293,
+        "total": 0.9803166389465332
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.350544+00:00",
+        "2026-09-13T09:14:55.454554+00:00",
+        "2026-09-13T09:20:35.549002+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:24:01.740709+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-7",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.016045808792114258,
+        "total": 0.876673698425293
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.472576+00:00",
+        "2026-09-13T09:13:59.626695+00:00",
+        "2026-09-13T09:19:19.135873+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:22:38.164660+00:00"
+    },
+    {
+      "resource_id": "detection-test-lambda-normal-8",
+      "resource_type": "Lambda",
+      "anomaly_flag": false,
+      "timings": {
+        "detection": 0.01572585105895996,
+        "total": 0.994117021560669
+      },
+      "label": "normal",
+      "burst_times_utc": [
+        "2026-09-13T09:08:23.506808+00:00",
+        "2026-09-13T09:14:22.853777+00:00",
+        "2026-09-13T09:19:46.701818+00:00"
+      ],
+      "detected": false,
+      "measured_at": "2026-09-13T09:23:09.030651+00:00"
+    }
+  ]
+}

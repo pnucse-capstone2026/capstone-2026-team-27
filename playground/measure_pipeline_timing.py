@@ -49,6 +49,18 @@ from pipeline.logging_agent import logging_node
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 
+def _safe_print(msg: str) -> None:
+    """콘솔 코드페이지(예: Windows cp949)가 em dash 등 일부 유니코드 문자를
+    인코딩 못 해 print()가 UnicodeEncodeError로 죽는 걸 막는다. 2026-09-13
+    실측 중 이 크래시가 measure() 호출 전체를 (결과 반환 전에) 죽여서
+    Lambda 13개 반복시행 결과가 전부 유실되는 사고가 실제로 났다."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        enc = sys.stdout.encoding or "utf-8"
+        print(msg.encode(enc, errors="replace").decode(enc, errors="replace"))
+
+
 def _build_initial_state(resource_id: str, resource_type: str) -> dict:
     assembled = assemble_resource(resource_id, resource_type)
     return {
@@ -62,6 +74,7 @@ def _build_initial_state(resource_id: str, resource_type: str) -> dict:
         "anomaly_score_zscore": None,
         "anomaly_score_iforest": None,
         "triggered_metrics": [],
+        "shap_top_features": None,
         "anomaly_type": None,
         "classification_reasoning": None,
         "interim_action_taken": None,
@@ -95,11 +108,21 @@ def measure(resource_id: str, resource_type: str, bypass_approval_for_timing: bo
     timings["detection"] = time.time() - t0
     print(f"[detection] {timings['detection']:.3f}s -> anomaly_flag={state['anomaly_flag']}")
 
+    gate_breakdown = {
+        "anomaly_score_zscore": state.get("anomaly_score_zscore"),
+        "anomaly_score_iforest": state.get("anomaly_score_iforest"),
+        "triggered_metrics": state.get("triggered_metrics"),
+        "shap_top_features": state.get("shap_top_features"),
+        "gate_zscore_triggered": state.get("_gate_zscore_triggered"),
+        "gate_iforest_triggered": state.get("_gate_iforest_triggered"),
+        "gate_idle_triggered": state.get("_gate_idle_triggered"),
+    }
+
     if not state["anomaly_flag"]:
         timings["total"] = time.time() - t_total_start
-        print("이상 없음(anomaly_flag=False) — 여기서 파이프라인 종료 (정상 판정 경로).")
+        _safe_print("이상 없음(anomaly_flag=False) — 여기서 파이프라인 종료 (정상 판정 경로).")
         return {"resource_id": resource_id, "resource_type": resource_type,
-                "anomaly_flag": False, "timings": timings}
+                "anomaly_flag": False, "timings": timings, **gate_breakdown}
 
     t0 = time.time()
     state = classification_node(state)
@@ -114,14 +137,14 @@ def measure(resource_id: str, resource_type: str, bypass_approval_for_timing: bo
 
     approval_bypassed = False
     if state["requires_approval"] and bypass_approval_for_timing:
-        print("[!] requires_approval=True — 타이밍 측정 목적으로만 승인 게이트 우회함 "
-              "(실제 운영에서는 여기서 사람 승인을 기다려야 함, 그 대기시간은 무한정이라 측정 불가)")
+        _safe_print("[!] requires_approval=True — 타이밍 측정 목적으로만 승인 게이트 우회함 "
+                    "(실제 운영에서는 여기서 사람 승인을 기다려야 함, 그 대기시간은 무한정이라 측정 불가)")
         state["requires_approval"] = False
         approval_bypassed = True
     elif state["requires_approval"]:
         timings["total"] = time.time() - t_total_start
-        print("requires_approval=True — 승인 대기 상태. --bypass-approval 없이는 "
-              "여기서 더 진행 안 함 (실제 운영과 동일한 동작).")
+        _safe_print("requires_approval=True — 승인 대기 상태. --bypass-approval 없이는 "
+                    "여기서 더 진행 안 함 (실제 운영과 동일한 동작).")
         return {"resource_id": resource_id, "resource_type": resource_type,
                 "anomaly_flag": True, "selected_action": state["selected_action"],
                 "stopped_at": "approval_gate", "timings": timings}
@@ -142,7 +165,7 @@ def measure(resource_id: str, resource_type: str, bypass_approval_for_timing: bo
     try:
         state = logging_node(state)
     except Exception as exc:
-        print(f"[logging] 실패(DB 미연결 등, 타이밍엔 영향 없음): {exc}")
+        _safe_print(f"[logging] 실패(DB 미연결 등, 타이밍엔 영향 없음): {exc}")
     timings["logging"] = time.time() - t0
     print(f"[logging] {timings['logging']:.3f}s")
 
@@ -158,6 +181,7 @@ def measure(resource_id: str, resource_type: str, bypass_approval_for_timing: bo
         "approval_bypassed_for_timing": approval_bypassed,
         "qa_passed": state["qa_passed"],
         "timings": timings,
+        **gate_breakdown,
     }
 
 

@@ -173,6 +173,9 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
             "anomaly_score_zscore":  state.get("anomaly_score_zscore"),
             "anomaly_score_iforest": state.get("anomaly_score_iforest"),
             "triggered_metrics":     state.get("triggered_metrics"),
+            # IForest 트리거 시에만 채워짐(Z-score/EC2 유휴 단독 트리거는 None) —
+            # detection_agent.py의 explain_iforest_top_features() 결과.
+            "shap_top_features":     state.get("shap_top_features"),
             # Grafana "실제 지출 비용" 패널용 — raw_metrics 자체는 로그에 안 남기고
             # 이 실행 시점의 최신 cost 값 하나만 남김 (전 리소스 타입 공통 필드)
             "latest_cost":           (state.get("raw_metrics", {}).get("cost") or [None])[-1],
@@ -317,15 +320,22 @@ def logging_node(state: PipelineState) -> PipelineState:
             _insert_steps(conn, run_id, step_records)
             _insert_action(conn, run_id, action_record)
             conn.commit()
-            print(f"[logging_node] DB 저장 성공 (run_id={run_id})")
+            logger.info("[logging_node] DB 저장 성공 (run_id=%s)", run_id)
         except Exception as e:
             conn.rollback()
-            print(f"[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: {e!r}")
+            # ⚠️ 2026-09-13 발견: 여기가 print()였을 때, Windows cp949 콘솔에서
+            # 메시지의 "—"(em dash)를 인코딩 못 해 UnicodeEncodeError로 죽었다.
+            # 그러면 이 except가 "원인 파악용으로 출력만 하고 넘어가는" 원래
+            # 의도와 반대로, 예외가 measure() 호출 전체를 타고 올라가 파이프라인이
+            # 통째로 죽어버렸다(Lambda 13개 반복시행에서 13개 전부 이렇게 유실됨).
+            # logging 모듈은 인코딩 불가 문자를 만나도 콘솔 출력에서 죽지 않는 걸
+            # 이 세션 내내 확인했으므로 print 대신 logger를 쓴다.
+            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: %r", e)
         finally:
             conn.close()
     except Exception as e:
         # _get_connection()에서 발생한 RuntimeError (원인이 이미 메시지에 포함됨)
-        print(f"[logging_node] {e}")
+        logger.error("[logging_node] %s", e)
 
     # DB 적재와 별개로, state["log_entries"]엔 기존처럼 사람이 읽기 좋은 요약을 유지
     entries = state.get("log_entries", [])

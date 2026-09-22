@@ -1,0 +1,42 @@
+{
+  "script_version": "1",
+  "scenario": "lambda_error_retry_surge",
+  "generated_at": "2026-09-10T12:11:42.277497+00:00",
+  "aws_account_id": "634236767974",
+  "function_set": "teammate",
+  "params": {
+    "induce_minutes": 15,
+    "error_rate": 0.8,
+    "interval_sec": 20,
+    "n_targets": 3
+  },
+  "induce_results": [
+    {
+      "function_name": "detection-trial-lambda-anomaly-2",
+      "n_calls": 40,
+      "n_forced_errors": 32,
+      "n_invoke_failed": 0,
+      "interval_sec": 22,
+      "induce_minutes": 15,
+      "elapsed_sec": 904.5
+    },
+    {
+      "function_name": "detection-trial-lambda-anomaly-0",
+      "n_calls": 42,
+      "n_forced_errors": 38,
+      "n_invoke_failed": 0,
+      "interval_sec": 21,
+      "induce_minutes": 15,
+      "elapsed_sec": 908.9
+    },
+    {
+      "function_name": "detection-trial-lambda-anomaly-1",
+      "n_calls": 49,
+      "n_forced_errors": 43,
+      "n_invoke_failed": 0,
+      "interval_sec": 18,
+      "induce_minutes": 15,
+      "elapsed_sec": 913.8
+    }
+  ]
+}
