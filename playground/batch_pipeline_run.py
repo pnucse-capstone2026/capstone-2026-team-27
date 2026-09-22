@@ -46,6 +46,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -53,39 +55,46 @@ if str(PROJECT_ROOT / "playground") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "playground"))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import boto3
 
 from measure_pipeline_timing import measure
 from lambda_retry_repeated_trial import LAMBDA_FUNCTIONS, INVOKE_PROFILE_DEFAULT
+from _runner_tag import runner_suffix
 
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 # EC2 좀비 실험에 쓴 13대 (ec2_zombie_manifest.json과 동일 — 라벨은 원래 실험 기준)
 EC2_INSTANCES = [
-    ("i-00f27d6650869a74d", "anomaly", "silent"),
-    ("i-094595e331b19be17", "anomaly", "silent"),
-    ("i-0238a05593fbcf2f2", "anomaly", "whisper"),
-    ("i-046cbf400dd6dc9d7", "anomaly", "whisper"),
-    ("i-013a9d143009d1376", "anomaly", "whisper_more"),
-    ("i-0e810265b88caeac5", "normal",  "light"),
-    ("i-0cd6cf73f56959d2e", "normal",  "light"),
-    ("i-07c77db4628d7e7ca", "normal",  "moderate"),
-    ("i-04cec80c3045da327", "normal",  "moderate"),
-    ("i-0380a0b372a973a5c", "normal",  "heavy"),
-    ("i-053230c6e903132f8", "normal",  "heavy"),
-    ("i-01aed37041b8e6946", "normal",  "bursty"),
-    ("i-0973aa83fa2ba0dd9", "normal",  "bursty"),
+    # 2026-09-14 EC2 좀비 v3(버그 수정판) 재실험 인스턴스로 갱신
+    # (manifest: playground/eval_outputs/ec2_zombie_manifest_20260914_170255.json)
+    ("i-0235ed717f891d57f", "anomaly", "idle_zombie"),
+    ("i-0b46188f0826d02e0", "anomaly", "idle_zombie"),
+    ("i-0b72ef53db68ffc5c", "anomaly", "idle_zombie"),
+    ("i-06c05ee2590c7cd99", "anomaly", "idle_zombie"),
+    ("i-01352f48e6f59c28f", "anomaly", "idle_zombie"),
+    ("i-0b0c24e9fc5067b21", "normal", "target_cpu_45pct"),
+    ("i-06c8c47b5258182b7", "normal", "target_cpu_45pct"),
+    ("i-0b927c4bc65ddeaa0", "normal", "target_cpu_45pct"),
+    ("i-0a1a8de488307c4d3", "normal", "target_cpu_45pct"),
+    ("i-01ad15e6c71c81dfb", "normal", "target_cpu_45pct"),
+    ("i-0e13c3b6e9b0cb5cf", "normal", "target_cpu_45pct"),
+    ("i-08e70038077d060c7", "normal", "target_cpu_45pct"),
+    ("i-0656dbb14338c5a3d", "normal", "target_cpu_45pct"),
 ]
 
 
 # ── Lambda 트래픽 재생성 ──────────────────────────────────────────────────────
 
+
 def _generate_lambda_traffic(minutes: int, invoke_profile: str) -> dict[str, dict]:
     """파이프라인 직전에 에러 폭증/정상 트래픽을 다시 만든다. 함수별 실측 호출/에러 수 반환."""
-    lam = boto3.Session(profile_name=invoke_profile).client("lambda", region_name=AWS_REGION)
+    lam = boto3.Session(profile_name=invoke_profile).client(
+        "lambda", region_name=AWS_REGION
+    )
     stats: dict[str, dict] = {}
 
     def one(fn_name: str, label: str, error_rate: float, interval_sec: int) -> None:
@@ -93,18 +102,27 @@ def _generate_lambda_traffic(minutes: int, invoke_profile: str) -> dict[str, dic
         n_err = 0
         for _ in range(n_calls):
             is_err = random.random() < error_rate
-            payload = b'{"force_error": true}' if is_err else b'{}'
+            payload = b'{"force_error": true}' if is_err else b"{}"
             try:
-                lam.invoke(FunctionName=fn_name, InvocationType="Event", Payload=payload)
+                lam.invoke(
+                    FunctionName=fn_name, InvocationType="Event", Payload=payload
+                )
                 n_err += int(is_err)
             except Exception as exc:
                 print(f"[{fn_name}] invoke 실패: {exc}")
             time.sleep(interval_sec)
-        stats[fn_name] = {"label": label, "n_calls": n_calls, "n_errors": n_err,
-                          "target_error_rate": error_rate, "interval_sec": interval_sec}
+        stats[fn_name] = {
+            "label": label,
+            "n_calls": n_calls,
+            "n_errors": n_err,
+            "target_error_rate": error_rate,
+            "interval_sec": interval_sec,
+        }
         print(f"[traffic {label} {fn_name}] 완료 에러 {n_err}/{n_calls}")
 
-    print(f"=== Lambda 트래픽 {minutes}분 재생성 시작 ({len(LAMBDA_FUNCTIONS)}개 병렬) ===")
+    print(
+        f"=== Lambda 트래픽 {minutes}분 재생성 시작 ({len(LAMBDA_FUNCTIONS)}개 병렬) ==="
+    )
     with ThreadPoolExecutor(max_workers=len(LAMBDA_FUNCTIONS)) as ex:
         futs = [ex.submit(one, n, l, e, i) for (n, l, e, i) in LAMBDA_FUNCTIONS]
         for f in as_completed(futs):
@@ -118,7 +136,10 @@ def _generate_lambda_traffic(minutes: int, invoke_profile: str) -> dict[str, dic
 
 # ── 파이프라인 1건 ───────────────────────────────────────────────────────────
 
-def _run_one(resource_id: str, resource_type: str, label: str, profile: str | None) -> dict:
+
+def _run_one(
+    resource_id: str, resource_type: str, label: str, profile: str | None
+) -> dict:
     t0 = time.time()
     try:
         # bypass_approval_for_timing=False — 승인 게이트를 우회하지 않는다.
@@ -130,12 +151,18 @@ def _run_one(resource_id: str, resource_type: str, label: str, profile: str | No
         return result
     except Exception as exc:
         print(f"[{resource_id}] 실패: {exc}\n{traceback.format_exc()}")
-        return {"resource_id": resource_id, "resource_type": resource_type,
-                "label": label, "profile": profile, "error": str(exc),
-                "elapsed_sec": round(time.time() - t0, 1)}
+        return {
+            "resource_id": resource_id,
+            "resource_type": resource_type,
+            "label": label,
+            "profile": profile,
+            "error": str(exc),
+            "elapsed_sec": round(time.time() - t0, 1),
+        }
 
 
 # ── 집계 ─────────────────────────────────────────────────────────────────────
+
 
 def _summarize(results: list[dict]) -> dict:
     ok = [r for r in results if "error" not in r]
@@ -147,7 +174,9 @@ def _summarize(results: list[dict]) -> dict:
     # 라벨별 탐지 (원래 실험 라벨 기준 — EC2는 부하 생성기 종료 후라 정상군도 좀비 상태임에 유의)
     by_label: dict[str, dict[str, int]] = {}
     for r in ok:
-        b = by_label.setdefault(r.get("label") or "unknown", {"total": 0, "detected": 0})
+        b = by_label.setdefault(
+            r.get("label") or "unknown", {"total": 0, "detected": 0}
+        )
         b["total"] += 1
         b["detected"] += int(bool(r.get("anomaly_flag")))
 
@@ -173,21 +202,41 @@ def _summarize(results: list[dict]) -> dict:
         "n_qa_passed": len(qa_pass),
         "qa_pass_rate": (len(qa_pass) / len(executed)) if executed else None,
         "detected_by_label": by_label,
-        "selected_actions": {a: sum(1 for r in detected if r.get("selected_action") == a)
-                             for a in sorted({r.get("selected_action") for r in detected
-                                              if r.get("selected_action")})},
-        "timings": {k: stat(k) for k in
-                    ["detection", "classification", "decision", "action", "qa", "logging", "total"]},
+        "selected_actions": {
+            a: sum(1 for r in detected if r.get("selected_action") == a)
+            for a in sorted(
+                {r.get("selected_action") for r in detected if r.get("selected_action")}
+            )
+        },
+        "timings": {
+            k: stat(k)
+            for k in [
+                "detection",
+                "classification",
+                "decision",
+                "action",
+                "qa",
+                "logging",
+                "total",
+            ]
+        },
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resource-type", required=True, choices=["EC2", "Lambda"])
-    parser.add_argument("--lambda-traffic-minutes", type=int, default=0,
-                        help="Lambda 전용: 파이프라인 직전에 트래픽을 이 시간(분)만큼 재생성. 0이면 생략")
-    parser.add_argument("--invoke-profile", default=INVOKE_PROFILE_DEFAULT,
-                        help="Lambda 트래픽 생성에 쓸 AWS 프로필(탐지는 .env 프로필 그대로)")
+    parser.add_argument(
+        "--lambda-traffic-minutes",
+        type=int,
+        default=0,
+        help="Lambda 전용: 파이프라인 직전에 트래픽을 이 시간(분)만큼 재생성. 0이면 생략",
+    )
+    parser.add_argument(
+        "--invoke-profile",
+        default=INVOKE_PROFILE_DEFAULT,
+        help="Lambda 트래픽 생성에 쓸 AWS 프로필(탐지는 .env 프로필 그대로)",
+    )
     parser.add_argument("--max-workers", type=int, default=13)
     args = parser.parse_args()
 
@@ -196,15 +245,21 @@ def main() -> None:
         targets = [(rid, label, prof) for rid, label, prof in EC2_INSTANCES]
     else:
         if args.lambda_traffic_minutes > 0:
-            traffic_stats = _generate_lambda_traffic(args.lambda_traffic_minutes, args.invoke_profile)
+            traffic_stats = _generate_lambda_traffic(
+                args.lambda_traffic_minutes, args.invoke_profile
+            )
         targets = [(fn, label, None) for (fn, label, _e, _i) in LAMBDA_FUNCTIONS]
 
-    print(f"=== {args.resource_type} {len(targets)}개 전체 파이프라인 병렬 실행 시작 ===")
+    print(
+        f"=== {args.resource_type} {len(targets)}개 전체 파이프라인 병렬 실행 시작 ==="
+    )
     t0 = time.time()
     results: list[dict] = []
     with ThreadPoolExecutor(max_workers=min(args.max_workers, len(targets))) as ex:
-        futs = {ex.submit(_run_one, rid, args.resource_type, label, prof): rid
-                for rid, label, prof in targets}
+        futs = {
+            ex.submit(_run_one, rid, args.resource_type, label, prof): rid
+            for rid, label, prof in targets
+        }
         for f in as_completed(futs):
             results.append(f.result())
 
@@ -215,7 +270,7 @@ def main() -> None:
     print("\n=== 집계 ===")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     out_path = RESULT_DIR / f"batch_pipeline__{args.resource_type}_{ts}.json"
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     payload = {

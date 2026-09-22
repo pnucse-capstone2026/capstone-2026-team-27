@@ -55,6 +55,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import boto3
@@ -65,6 +66,8 @@ from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
 from pipeline.QA_agent import qa_node
 from pipeline.logging_agent import logging_node
+from pipeline.cost_estimator import estimate_cost_series
+from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
@@ -99,19 +102,48 @@ def _freeze_credentials_for_threads() -> str:
 def find_source() -> Path:
     candidates = sorted(glob.glob(str(RESULT_DIR / "ec2_repeated_trial__*.json")))
     if not candidates:
-        raise FileNotFoundError(f"{RESULT_DIR}에 ec2_repeated_trial__*.json 원본이 없음")
+        raise FileNotFoundError(
+            f"{RESULT_DIR}에 ec2_repeated_trial__*.json 원본이 없음"
+        )
     return Path(candidates[-1])
 
 
-def _build_state(resource_id: str, resource_type: str, raw_metrics: dict,
-                 resource_age_seconds: float | None) -> dict:
+def _build_state(
+    resource_id: str,
+    resource_type: str,
+    raw_metrics: dict,
+    resource_age_seconds: float | None,
+    measured_at: str | None = None,
+) -> dict:
     """measure_pipeline_timing._build_initial_state와 같은 형태지만, assemble_resource로
     AWS를 다시 부르지 않고 저장된 raw_metrics를 그대로 쓴다.
 
     resource_age_seconds도 저장값을 넘긴다 — measure_pipeline_timing은 이걸 None으로
     두는데, 그러면 EC2 유휴 판정의 나이가드가 아예 작동하지 않는다(detection_agent.py
     _low_utilization_check는 None이면 가드를 건너뛴다). 재생은 원본 측정과 같은
-    조건을 재현해야 하므로 저장된 나이를 그대로 쓴다."""
+    조건을 재현해야 하므로 저장된 나이를 그대로 쓴다.
+
+    [버그 수정] ec2_repeated_trial.py가 저장한 raw_metrics엔 assemble_resource()가
+    평소 채워주는 "cost" 필드가 빠져 있었다(실측 확인). decision_node가 cost 없는
+    Stop/Stop+Schedule 후보를 만나면 _cost_based_full_removal_saving이 None을
+    반환해 Gemini LLM 폴백으로 넘어가는데, 이게 레이트리밋(429)에 걸려 76~129초씩
+    걸리고 estimated_saving_usd도 0.0으로 찍히는 원인이었다. assemble_resource와
+    동일하게 estimate_cost_series()로 채워서 라이브 경로와 같은 입력을 재현한다.
+    end_time은 반드시 measured_at(원본 측정 시점, 부하가 살아있던 때)을 써야 한다 —
+    생략하면 CloudTrail 조회 창이 지금(유휴 상태)을 기준으로 어긋난다."""
+    if "cost" not in raw_metrics:
+        usage_metrics = {k: v for k, v in raw_metrics.items() if k != "cost"}
+        end_time = datetime.fromisoformat(measured_at) if measured_at else None
+        raw_metrics = {
+            **raw_metrics,
+            "cost": estimate_cost_series(
+                resource_type,
+                resource_id,
+                usage_metrics,
+                end_time=end_time,
+                currently_running=True,
+            ),
+        }
     return {
         "trace_id": None,
         "resource_id": resource_id,
@@ -145,15 +177,24 @@ def _build_state(resource_id: str, resource_type: str, raw_metrics: dict,
     }
 
 
-def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict,
-            resource_age_seconds: float | None) -> dict:
+def run_one(
+    resource_id: str,
+    label: str,
+    profile: str | None,
+    raw_metrics: dict,
+    resource_age_seconds: float | None,
+    measured_at: str | None = None,
+    bypass_approval_for_timing: bool = False,
+) -> dict:
     """저장된 지표로 detection부터 시작해 파이프라인을 끝까지 흘린다."""
     timings: dict[str, float] = {}
     t_total = time.time()
     out: dict = {"resource_id": resource_id, "label": label, "profile": profile}
 
     try:
-        state = _build_state(resource_id, "EC2", raw_metrics, resource_age_seconds)
+        state = _build_state(
+            resource_id, "EC2", raw_metrics, resource_age_seconds, measured_at
+        )
 
         t0 = time.time()
         state = detection_node(state)
@@ -162,8 +203,10 @@ def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict
         out["anomaly_score_zscore"] = state["anomaly_score_zscore"]
         out["anomaly_score_iforest"] = state["anomaly_score_iforest"]
         out["triggered_metrics"] = state["triggered_metrics"]
-        print(f"[{label} {resource_id}] detection {timings['detection']:.3f}s "
-              f"-> flag={state['anomaly_flag']} triggered={state['triggered_metrics']}")
+        print(
+            f"[{label} {resource_id}] detection {timings['detection']:.3f}s "
+            f"-> flag={state['anomaly_flag']} triggered={state['triggered_metrics']}"
+        )
 
         if not state["anomaly_flag"]:
             # 정상 판정 -> 파이프라인 종료. 액션이 실행되지 않으므로 인스턴스는 그대로 유지된다.
@@ -187,10 +230,23 @@ def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict
         out["requires_approval"] = bool(state["requires_approval"])
         out["matched_decision_rule_id"] = state.get("matched_decision_rule_id")
         out["candidate_actions"] = state.get("candidate_actions")
-        print(f"[{label} {resource_id}] decision -> {state['selected_action']} "
-              f"risk={state['risk_level']} approval={state['requires_approval']}")
+        print(
+            f"[{label} {resource_id}] decision -> {state['selected_action']} "
+            f"risk={state['risk_level']} approval={state['requires_approval']}"
+        )
 
-        if state["requires_approval"]:
+        out["approval_bypassed_for_timing"] = False
+        if state["requires_approval"] and bypass_approval_for_timing:
+            # [측정 전용] Resize는 ACTION_RISK_FLOOR상 MED라 실제 운영에서는 항상
+            # 사람 승인이 필요하다. 승인 대기시간은 무한정이라 자동 측정이 불가능
+            # 하므로, Action/QA/timing 측정을 위해서만 여기서 우회한다 — 실제
+            # 승인 게이트 정책을 바꾸는 게 아니다 (Lambda cost_spike와 동일한 사유).
+            print(
+                f"[{label} {resource_id}] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함"
+            )
+            state["requires_approval"] = False
+            out["approval_bypassed_for_timing"] = True
+        elif state["requires_approval"]:
             # 승인 게이트를 우회하지 않는다 — 실제 운영 동작 그대로 기록.
             timings["total"] = time.time() - t_total
             out["stopped_at"] = "approval_gate"
@@ -203,9 +259,13 @@ def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict
         timings["action"] = time.time() - t0
         out["action_executed"] = state.get("action_executed")
         out["action_result"] = state.get("action_result")
-        out["action_success"] = (state.get("action_result") or {}).get("status") == "success"
-        print(f"[{label} {resource_id}] action {timings['action']:.3f}s "
-              f"-> {state.get('action_executed')} {(state.get('action_result') or {}).get('status')}")
+        out["action_success"] = (state.get("action_result") or {}).get(
+            "status"
+        ) == "success"
+        print(
+            f"[{label} {resource_id}] action {timings['action']:.3f}s "
+            f"-> {state.get('action_executed')} {(state.get('action_result') or {}).get('status')}"
+        )
 
         t0 = time.time()
         state = qa_node(state)
@@ -214,7 +274,9 @@ def run_one(resource_id: str, label: str, profile: str | None, raw_metrics: dict
         out["sla_check_result"] = state.get("sla_check_result")
         out["rollback_count"] = state.get("rollback_count", 0)
         out["qa_matched_rule_id"] = state.get("qa_matched_rule_id")
-        print(f"[{label} {resource_id}] qa {timings['qa']:.3f}s -> passed={state.get('qa_passed')}")
+        print(
+            f"[{label} {resource_id}] qa {timings['qa']:.3f}s -> passed={state.get('qa_passed')}"
+        )
 
         t0 = time.time()
         try:
@@ -241,8 +303,11 @@ def _ensure_running(instance_ids: list[str]) -> dict[str, str]:
     """액션 대상이 running이어야 Stop이 의미가 있으므로, stopped인 것만 start하고 기다린다."""
     ec2 = boto3.client("ec2")
     desc = ec2.describe_instances(InstanceIds=instance_ids)
-    states = {i["InstanceId"]: i["State"]["Name"]
-              for r in desc["Reservations"] for i in r["Instances"]}
+    states = {
+        i["InstanceId"]: i["State"]["Name"]
+        for r in desc["Reservations"]
+        for i in r["Instances"]
+    }
     to_start = [i for i, s in states.items() if s in ("stopped", "stopping")]
     if not to_start:
         print("모두 이미 running 상태")
@@ -260,8 +325,11 @@ def _ensure_running(instance_ids: list[str]) -> dict[str, str]:
     ec2.get_waiter("instance_running").wait(InstanceIds=to_start)
 
     desc = ec2.describe_instances(InstanceIds=instance_ids)
-    return {i["InstanceId"]: i["State"]["Name"]
-            for r in desc["Reservations"] for i in r["Instances"]}
+    return {
+        i["InstanceId"]: i["State"]["Name"]
+        for r in desc["Reservations"]
+        for i in r["Instances"]
+    }
 
 
 def _summarize(results: list[dict]) -> dict:
@@ -283,9 +351,13 @@ def _summarize(results: list[dict]) -> dict:
         vals = [r["timings"][key] for r in ok if key in r.get("timings", {})]
         if not vals:
             return None
-        return {"n": len(vals), "mean_sec": round(statistics.mean(vals), 3),
-                "stdev_sec": round(statistics.stdev(vals), 3) if len(vals) > 1 else 0.0,
-                "min_sec": round(min(vals), 3), "max_sec": round(max(vals), 3)}
+        return {
+            "n": len(vals),
+            "mean_sec": round(statistics.mean(vals), 3),
+            "stdev_sec": round(statistics.stdev(vals), 3) if len(vals) > 1 else 0.0,
+            "min_sec": round(min(vals), 3),
+            "max_sec": round(max(vals), 3),
+        }
 
     total = tp + fn + fp + tn
     return {
@@ -297,32 +369,64 @@ def _summarize(results: list[dict]) -> dict:
             "recall": tp / (tp + fn) if (tp + fn) else None,
             "false_positive_rate": fp / (fp + tn) if (fp + tn) else None,
         },
-        "stopped_at": {k: sum(1 for r in ok if r.get("stopped_at") == k)
-                       for k in ["detection", "approval_gate", None]},
+        "stopped_at": {
+            k: sum(1 for r in ok if r.get("stopped_at") == k)
+            for k in ["detection", "approval_gate", None]
+        },
         "action": {
             "n_executed": len(executed),
             "n_success": len(action_ok),
             "success_rate": (len(action_ok) / len(executed)) if executed else None,
-            "by_action": {a: sum(1 for r in executed if r.get("action_executed") == a)
-                          for a in sorted({r.get("action_executed") for r in executed if r.get("action_executed")})},
+            "by_action": {
+                a: sum(1 for r in executed if r.get("action_executed") == a)
+                for a in sorted(
+                    {
+                        r.get("action_executed")
+                        for r in executed
+                        if r.get("action_executed")
+                    }
+                )
+            },
         },
         "qa": {
             "n_judged": len(qa_judged),
             "n_passed": len(qa_pass),
             "pass_rate": (len(qa_pass) / len(qa_judged)) if qa_judged else None,
         },
-        "timings": {k: stat(k) for k in
-                    ["detection", "classification", "decision", "action", "qa", "logging", "total"]},
+        "timings": {
+            k: stat(k)
+            for k in [
+                "detection",
+                "classification",
+                "decision",
+                "action",
+                "qa",
+                "logging",
+                "total",
+            ]
+        },
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", default=None,
-                        help="원본 실측 결과 JSON (생략 시 최신 ec2_repeated_trial__*.json)")
-    parser.add_argument("--ensure-running", action="store_true",
-                        help="대상 인스턴스가 stopped면 먼저 start하고 running까지 대기")
+    parser.add_argument(
+        "--source",
+        default=None,
+        help="원본 실측 결과 JSON (생략 시 최신 ec2_repeated_trial__*.json)",
+    )
+    parser.add_argument(
+        "--ensure-running",
+        action="store_true",
+        help="대상 인스턴스가 stopped면 먼저 start하고 running까지 대기",
+    )
     parser.add_argument("--max-workers", type=int, default=13)
+    parser.add_argument(
+        "--bypass-approval",
+        action="store_true",
+        help="[측정 전용] Resize 등 MED 위험도라 항상 승인이 필요한 액션도 "
+        "Action/QA/timing 측정을 위해 승인 게이트를 우회한다",
+    )
     args = parser.parse_args()
 
     caller_arn = _freeze_credentials_for_threads()
@@ -330,7 +434,9 @@ def main() -> None:
     source = Path(args.source) if args.source else find_source()
     payload_src = json.loads(source.read_text(encoding="utf-8"))
     trials = payload_src["trials"]
-    print(f"원본: {source.name} (측정 {payload_src.get('generated_at')}, 시행 {len(trials)}개)")
+    print(
+        f"원본: {source.name} (측정 {payload_src.get('generated_at')}, 시행 {len(trials)}개)"
+    )
 
     instance_states = {}
     if args.ensure_running:
@@ -347,8 +453,16 @@ def main() -> None:
             if not after.get("raw_metrics"):
                 print(f"[{t.get('resource')}] raw_metrics 없음 — 건너뜀")
                 continue
-            fut = ex.submit(run_one, t["resource"], t["label"], t.get("profile"),
-                            after["raw_metrics"], after.get("resource_age_seconds"))
+            fut = ex.submit(
+                run_one,
+                t["resource"],
+                t["label"],
+                t.get("profile"),
+                after["raw_metrics"],
+                after.get("resource_age_seconds"),
+                after.get("measured_at"),
+                args.bypass_approval,
+            )
             futs[fut] = t["resource"]
         for f in as_completed(futs):
             results.append(f.result())
@@ -360,7 +474,7 @@ def main() -> None:
     print("\n=== 집계 ===")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     out_path = RESULT_DIR / f"batch_pipeline_replay__EC2_{ts}.json"
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     out = {
@@ -369,9 +483,11 @@ def main() -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "replayed_from": source.name,
         "caller_arn": caller_arn,
-        "replay_note": ("detection 입력만 저장된 실측 raw_metrics(부하 생성기가 살아있던 "
-                        "2026-09-09 14:11 UTC 시점)이고, action은 실제 현재 인스턴스에 "
-                        "실행되며 QA는 라이브 지표를 재조회하는 하이브리드."),
+        "replay_note": (
+            "detection 입력만 저장된 실측 raw_metrics(부하 생성기가 살아있던 "
+            "2026-09-09 14:11 UTC 시점)이고, action은 실제 현재 인스턴스에 "
+            "실행되며 QA는 라이브 지표를 재조회하는 하이브리드."
+        ),
         "instance_states_before": instance_states,
         "wall_clock_sec": round(time.time() - t0, 1),
         "summary": summary,

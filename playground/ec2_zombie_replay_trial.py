@@ -48,11 +48,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 from scipy.stats import beta as _beta_dist
 
 import pipeline.detection_agent as da
+from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 LOG_DIR = RESULT_DIR / "logs"
@@ -62,7 +64,7 @@ logger = logging.getLogger("ec2_zombie_replay_trial")
 
 def _setup_logging() -> Path:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     log_path = LOG_DIR / f"ec2_zombie_replay_trial_{ts}.log"
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
     fh = logging.FileHandler(log_path, encoding="utf-8")
@@ -80,7 +82,9 @@ def _setup_logging() -> Path:
 def find_source() -> Path:
     candidates = sorted(glob.glob(str(RESULT_DIR / "ec2_repeated_trial__*.json")))
     if not candidates:
-        raise FileNotFoundError(f"{RESULT_DIR}에 ec2_repeated_trial__*.json 원본이 없음")
+        raise FileNotFoundError(
+            f"{RESULT_DIR}에 ec2_repeated_trial__*.json 원본이 없음"
+        )
     return Path(candidates[-1])
 
 
@@ -88,8 +92,13 @@ def find_source() -> Path:
 # s3_repeated_trial.py v5의 detect()와 동일한 구조인데, assemble_resource()로 AWS를
 # 다시 부르는 대신 저장된 raw_metrics를 그대로 넣는다는 점만 다르다.
 
-def replay(resource_type: str, resource_id: str, raw_metrics: dict,
-           resource_age_seconds: float | None) -> dict:
+
+def replay(
+    resource_type: str,
+    resource_id: str,
+    raw_metrics: dict,
+    resource_age_seconds: float | None,
+) -> dict:
     state = {
         "trace_id": None,
         "resource_id": resource_id,
@@ -118,16 +127,29 @@ def replay(resource_type: str, resource_id: str, raw_metrics: dict,
 
 # ── 지표 계산 (s3_repeated_trial.py v5와 동일 — 합산 시 정의가 같아야 함) ──────
 
-def clopper_pearson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:
+
+def clopper_pearson_ci(
+    successes: int, n: int, confidence: float = 0.95
+) -> tuple[float, float]:
     if n == 0:
         return (0.0, 1.0)
     alpha = 1 - confidence
-    lower = 0.0 if successes == 0 else _beta_dist.ppf(alpha / 2, successes, n - successes + 1)
-    upper = 1.0 if successes == n else _beta_dist.ppf(1 - alpha / 2, successes + 1, n - successes)
+    lower = (
+        0.0
+        if successes == 0
+        else _beta_dist.ppf(alpha / 2, successes, n - successes + 1)
+    )
+    upper = (
+        1.0
+        if successes == n
+        else _beta_dist.ppf(1 - alpha / 2, successes + 1, n - successes)
+    )
     return (float(lower), float(upper))
 
 
-def compute_confusion_metrics(anomaly_results: list[dict], normal_results: list[dict]) -> dict:
+def compute_confusion_metrics(
+    anomaly_results: list[dict], normal_results: list[dict]
+) -> dict:
     tp = sum(1 for r in anomaly_results if r.get("detected") is True)
     fn = sum(1 for r in anomaly_results if r.get("detected") is False)
     fp = sum(1 for r in normal_results if r.get("detected") is True)
@@ -145,19 +167,28 @@ def compute_confusion_metrics(anomaly_results: list[dict], normal_results: list[
     return {
         "confusion_matrix": {"TP": tp, "FN": fn, "FP": fp, "TN": tn},
         "accuracy": accuracy,
-        "accuracy_ci_95_clopper_pearson": list(clopper_pearson_ci(tp + tn, total)) if total else None,
+        "accuracy_ci_95_clopper_pearson": list(clopper_pearson_ci(tp + tn, total))
+        if total
+        else None,
         "recall": recall,
-        "recall_ci_95_clopper_pearson": list(clopper_pearson_ci(tp, n_anomaly)) if n_anomaly else None,
+        "recall_ci_95_clopper_pearson": list(clopper_pearson_ci(tp, n_anomaly))
+        if n_anomaly
+        else None,
         "precision": precision,
         "false_positive_rate": fpr,
-        "fpr_ci_95_clopper_pearson": list(clopper_pearson_ci(fp, n_normal)) if n_normal else None,
+        "fpr_ci_95_clopper_pearson": list(clopper_pearson_ci(fp, n_normal))
+        if n_normal
+        else None,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", default=None,
-                        help="원본 실측 결과 JSON 경로 (생략 시 eval_outputs에서 최신 ec2_repeated_trial__*.json)")
+    parser.add_argument(
+        "--source",
+        default=None,
+        help="원본 실측 결과 JSON 경로 (생략 시 eval_outputs에서 최신 ec2_repeated_trial__*.json)",
+    )
     args = parser.parse_args()
 
     log_path = _setup_logging()
@@ -165,8 +196,12 @@ def main() -> None:
 
     source = Path(args.source) if args.source else find_source()
     payload_src = json.loads(source.read_text(encoding="utf-8"))
-    logger.info("원본: %s (측정 %s, 시행 %d개)",
-                source.name, payload_src.get("generated_at"), len(payload_src.get("trials", [])))
+    logger.info(
+        "원본: %s (측정 %s, 시행 %d개)",
+        source.name,
+        payload_src.get("generated_at"),
+        len(payload_src.get("trials", [])),
+    )
 
     anomaly_results, normal_results = [], []
     rep_counter = {"anomaly": 0, "normal": 0}
@@ -182,12 +217,20 @@ def main() -> None:
         rep = rep_counter[label]
         rep_counter[label] += 1
 
-        after = replay("EC2", t["resource"], raw_metrics, after_src.get("resource_age_seconds"))
+        after = replay(
+            "EC2", t["resource"], raw_metrics, after_src.get("resource_age_seconds")
+        )
 
-        logger.info("[%s %s] profile=%s anomaly_flag=%s (z=%s, IF=%s, triggered=%s)",
-                    label, t["resource"], t.get("profile"), after["anomaly_flag"],
-                    after["anomaly_score_zscore"], after["anomaly_score_iforest"],
-                    after["triggered_metrics"])
+        logger.info(
+            "[%s %s] profile=%s anomaly_flag=%s (z=%s, IF=%s, triggered=%s)",
+            label,
+            t["resource"],
+            t.get("profile"),
+            after["anomaly_flag"],
+            after["anomaly_score_zscore"],
+            after["anomaly_score_iforest"],
+            after["triggered_metrics"],
+        )
 
         record = {
             "rep": rep,
@@ -205,18 +248,24 @@ def main() -> None:
     logger.info("=== 결과 ===\n%s", json.dumps(metrics, ensure_ascii=False, indent=2))
 
     date_str = datetime.now().strftime("%Y%m%d")
-    out_path = RESULT_DIR / (f"ec2_zombie_replay_trial__n{len(normal_results)}-{len(anomaly_results)}_"
-                             f"scriptv{SCRIPT_VERSION}_{date_str}.json")
+    out_path = RESULT_DIR / (
+        f"ec2_zombie_replay_trial__n{len(normal_results)}-{len(anomaly_results)}_"
+        f"scriptv{SCRIPT_VERSION}_{date_str}.json"
+    )
     payload = {
         "script_version": SCRIPT_VERSION,
         "scenario": "ec2_zombie_instance",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "replayed_from": source.name,
-        "replay_note": ("AWS에서 실측한 raw_metrics를 저장해둔 것을 재학습된 IForest 모델의 "
-                        "detection_node()에 재생한 결과. 지표는 실연동 실측값이고 판정 모델만 최신."),
+        "replay_note": (
+            "AWS에서 실측한 raw_metrics를 저장해둔 것을 재학습된 IForest 모델의 "
+            "detection_node()에 재생한 결과. 지표는 실연동 실측값이고 판정 모델만 최신."
+        ),
         "params": {
-            "n_points": 30, "period_seconds": 300,
-            "n_normal": len(normal_results), "n_anomaly": len(anomaly_results),
+            "n_points": 30,
+            "period_seconds": 300,
+            "n_normal": len(normal_results),
+            "n_anomaly": len(anomaly_results),
             "original_measured_at": payload_src.get("generated_at"),
         },
         "metrics": metrics,

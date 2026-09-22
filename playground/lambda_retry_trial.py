@@ -44,6 +44,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import random
@@ -52,6 +53,7 @@ from scipy.stats import beta as _beta_dist
 
 import pipeline.detection_agent as da
 from pipeline.cloudwatch_client import METRIC_SPEC, _build_dimensions
+from _runner_tag import runner_suffix
 
 # ── 설정값 ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +77,7 @@ logger = logging.getLogger("lambda_retry_trial")
 
 def _setup_logging() -> Path:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     log_path = LOG_DIR / f"lambda_retry_trial_{ts}.log"
 
     logger.setLevel(logging.DEBUG)
@@ -98,25 +100,26 @@ def _setup_logging() -> Path:
 
 # ── Lambda 함수 코드 ──────────────────────────────────────────────────────────
 
-LAMBDA_CODE = '''
+LAMBDA_CODE = """
 import json
 
 def handler(event, context):
     if event.get("fail"):
         raise Exception("Intentional error for testing")
     return {"statusCode": 200, "body": json.dumps("OK")}
-'''
+"""
 
 
 def _create_lambda_zip() -> bytes:
     """Lambda 함수 코드를 zip으로 패키징"""
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr('lambda_function.py', LAMBDA_CODE)
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("lambda_function.py", LAMBDA_CODE)
     return buffer.getvalue()
 
 
 # ── Lambda 함수 준비 ──────────────────────────────────────────────────────────
+
 
 def _lambda_function_name(prefix: str, idx: int) -> str:
     return f"{LAMBDA_PREFIX}-{prefix}-{idx}"
@@ -129,30 +132,32 @@ def _get_or_create_lambda_role(iam) -> str:
     try:
         response = iam.get_role(RoleName=role_name)
         logger.info("IAM 역할 이미 존재: %s", role_name)
-        return response['Role']['Arn']
+        return response["Role"]["Arn"]
     except iam.exceptions.NoSuchEntityException:
         pass
 
     trust_policy = {
         "Version": "2012-10-17",
-        "Statement": [{
-            "Effect": "Allow",
-            "Principal": {"Service": "lambda.amazonaws.com"},
-            "Action": "sts:AssumeRole"
-        }]
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"Service": "lambda.amazonaws.com"},
+                "Action": "sts:AssumeRole",
+            }
+        ],
     }
 
     response = iam.create_role(
         RoleName=role_name,
         AssumeRolePolicyDocument=json.dumps(trust_policy),
-        Description="Role for detection trial Lambda functions"
+        Description="Role for detection trial Lambda functions",
     )
-    role_arn = response['Role']['Arn']
+    role_arn = response["Role"]["Arn"]
 
     # 기본 실행 정책 연결
     iam.attach_role_policy(
         RoleName=role_name,
-        PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     )
 
     logger.info("IAM 역할 생성: %s (10초 대기)", role_name)
@@ -179,11 +184,13 @@ def _ensure_lambda_function(lam, name: str, role_arn: str, zip_bytes: bytes) -> 
             MemorySize=128,
         )
         # 함수 활성화 대기
-        waiter = lam.get_waiter('function_active')
+        waiter = lam.get_waiter("function_active")
         waiter.wait(FunctionName=name)
 
 
-def setup_lambda_functions(n_anomaly: int, n_normal: int) -> tuple[list[str], list[str]]:
+def setup_lambda_functions(
+    n_anomaly: int, n_normal: int
+) -> tuple[list[str], list[str]]:
     """anomaly n_anomaly개 + normal n_normal개 Lambda 함수 생성"""
     iam = boto3.client("iam", region_name=AWS_REGION)
     lam = boto3.client("lambda", region_name=AWS_REGION)
@@ -203,8 +210,14 @@ def setup_lambda_functions(n_anomaly: int, n_normal: int) -> tuple[list[str], li
 
 # ── 메트릭 조회 ───────────────────────────────────────────────────────────────
 
-def _fetch_metrics_at(resource_type: str, resource_id: str, end_time: datetime,
-                       n_points: int = 30, period_seconds: int = 300) -> dict[str, list[float]]:
+
+def _fetch_metrics_at(
+    resource_type: str,
+    resource_id: str,
+    end_time: datetime,
+    n_points: int = 30,
+    period_seconds: int = 300,
+) -> dict[str, list[float]]:
     """CloudWatch에서 메트릭 조회"""
     cw = boto3.client("cloudwatch", region_name=AWS_REGION)
     start_time = end_time - timedelta(seconds=n_points * period_seconds)
@@ -215,23 +228,33 @@ def _fetch_metrics_at(resource_type: str, resource_id: str, end_time: datetime,
     queries = []
     for i, metric_key in enumerate(metric_keys):
         namespace, cw_metric_name, stat = METRIC_SPEC[resource_type][metric_key]
-        queries.append({
-            "Id": f"m{i}",
-            "MetricStat": {
-                "Metric": {"Namespace": namespace, "MetricName": cw_metric_name, "Dimensions": dimensions},
-                "Period": period_seconds,
-                "Stat": stat,
-            },
-            "ReturnData": True,
-        })
+        queries.append(
+            {
+                "Id": f"m{i}",
+                "MetricStat": {
+                    "Metric": {
+                        "Namespace": namespace,
+                        "MetricName": cw_metric_name,
+                        "Dimensions": dimensions,
+                    },
+                    "Period": period_seconds,
+                    "Stat": stat,
+                },
+                "ReturnData": True,
+            }
+        )
 
     response = cw.get_metric_data(
-        MetricDataQueries=queries, StartTime=start_time, EndTime=end_time,
+        MetricDataQueries=queries,
+        StartTime=start_time,
+        EndTime=end_time,
         ScanBy="TimestampAscending",
     )
     results_by_id = {r["Id"]: r for r in response["MetricDataResults"]}
 
-    expected_times = [start_time + timedelta(seconds=i * period_seconds) for i in range(n_points)]
+    expected_times = [
+        start_time + timedelta(seconds=i * period_seconds) for i in range(n_points)
+    ]
     half_period = period_seconds / 2
 
     metrics: dict[str, list[float]] = {}
@@ -243,14 +266,23 @@ def _fetch_metrics_at(resource_type: str, resource_id: str, end_time: datetime,
         observed = list(zip(row["Timestamps"], row["Values"]))
         filled = []
         for expected_ts in expected_times:
-            match = next((v for ts, v in observed if abs((ts - expected_ts).total_seconds()) < half_period), 0.0)
+            match = next(
+                (
+                    v
+                    for ts, v in observed
+                    if abs((ts - expected_ts).total_seconds()) < half_period
+                ),
+                0.0,
+            )
             filled.append(match)
         metrics[metric_key] = filled
 
     return metrics
 
 
-def detect(resource_type: str, resource_id: str, end_time: datetime | None = None) -> dict:
+def detect(
+    resource_type: str, resource_id: str, end_time: datetime | None = None
+) -> dict:
     """detection_agent 로직으로 판정"""
     end_time = end_time or datetime.now(timezone.utc)
     usage = _fetch_metrics_at(resource_type, resource_id, end_time)
@@ -277,18 +309,21 @@ def detect(resource_type: str, resource_id: str, end_time: datetime | None = Non
     iforest_score = da._iforest_score(resource_type, usage)
     iforest_triggered = iforest_score > da.IFOREST_THRESHOLD
 
-    result.update({
-        "z_max": round(z_max, 4),
-        "z_triggered": z_triggered,
-        "iforest_score": round(iforest_score, 4),
-        "iforest_triggered": iforest_triggered,
-        "error_rate_triggered": error_triggered,
-        "anomaly_flag": z_triggered or iforest_triggered or error_triggered,
-    })
+    result.update(
+        {
+            "z_max": round(z_max, 4),
+            "z_triggered": z_triggered,
+            "iforest_score": round(iforest_score, 4),
+            "iforest_triggered": iforest_triggered,
+            "error_rate_triggered": error_triggered,
+            "anomaly_flag": z_triggered or iforest_triggered or error_triggered,
+        }
+    )
     return result
 
 
 # ── 시행 실행 ─────────────────────────────────────────────────────────────────
+
 
 def _invoke_lambda(lam, function_name: str, fail: bool) -> bool:
     """Lambda 함수 호출. 성공 여부 반환."""
@@ -303,12 +338,24 @@ def _invoke_lambda(lam, function_name: str, fail: bool) -> bool:
         return False
 
 
-def run_anomaly_trial(function_name: str, rep: int, duration_minutes: int,
-                       invocations_per_minute: int, error_rate: float, wait_sec: int) -> dict:
+def run_anomaly_trial(
+    function_name: str,
+    rep: int,
+    duration_minutes: int,
+    invocations_per_minute: int,
+    error_rate: float,
+    wait_sec: int,
+) -> dict:
     """anomaly 시행: 높은 에러율로 호출"""
     t0 = time.time()
-    logger.info("[anomaly rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
-                rep, function_name, duration_minutes, invocations_per_minute, error_rate * 100)
+    logger.info(
+        "[anomaly rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
+        rep,
+        function_name,
+        duration_minutes,
+        invocations_per_minute,
+        error_rate * 100,
+    )
 
     try:
         lam = boto3.client("lambda", region_name=AWS_REGION)
@@ -327,14 +374,24 @@ def run_anomaly_trial(function_name: str, rep: int, duration_minutes: int,
             if minute < duration_minutes - 1:
                 time.sleep(60)  # 다음 분까지 대기
 
-        logger.info("[anomaly rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
-                    rep, total_invocations, total_errors, wait_sec)
+        logger.info(
+            "[anomaly rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
+            rep,
+            total_invocations,
+            total_errors,
+            wait_sec,
+        )
         time.sleep(wait_sec)
 
         after = detect("Lambda", function_name)
-        logger.info("[anomaly rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
-                    rep, after.get("anomaly_flag"), after.get("z_max"),
-                    after.get("iforest_score"), after.get("error_rate_triggered"))
+        logger.info(
+            "[anomaly rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
+            rep,
+            after.get("anomaly_flag"),
+            after.get("z_max"),
+            after.get("iforest_score"),
+            after.get("error_rate_triggered"),
+        )
 
         return {
             "rep": rep,
@@ -342,23 +399,42 @@ def run_anomaly_trial(function_name: str, rep: int, duration_minutes: int,
             "label": "anomaly",
             "total_invocations": total_invocations,
             "total_errors": total_errors,
-            "actual_error_rate": total_errors / total_invocations if total_invocations else 0,
+            "actual_error_rate": total_errors / total_invocations
+            if total_invocations
+            else 0,
             "after": after,
             "detected": bool(after.get("anomaly_flag")),
             "elapsed_sec": time.time() - t0,
         }
     except Exception as exc:
         logger.error("[anomaly rep=%d] 실패: %s\n%s", rep, exc, traceback.format_exc())
-        return {"rep": rep, "function_name": function_name, "label": "anomaly",
-                "error": str(exc), "detected": None}
+        return {
+            "rep": rep,
+            "function_name": function_name,
+            "label": "anomaly",
+            "error": str(exc),
+            "detected": None,
+        }
 
 
-def run_normal_trial(function_name: str, rep: int, duration_minutes: int,
-                      invocations_per_minute: int, error_rate: float, wait_sec: int) -> dict:
+def run_normal_trial(
+    function_name: str,
+    rep: int,
+    duration_minutes: int,
+    invocations_per_minute: int,
+    error_rate: float,
+    wait_sec: int,
+) -> dict:
     """normal 시행: 낮은 에러율로 정상 호출"""
     t0 = time.time()
-    logger.info("[normal rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
-                rep, function_name, duration_minutes, invocations_per_minute, error_rate * 100)
+    logger.info(
+        "[normal rep=%d] function=%s 시작 (duration=%d분, inv/min=%d, error_rate=%.0f%%)",
+        rep,
+        function_name,
+        duration_minutes,
+        invocations_per_minute,
+        error_rate * 100,
+    )
 
     try:
         lam = boto3.client("lambda", region_name=AWS_REGION)
@@ -377,14 +453,24 @@ def run_normal_trial(function_name: str, rep: int, duration_minutes: int,
             if minute < duration_minutes - 1:
                 time.sleep(60)
 
-        logger.info("[normal rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
-                    rep, total_invocations, total_errors, wait_sec)
+        logger.info(
+            "[normal rep=%d] 호출 완료: %d회 (에러 %d회), %d초 대기 중...",
+            rep,
+            total_invocations,
+            total_errors,
+            wait_sec,
+        )
         time.sleep(wait_sec)
 
         after = detect("Lambda", function_name)
-        logger.info("[normal rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
-                    rep, after.get("anomaly_flag"), after.get("z_max"),
-                    after.get("iforest_score"), after.get("error_rate_triggered"))
+        logger.info(
+            "[normal rep=%d] anomaly_flag=%s (z_max=%s, iforest=%s, error_rate_triggered=%s)",
+            rep,
+            after.get("anomaly_flag"),
+            after.get("z_max"),
+            after.get("iforest_score"),
+            after.get("error_rate_triggered"),
+        )
 
         return {
             "rep": rep,
@@ -392,29 +478,49 @@ def run_normal_trial(function_name: str, rep: int, duration_minutes: int,
             "label": "normal",
             "total_invocations": total_invocations,
             "total_errors": total_errors,
-            "actual_error_rate": total_errors / total_invocations if total_invocations else 0,
+            "actual_error_rate": total_errors / total_invocations
+            if total_invocations
+            else 0,
             "after": after,
             "detected": bool(after.get("anomaly_flag")),
             "elapsed_sec": time.time() - t0,
         }
     except Exception as exc:
         logger.error("[normal rep=%d] 실패: %s\n%s", rep, exc, traceback.format_exc())
-        return {"rep": rep, "function_name": function_name, "label": "normal",
-                "error": str(exc), "detected": None}
+        return {
+            "rep": rep,
+            "function_name": function_name,
+            "label": "normal",
+            "error": str(exc),
+            "detected": None,
+        }
 
 
 # ── 통계 계산 ────────────────────────────────────────────────────────────────
 
-def clopper_pearson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:
+
+def clopper_pearson_ci(
+    successes: int, n: int, confidence: float = 0.95
+) -> tuple[float, float]:
     if n == 0:
         return (0.0, 1.0)
     alpha = 1 - confidence
-    lower = 0.0 if successes == 0 else _beta_dist.ppf(alpha / 2, successes, n - successes + 1)
-    upper = 1.0 if successes == n else _beta_dist.ppf(1 - alpha / 2, successes + 1, n - successes)
+    lower = (
+        0.0
+        if successes == 0
+        else _beta_dist.ppf(alpha / 2, successes, n - successes + 1)
+    )
+    upper = (
+        1.0
+        if successes == n
+        else _beta_dist.ppf(1 - alpha / 2, successes + 1, n - successes)
+    )
     return (float(lower), float(upper))
 
 
-def compute_confusion_metrics(anomaly_results: list[dict], normal_results: list[dict]) -> dict:
+def compute_confusion_metrics(
+    anomaly_results: list[dict], normal_results: list[dict]
+) -> dict:
     tp = sum(1 for r in anomaly_results if r.get("detected") is True)
     fn = sum(1 for r in anomaly_results if r.get("detected") is False)
     fp = sum(1 for r in normal_results if r.get("detected") is True)
@@ -432,23 +538,37 @@ def compute_confusion_metrics(anomaly_results: list[dict], normal_results: list[
     return {
         "confusion_matrix": {"TP": tp, "FN": fn, "FP": fp, "TN": tn},
         "accuracy": accuracy,
-        "accuracy_ci_95_clopper_pearson": list(clopper_pearson_ci(tp + tn, total)) if total else None,
+        "accuracy_ci_95_clopper_pearson": list(clopper_pearson_ci(tp + tn, total))
+        if total
+        else None,
         "recall": recall,
-        "recall_ci_95_clopper_pearson": list(clopper_pearson_ci(tp, n_anomaly)) if n_anomaly else None,
+        "recall_ci_95_clopper_pearson": list(clopper_pearson_ci(tp, n_anomaly))
+        if n_anomaly
+        else None,
         "precision": precision,
         "false_positive_rate": fpr,
-        "fpr_ci_95_clopper_pearson": list(clopper_pearson_ci(fp, n_normal)) if n_normal else None,
+        "fpr_ci_95_clopper_pearson": list(clopper_pearson_ci(fp, n_normal))
+        if n_normal
+        else None,
     }
 
 
 # ── 메인 ────────────────────────────────────────────────────────────────────
 
-def result_filename(invocations_per_min: int, error_rate: float, wait_sec: int,
-                    n_normal: int, n_anomaly: int) -> Path:
+
+def result_filename(
+    invocations_per_min: int,
+    error_rate: float,
+    wait_sec: int,
+    n_normal: int,
+    n_anomaly: int,
+) -> Path:
     date_str = datetime.now().strftime("%Y%m%d")
     error_pct = int(error_rate * 100)
-    name = (f"lambda_retry_trial__invpm{invocations_per_min}_errrate{error_pct}_wait{wait_sec}s_"
-            f"n{n_normal}-{n_anomaly}_scriptv{SCRIPT_VERSION}_{date_str}.json")
+    name = (
+        f"lambda_retry_trial__invpm{invocations_per_min}_errrate{error_pct}_wait{wait_sec}s_"
+        f"n{n_normal}-{n_anomaly}_scriptv{SCRIPT_VERSION}_{date_str}.json"
+    )
     return RESULT_DIR / name
 
 
@@ -458,11 +578,15 @@ def main() -> None:
     parser.add_argument("--run", action="store_true", help="실험 실행")
     parser.add_argument("--n-anomaly", type=int, default=5)
     parser.add_argument("--n-normal", type=int, default=8)
-    parser.add_argument("--duration-minutes", type=int, default=5, help="각 시행당 호출 지속 시간(분)")
+    parser.add_argument(
+        "--duration-minutes", type=int, default=5, help="각 시행당 호출 지속 시간(분)"
+    )
     parser.add_argument("--invocations-per-minute", type=int, default=20)
     parser.add_argument("--anomaly-error-rate", type=float, default=0.6)
     parser.add_argument("--normal-error-rate", type=float, default=0.05)
-    parser.add_argument("--wait-sec", type=int, default=300, help="CloudWatch 반영 대기 시간")
+    parser.add_argument(
+        "--wait-sec", type=int, default=300, help="CloudWatch 반영 대기 시간"
+    )
     args = parser.parse_args()
 
     log_path = _setup_logging()
@@ -476,28 +600,44 @@ def main() -> None:
         parser.print_help()
         return
 
-    anomaly_functions = [_lambda_function_name("anomaly", i) for i in range(args.n_anomaly)]
-    normal_functions = [_lambda_function_name("normal", i) for i in range(args.n_normal)]
+    anomaly_functions = [
+        _lambda_function_name("anomaly", i) for i in range(args.n_anomaly)
+    ]
+    normal_functions = [
+        _lambda_function_name("normal", i) for i in range(args.n_normal)
+    ]
 
     total_workers = args.n_anomaly + args.n_normal
-    logger.info("=== anomaly %d개 + normal %d개, 총 %d개 시행 동시 병렬 시작 ===",
-                args.n_anomaly, args.n_normal, total_workers)
+    logger.info(
+        "=== anomaly %d개 + normal %d개, 총 %d개 시행 동시 병렬 시작 ===",
+        args.n_anomaly,
+        args.n_normal,
+        total_workers,
+    )
 
     anomaly_results, normal_results = [], []
     with ThreadPoolExecutor(max_workers=total_workers) as executor:
         futures = {}
         for i in range(args.n_anomaly):
             fut = executor.submit(
-                run_anomaly_trial, anomaly_functions[i], i,
-                args.duration_minutes, args.invocations_per_minute,
-                args.anomaly_error_rate, args.wait_sec
+                run_anomaly_trial,
+                anomaly_functions[i],
+                i,
+                args.duration_minutes,
+                args.invocations_per_minute,
+                args.anomaly_error_rate,
+                args.wait_sec,
             )
             futures[fut] = ("anomaly", i)
         for i in range(args.n_normal):
             fut = executor.submit(
-                run_normal_trial, normal_functions[i], i,
-                args.duration_minutes, args.invocations_per_minute,
-                args.normal_error_rate, args.wait_sec
+                run_normal_trial,
+                normal_functions[i],
+                i,
+                args.duration_minutes,
+                args.invocations_per_minute,
+                args.normal_error_rate,
+                args.wait_sec,
             )
             futures[fut] = ("normal", i)
 
@@ -512,8 +652,13 @@ def main() -> None:
     metrics = compute_confusion_metrics(anomaly_results, normal_results)
     logger.info("=== 결과 ===\n%s", json.dumps(metrics, ensure_ascii=False, indent=2))
 
-    out_path = result_filename(args.invocations_per_minute, args.anomaly_error_rate,
-                                args.wait_sec, args.n_normal, args.n_anomaly)
+    out_path = result_filename(
+        args.invocations_per_minute,
+        args.anomaly_error_rate,
+        args.wait_sec,
+        args.n_normal,
+        args.n_anomaly,
+    )
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "script_version": SCRIPT_VERSION,
