@@ -1,0 +1,59 @@
+2026-09-13 15:00:41,751 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_150041.log (SCRIPT_VERSION=4)
+2026-09-13 15:00:42,673 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 (트래픽 기반) ===
+2026-09-13 15:00:42,726 [INFO] [anomaly rep=0] detection-traffic-asg-anomaly-0 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,780 [INFO] [anomaly rep=1] detection-traffic-asg-anomaly-1 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,830 [INFO] [anomaly rep=2] detection-traffic-asg-anomaly-2 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,881 [INFO] [anomaly rep=3] detection-traffic-asg-anomaly-3 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,934 [INFO] [anomaly rep=4] detection-traffic-asg-anomaly-4 baseline rps=1.0로 150분 유지
+2026-09-13 15:00:42,979 [INFO] [normal rep=0] detection-traffic-asg-normal-0 rps=1.0 계속 유지
+2026-09-13 15:00:43,033 [INFO] [normal rep=1] detection-traffic-asg-normal-1 rps=1.0 계속 유지
+2026-09-13 15:00:43,085 [INFO] [normal rep=2] detection-traffic-asg-normal-2 rps=1.0 계속 유지
+2026-09-13 15:00:43,136 [INFO] [normal rep=3] detection-traffic-asg-normal-3 rps=1.0 계속 유지
+2026-09-13 15:00:43,187 [INFO] [normal rep=4] detection-traffic-asg-normal-4 rps=1.0 계속 유지
+2026-09-13 15:00:43,238 [INFO] [normal rep=5] detection-traffic-asg-normal-5 rps=1.0 계속 유지
+2026-09-13 15:00:43,284 [INFO] [normal rep=6] detection-traffic-asg-normal-6 rps=1.0 계속 유지
+2026-09-13 15:00:43,338 [INFO] [normal rep=7] detection-traffic-asg-normal-7 rps=1.0 계속 유지
+2026-09-13 17:30:48,543 [INFO] [normal rep=5] before or_gate=True
+2026-09-13 17:30:48,676 [INFO] [normal rep=0] before or_gate=False
+2026-09-13 17:30:48,788 [INFO] [normal rep=3] before or_gate=True
+2026-09-13 17:30:48,998 [INFO] [normal rep=4] before or_gate=True
+2026-09-13 17:30:49,097 [INFO] [anomaly rep=1] before or_gate=False
+2026-09-13 17:30:49,149 [INFO] [anomaly rep=1] rps=50.0로 폭증, 35분 유지...
+2026-09-13 17:30:49,170 [INFO] [anomaly rep=0] before or_gate=True
+2026-09-13 17:30:49,232 [INFO] [anomaly rep=0] rps=50.0로 폭증, 35분 유지...
+2026-09-13 17:30:49,310 [INFO] [normal rep=7] before or_gate=False
+2026-09-13 17:30:49,332 [INFO] [anomaly rep=3] before or_gate=True
+2026-09-13 17:30:49,410 [INFO] [anomaly rep=3] rps=50.0로 폭증, 35분 유지...
+2026-09-13 17:30:49,676 [INFO] [normal rep=6] before or_gate=True
+2026-09-13 17:30:50,078 [INFO] [normal rep=1] before or_gate=False
+2026-09-13 17:30:50,649 [INFO] [normal rep=2] before or_gate=True
+2026-09-13 17:30:50,860 [INFO] [anomaly rep=2] before or_gate=True
+2026-09-13 17:30:50,863 [INFO] [anomaly rep=2] rps=50.0로 폭증, 35분 유지...
+2026-09-13 17:30:50,909 [INFO] [anomaly rep=4] before or_gate=True
+2026-09-13 17:30:50,909 [INFO] [anomaly rep=4] rps=50.0로 폭증, 35분 유지...
+2026-09-13 18:05:49,184 [INFO] [anomaly rep=1] 메트릭 반영 대기 300초...
+2026-09-13 18:05:49,290 [INFO] [anomaly rep=0] 메트릭 반영 대기 300초...
+2026-09-13 18:05:49,457 [INFO] [anomaly rep=3] 메트릭 반영 대기 300초...
+2026-09-13 18:05:50,895 [INFO] [anomaly rep=2] 메트릭 반영 대기 300초...
+2026-09-13 18:05:50,926 [INFO] [anomaly rep=4] 메트릭 반영 대기 300초...
+2026-09-13 18:10:53,206 [INFO] [normal rep=5] or_gate=False (z=False IF=False)
+2026-09-13 18:10:54,893 [INFO] [normal rep=3] or_gate=False (z=False IF=False)
+2026-09-13 18:10:55,247 [INFO] [normal rep=7] or_gate=False (z=False IF=False)
+2026-09-13 18:10:55,299 [INFO] [anomaly rep=4] or_gate=False (z=False IF=False) request_count 마지막=[6474.0, 6458.0, 6405.0]
+2026-09-13 18:10:55,316 [INFO] [normal rep=0] or_gate=False (z=False IF=False)
+2026-09-13 18:10:55,796 [INFO] [normal rep=4] or_gate=False (z=False IF=False)
+2026-09-13 18:10:56,233 [INFO] [normal rep=1] or_gate=False (z=False IF=False)
+2026-09-13 18:10:56,656 [INFO] [anomaly rep=3] or_gate=False (z=False IF=False) request_count 마지막=[6412.0, 6446.0, 6421.0]
+2026-09-13 18:10:56,970 [INFO] [normal rep=2] or_gate=False (z=False IF=False)
+2026-09-13 18:10:57,345 [INFO] [anomaly rep=2] or_gate=False (z=False IF=False) request_count 마지막=[6438.0, 6446.0, 6407.0]
+2026-09-13 18:10:57,974 [INFO] [anomaly rep=1] or_gate=False (z=False IF=False) request_count 마지막=[6459.0, 6421.0, 6353.0]
+2026-09-13 18:10:58,066 [INFO] [anomaly rep=0] or_gate=False (z=False IF=False) request_count 마지막=[6443.0, 6474.0, 6430.0]
+2026-09-13 18:10:58,134 [INFO] [normal rep=6] or_gate=False (z=False IF=False)
+2026-09-13 18:10:58,139 [INFO] [production(detection_node 실제 방식)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-13 18:10:58,139 [INFO]     recall 95% CI = [0.0%, 52.2%]
+2026-09-13 18:10:58,139 [INFO] [iforest_only] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-13 18:10:58,139 [INFO]     recall 95% CI = [0.0%, 52.2%]
+2026-09-13 18:10:58,139 [INFO] [zscore_only] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-13 18:10:58,139 [INFO]     recall 95% CI = [0.0%, 52.2%]
+2026-09-13 18:10:58,150 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\autoscaling_edos_traffic_trial__n8-5_scriptv4_20260913.json
+2026-09-13 18:10:58,151 [WARNING] 테스트 후 반드시 정리하세요: --teardown --n-anomaly 5 --n-normal 8

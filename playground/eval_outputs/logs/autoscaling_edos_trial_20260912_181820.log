@@ -1,0 +1,142 @@
+2026-09-12 18:18:20,541 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_trial_20260912_181820.log (SCRIPT_VERSION=3)
+2026-09-12 18:18:21,966 [INFO] 예상 최대 동시 인스턴스 30대 (기존 0 + 이번 30)
+2026-09-12 18:18:21,967 [INFO]   vCPU: 60 (쿼터 64)
+2026-09-12 18:18:21,967 [INFO]   EBS: 240GB (프리티어 30GB) -> 초과분은 시간비례 과금
+2026-09-12 18:18:21,967 [INFO]   인스턴스-시간: 약 97.5 (프리티어 월 750시간)
+2026-09-12 18:18:21,980 [WARNING] 프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 - 12개월 초과 계정이면 위 한도가 없고 전부 과금됨. Billing 콘솔에서 확인할 것.
+2026-09-12 18:18:21,984 [INFO] === anomaly 5개 + normal 5개, 총 10개 시행 동시 병렬 시작 ===
+2026-09-12 18:18:21,996 [INFO] [normal rep=0] asg=detection-trial-asg-normal-0 capacity 1<->2 jitter 유지 (총 165분 후 측정)
+2026-09-12 18:18:21,999 [INFO] [normal rep=1] asg=detection-trial-asg-normal-1 capacity 1<->2 jitter 유지 (총 165분 후 측정)
+2026-09-12 18:18:22,003 [INFO] [normal rep=2] asg=detection-trial-asg-normal-2 capacity 1<->2 jitter 유지 (총 165분 후 측정)
+2026-09-12 18:18:22,006 [INFO] [normal rep=3] asg=detection-trial-asg-normal-3 capacity 1<->2 jitter 유지 (총 165분 후 측정)
+2026-09-12 18:18:22,009 [INFO] [normal rep=4] asg=detection-trial-asg-normal-4 capacity 1<->2 jitter 유지 (총 165분 후 측정)
+2026-09-12 18:18:22,124 [INFO] [anomaly rep=1] asg=detection-trial-asg-anomaly-1 베이스라인 150분(jitter 1<->2 적용) 유지 후 capacity ->4
+2026-09-12 18:18:22,142 [INFO] [anomaly rep=2] asg=detection-trial-asg-anomaly-2 베이스라인 150분(jitter 1<->2 적용) 유지 후 capacity ->4
+2026-09-12 18:18:22,155 [INFO] [anomaly rep=3] asg=detection-trial-asg-anomaly-3 베이스라인 150분(jitter 1<->2 적용) 유지 후 capacity ->4
+2026-09-12 18:18:22,161 [INFO] [anomaly rep=4] asg=detection-trial-asg-anomaly-4 베이스라인 150분(jitter 1<->2 적용) 유지 후 capacity ->4
+2026-09-12 18:18:22,170 [INFO] [anomaly rep=0] asg=detection-trial-asg-anomaly-0 베이스라인 150분(jitter 1<->2 적용) 유지 후 capacity ->4
+2026-09-12 18:38:22,303 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 2
+2026-09-12 18:38:22,306 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 2
+2026-09-12 18:38:22,323 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 2
+2026-09-12 18:38:22,324 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 2
+2026-09-12 18:38:22,344 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 2
+2026-09-12 18:38:22,362 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 2
+2026-09-12 18:38:22,365 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 2
+2026-09-12 18:38:22,410 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 2
+2026-09-12 18:38:22,412 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 2
+2026-09-12 18:38:22,481 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 2
+2026-09-12 18:58:22,492 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 1
+2026-09-12 18:58:22,523 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 1
+2026-09-12 18:58:22,528 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 1
+2026-09-12 18:58:22,533 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 1
+2026-09-12 18:58:22,535 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 1
+2026-09-12 18:58:22,557 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 1
+2026-09-12 18:58:22,593 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 1
+2026-09-12 18:58:22,632 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 1
+2026-09-12 18:58:22,635 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 1
+2026-09-12 18:58:22,720 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 1
+2026-09-12 19:18:22,679 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 2
+2026-09-12 19:18:22,688 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 2
+2026-09-12 19:18:22,692 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 2
+2026-09-12 19:18:22,720 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 2
+2026-09-12 19:18:22,721 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 2
+2026-09-12 19:18:22,731 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 2
+2026-09-12 19:18:22,807 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 2
+2026-09-12 19:18:22,839 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 2
+2026-09-12 19:18:22,859 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 2
+2026-09-12 19:18:23,027 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 2
+2026-09-12 19:38:22,860 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 1
+2026-09-12 19:38:22,863 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 1
+2026-09-12 19:38:22,898 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 1
+2026-09-12 19:38:22,900 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 1
+2026-09-12 19:38:22,924 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 1
+2026-09-12 19:38:22,925 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 1
+2026-09-12 19:38:23,009 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 1
+2026-09-12 19:38:23,026 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 1
+2026-09-12 19:38:23,081 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 1
+2026-09-12 19:38:23,229 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 1
+2026-09-12 19:58:23,041 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 2
+2026-09-12 19:58:23,069 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 2
+2026-09-12 19:58:23,089 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 2
+2026-09-12 19:58:23,116 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 2
+2026-09-12 19:58:23,142 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 2
+2026-09-12 19:58:23,145 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 2
+2026-09-12 19:58:23,155 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 2
+2026-09-12 19:58:23,244 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 2
+2026-09-12 19:58:23,246 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 2
+2026-09-12 19:58:23,446 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 2
+2026-09-12 20:18:23,227 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 1
+2026-09-12 20:18:23,270 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 1
+2026-09-12 20:18:23,295 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 1
+2026-09-12 20:18:23,295 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 1
+2026-09-12 20:18:23,304 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 1
+2026-09-12 20:18:23,324 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 1
+2026-09-12 20:18:23,351 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 1
+2026-09-12 20:18:23,384 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 1
+2026-09-12 20:18:23,470 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 1
+2026-09-12 20:18:23,681 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 1
+2026-09-12 20:38:23,772 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 2
+2026-09-12 20:38:23,783 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 2
+2026-09-12 20:38:23,784 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 2
+2026-09-12 20:38:23,816 [INFO] [anomaly-baseline rep=2] jitter: detection-trial-asg-anomaly-2 capacity -> 2
+2026-09-12 20:38:23,823 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 2
+2026-09-12 20:38:23,864 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 2
+2026-09-12 20:38:23,874 [INFO] [anomaly-baseline rep=3] jitter: detection-trial-asg-anomaly-3 capacity -> 2
+2026-09-12 20:38:23,888 [INFO] [anomaly-baseline rep=4] jitter: detection-trial-asg-anomaly-4 capacity -> 2
+2026-09-12 20:38:23,956 [INFO] [anomaly-baseline rep=1] jitter: detection-trial-asg-anomaly-1 capacity -> 2
+2026-09-12 20:38:24,155 [INFO] [anomaly-baseline rep=0] jitter: detection-trial-asg-anomaly-0 capacity -> 2
+2026-09-12 20:48:24,155 [INFO] [normal rep=3] before production.or_gate=False
+2026-09-12 20:48:24,364 [INFO] [normal rep=0] before production.or_gate=False
+2026-09-12 20:48:24,643 [INFO] [normal rep=2] before production.or_gate=False
+2026-09-12 20:48:24,713 [INFO] [anomaly rep=3] before production.or_gate=False
+2026-09-12 20:48:24,716 [INFO] [normal rep=1] before production.or_gate=False
+2026-09-12 20:48:25,181 [INFO] [anomaly rep=3] capacity=4 설정, 인스턴스 기동 대기 600초...
+2026-09-12 20:48:25,224 [INFO] [anomaly rep=2] before production.or_gate=False
+2026-09-12 20:48:25,234 [INFO] [anomaly rep=4] before production.or_gate=False
+2026-09-12 20:48:25,249 [INFO] [anomaly rep=0] before production.or_gate=False
+2026-09-12 20:48:25,274 [INFO] [anomaly rep=1] before production.or_gate=False
+2026-09-12 20:48:25,281 [INFO] [normal rep=4] before production.or_gate=False
+2026-09-12 20:48:25,389 [INFO] [anomaly rep=0] capacity=4 설정, 인스턴스 기동 대기 600초...
+2026-09-12 20:48:25,435 [INFO] [anomaly rep=2] capacity=4 설정, 인스턴스 기동 대기 600초...
+2026-09-12 20:48:25,437 [INFO] [anomaly rep=1] capacity=4 설정, 인스턴스 기동 대기 600초...
+2026-09-12 20:48:25,439 [INFO] [anomaly rep=4] capacity=4 설정, 인스턴스 기동 대기 600초...
+2026-09-12 20:58:23,972 [INFO] [normal rep=4] jitter: detection-trial-asg-normal-4 capacity -> 1
+2026-09-12 20:58:24,000 [INFO] [normal rep=0] jitter: detection-trial-asg-normal-0 capacity -> 1
+2026-09-12 20:58:24,008 [INFO] [normal rep=2] jitter: detection-trial-asg-normal-2 capacity -> 1
+2026-09-12 20:58:24,054 [INFO] [normal rep=1] jitter: detection-trial-asg-normal-1 capacity -> 1
+2026-09-12 20:58:24,103 [INFO] [normal rep=3] jitter: detection-trial-asg-normal-3 capacity -> 1
+2026-09-12 20:58:25,324 [INFO] [anomaly rep=3] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 20:58:25,506 [INFO] [anomaly rep=0] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 20:58:25,564 [INFO] [anomaly rep=4] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 20:58:25,567 [INFO] [anomaly rep=1] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 20:58:25,583 [INFO] [anomaly rep=2] 지속성 확보를 위해 30분 추가 유지...
+2026-09-12 21:03:24,627 [INFO] [normal rep=3] production.or_gate=False (z=False, IF=False) / teammate=True
+2026-09-12 21:03:24,760 [INFO] [normal rep=0] production.or_gate=False (z=False, IF=False) / teammate=True
+2026-09-12 21:03:25,120 [INFO] [normal rep=2] production.or_gate=False (z=False, IF=False) / teammate=True
+2026-09-12 21:03:25,254 [INFO] [normal rep=1] production.or_gate=False (z=False, IF=False) / teammate=True
+2026-09-12 21:03:25,671 [INFO] [normal rep=4] production.or_gate=False (z=False, IF=False) / teammate=True
+2026-09-12 21:28:25,346 [INFO] [anomaly rep=3] 메트릭 반영 대기 300초...
+2026-09-12 21:28:25,516 [INFO] [anomaly rep=0] 메트릭 반영 대기 300초...
+2026-09-12 21:28:25,577 [INFO] [anomaly rep=1] 메트릭 반영 대기 300초...
+2026-09-12 21:28:25,577 [INFO] [anomaly rep=4] 메트릭 반영 대기 300초...
+2026-09-12 21:28:25,593 [INFO] [anomaly rep=2] 메트릭 반영 대기 300초...
+2026-09-12 21:33:25,872 [INFO] [anomaly rep=3] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 21:33:25,924 [INFO] [anomaly rep=0] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 21:33:26,094 [INFO] [anomaly rep=0] capacity=1로 복구
+2026-09-12 21:33:26,095 [INFO] [anomaly rep=3] capacity=1로 복구
+2026-09-12 21:33:26,381 [INFO] [anomaly rep=1] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 21:33:26,409 [INFO] [anomaly rep=4] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 21:33:26,491 [INFO] [anomaly rep=2] production.or_gate=False (z=False, IF=False) / teammate=False
+2026-09-12 21:33:26,564 [INFO] [anomaly rep=1] capacity=1로 복구
+2026-09-12 21:33:26,689 [INFO] [anomaly rep=4] capacity=1로 복구
+2026-09-12 21:33:26,695 [INFO] [anomaly rep=2] capacity=1로 복구
+2026-09-12 21:33:26,713 [INFO] [production(detection_node 실제 방식)] TP=0 TN=5 FP=0 FN=5 / accuracy=50.0% recall=0.0% FPR=0.0%
+2026-09-12 21:33:26,713 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 21:33:26,713 [INFO] [iforest_only(persistence 적용)] TP=0 TN=5 FP=0 FN=5 / accuracy=50.0% recall=0.0% FPR=0.0%
+2026-09-12 21:33:26,713 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 21:33:26,713 [INFO] [zscore_only(persistence 적용)] TP=0 TN=5 FP=0 FN=5 / accuracy=50.0% recall=0.0% FPR=0.0%
+2026-09-12 21:33:26,713 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 21:33:26,713 [INFO] [teammate_compat(v1까지의 방식)] TP=0 TN=0 FP=5 FN=5 / accuracy=0.0% recall=0.0% FPR=100.0%
+2026-09-12 21:33:26,713 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 21:33:26,719 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\autoscaling_edos_trial__capacity4_wait300s_n5-5_scriptv3_20260912.json
+2026-09-12 21:33:26,719 [WARNING] 테스트 후 반드시 정리하세요: --teardown --n-anomaly 5 --n-normal 5

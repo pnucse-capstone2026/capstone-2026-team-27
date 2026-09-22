@@ -1,0 +1,91 @@
+2026-09-14 20:49:41,870 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260914_204941.log (SCRIPT_VERSION=4)
+2026-09-14 20:49:42,565 [INFO] === anomaly 8개 + edge 0개 + normal 5개, 총 13개 시행 동시 병렬 시작 (트래픽 기반) ===
+2026-09-14 20:49:42,615 [INFO] [anomaly rep=0, profile=extreme_spike] detection-traffic-asg-anomaly-0 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,663 [INFO] [anomaly rep=1, profile=extreme_spike] detection-traffic-asg-anomaly-1 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,709 [INFO] [anomaly rep=2, profile=extreme_spike] detection-traffic-asg-anomaly-2 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,757 [INFO] [anomaly rep=3, profile=extreme_spike] detection-traffic-asg-anomaly-3 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,802 [INFO] [anomaly rep=4, profile=extreme_spike] detection-traffic-asg-anomaly-4 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,848 [INFO] [anomaly rep=5, profile=extreme_spike] detection-traffic-asg-anomaly-5 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,895 [INFO] [anomaly rep=6, profile=extreme_spike] detection-traffic-asg-anomaly-6 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,941 [INFO] [anomaly rep=7, profile=extreme_spike] detection-traffic-asg-anomaly-7 baseline rps=1.0로 150분 유지
+2026-09-14 20:49:42,992 [INFO] [normal rep=0] detection-traffic-asg-normal-0 rps=1.0 계속 유지
+2026-09-14 20:49:43,033 [INFO] [normal rep=1] detection-traffic-asg-normal-1 rps=1.0 계속 유지
+2026-09-14 20:49:43,076 [INFO] [normal rep=2] detection-traffic-asg-normal-2 rps=1.0 계속 유지
+2026-09-14 20:49:43,126 [INFO] [normal rep=3] detection-traffic-asg-normal-3 rps=1.0 계속 유지
+2026-09-14 20:49:43,175 [INFO] [normal rep=4] detection-traffic-asg-normal-4 rps=1.0 계속 유지
+2026-09-14 23:19:51,400 [INFO] [anomaly rep=5, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:51,401 [INFO] [anomaly rep=5, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:51,709 [INFO] [anomaly rep=3, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:51,710 [INFO] [anomaly rep=3, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:52,006 [INFO] [normal rep=4] before or_gate=True
+2026-09-14 23:19:52,302 [INFO] [anomaly rep=4, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:52,303 [INFO] [anomaly rep=4, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:52,630 [INFO] [anomaly rep=6, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:52,632 [INFO] [anomaly rep=6, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:52,879 [INFO] [anomaly rep=2, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:52,880 [INFO] [anomaly rep=2, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:53,231 [INFO] [normal rep=2] before or_gate=True
+2026-09-14 23:19:53,511 [INFO] [normal rep=1] before or_gate=True
+2026-09-14 23:19:53,848 [INFO] [anomaly rep=0, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:53,851 [INFO] [anomaly rep=0, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:54,184 [INFO] [anomaly rep=1, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:54,185 [INFO] [anomaly rep=1, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:54,521 [INFO] [normal rep=0] before or_gate=True
+2026-09-14 23:19:54,876 [INFO] [anomaly rep=7, profile=extreme_spike] before or_gate=True
+2026-09-14 23:19:54,878 [INFO] [anomaly rep=7, profile=extreme_spike] rps=50.0로 폭증, 35분 유지...
+2026-09-14 23:19:55,216 [INFO] [normal rep=3] before or_gate=True
+2026-09-14 23:54:51,409 [INFO] [anomaly rep=5] 메트릭 반영 대기 300초...
+2026-09-14 23:54:51,714 [INFO] [anomaly rep=3] 메트릭 반영 대기 300초...
+2026-09-14 23:54:52,307 [INFO] [anomaly rep=4] 메트릭 반영 대기 300초...
+2026-09-14 23:54:52,641 [INFO] [anomaly rep=6] 메트릭 반영 대기 300초...
+2026-09-14 23:54:52,885 [INFO] [anomaly rep=2] 메트릭 반영 대기 300초...
+2026-09-14 23:54:53,864 [INFO] [anomaly rep=0] 메트릭 반영 대기 300초...
+2026-09-14 23:54:54,196 [INFO] [anomaly rep=1] 메트릭 반영 대기 300초...
+2026-09-14 23:54:54,887 [INFO] [anomaly rep=7] 메트릭 반영 대기 300초...
+2026-09-14 23:59:55,291 [INFO] [anomaly rep=5] or_gate=True (z=False IF=True) request_count 마지막=[6308.0, 6288.0, 6305.0]
+2026-09-14 23:59:55,414 [INFO] [anomaly rep=3] or_gate=True (z=False IF=True) request_count 마지막=[6373.0, 6256.0, 6286.0]
+2026-09-14 23:59:55,482 [INFO] [normal rep=4] or_gate=False (z=False IF=False)
+2026-09-14 23:59:55,767 [INFO] [anomaly rep=4] or_gate=True (z=False IF=True) request_count 마지막=[6280.0, 6298.0, 6341.0]
+2026-09-14 23:59:55,907 [INFO] [anomaly rep=6] or_gate=True (z=False IF=True) request_count 마지막=[6402.0, 6276.0, 6222.0]
+2026-09-14 23:59:56,040 [INFO] [anomaly rep=2] or_gate=True (z=False IF=True) request_count 마지막=[6276.0, 6300.0, 6367.0]
+2026-09-14 23:59:56,187 [INFO] [normal rep=2] or_gate=False (z=False IF=False)
+2026-09-14 23:59:56,269 [INFO] [anomaly rep=0] or_gate=True (z=False IF=True) request_count 마지막=[6330.0, 6295.0, 6280.0]
+2026-09-14 23:59:56,342 [INFO] [normal rep=1] or_gate=False (z=False IF=False)
+2026-09-14 23:59:56,749 [INFO] [anomaly rep=1] or_gate=True (z=False IF=True) request_count 마지막=[6253.0, 6301.0, 6360.0]
+2026-09-14 23:59:56,978 [INFO] [normal rep=0] or_gate=False (z=False IF=False)
+2026-09-14 23:59:57,313 [INFO] [anomaly rep=7] or_gate=True (z=False IF=True) request_count 마지막=[6362.0, 6250.0, 6223.0]
+2026-09-14 23:59:57,569 [INFO] [normal rep=3] or_gate=False (z=False IF=False)
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+WAFUnavailableEntityException(���� ����) \u2014 30�� ��� �� ��õ� 1/5
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+Web ACL ���� ����: An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn��t perform the operation because some resource in your request is a duplicate of an existing one.
+WAFUnavailableEntityException(���� ����) \u2014 30�� ��� �� ��õ� 2/5
+WAFUnavailableEntityException(���� ����) \u2014 30�� ��� �� ��õ� 3/5
+[logging_node] DB 저장 성공 (run_id=2b1d1b74-f4ee-489e-bf7d-5bfb0407cf4b)
+2026-09-15 00:04:59,037 [INFO] [anomaly rep=4] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-4', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-4'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=2eebdc8b-ba33-41f9-ab33-5abf57c783b7)
+2026-09-15 00:04:59,039 [INFO] [anomaly rep=5] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-5', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-5'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=89d40f87-3f1a-4f24-80c5-f24b7df4af90)
+2026-09-15 00:04:59,073 [INFO] [anomaly rep=6] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-6', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-6'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=639118bc-f080-4ed8-93b5-cc742ec47108)
+2026-09-15 00:04:59,151 [INFO] [anomaly rep=2] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-2', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-2'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=5df11f5b-771b-4b87-9a12-9ab337c78d56)
+2026-09-15 00:05:02,361 [INFO] [anomaly rep=7] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-7', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-7'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=9ec1bd5b-5f68-429d-a918-2928021f8d92)
+2026-09-15 00:05:03,721 [INFO] [anomaly rep=0] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-0', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-0'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=becc0d54-efc7-4487-8a94-154651c20baf)
+2026-09-15 00:05:03,895 [INFO] [anomaly rep=1] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'partial_success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'failed', 'error': 'An error occurred (WAFDuplicateItemException) when calling the CreateWebACL operation: AWS WAF couldn’t perform the operation because some resource in your request is a duplicate of an existing one.'}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-1', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-1'} qa_passed=False
+[logging_node] DB 저장 성공 (run_id=b202ce67-3ae4-424d-8b05-3aec023bc3bf)
+2026-09-15 00:06:32,177 [INFO] [anomaly rep=3] 파이프라인: anomaly_type=risk_security action=ScaleDown risk=HIGH approval_bypassed=True apply_waf=True action_result={'status': 'success', 'scaledown_result': {'status': 'success', 'previous_max_size': 1, 'previous_desired_capacity': 1, 'new_max_size': 2, 'new_desired_capacity': 1}, 'waf_result': {'status': 'success', 'created_web_acl': True, 'web_acl_name': 'auto-rate-limit-1789397998', 'web_acl_id': '6319d528-8d6a-4699-93e4-81d95cbad72f', 'web_acl_arn': 'arn:aws:wafv2:ap-northeast-2:268140507066:regional/webacl/auto-rate-limit-1789397998/6319d528-8d6a-4699-93e4-81d95cbad72f', 'resource_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'rule_name': 'rate-limit-detection-traffic-asg-anomaly-3', 'limit': 2000}, 'auto_scaling_group_name': 'detection-traffic-asg-anomaly-3', 'target_capacity': 2, 'associated_alb_arn': 'arn:aws:elasticloadbalancing:ap-northeast-2:268140507066:loadbalancer/app/detection-traffic-alb/14f81d91682274c8', 'waf_rate_limit': 2000, 'waf_rule_name': 'rate-limit-detection-traffic-asg-anomaly-3'} qa_passed=True
+2026-09-15 00:06:32,183 [INFO] [production(detection_node 실제 방식)] TP=8 TN=5 FP=0 FN=0 / accuracy=100.0% recall=100.0%
+2026-09-15 00:06:32,183 [INFO]     recall 95% CI = [63.1%, 100.0%]
+2026-09-15 00:06:32,183 [INFO] [iforest_only] TP=8 TN=5 FP=0 FN=0 / accuracy=100.0% recall=100.0%
+2026-09-15 00:06:32,183 [INFO]     recall 95% CI = [63.1%, 100.0%]
+2026-09-15 00:06:32,183 [INFO] [zscore_only] TP=0 TN=5 FP=0 FN=8 / accuracy=38.5% recall=0.0%
+2026-09-15 00:06:32,183 [INFO]     recall 95% CI = [0.0%, 36.9%]
+2026-09-15 00:06:32,188 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\autoscaling_edos_traffic_trial__n5-8_scriptv4_20260915.json
+2026-09-15 00:06:32,188 [WARNING] 테스트 후 반드시 정리하세요: --teardown --n-anomaly 8 --n-normal 5 --n-edge 0

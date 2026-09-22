@@ -2,7 +2,7 @@
   "script_version": "1",
   "scenario": "ec2_overprovision",
   "generated_at": "2026-09-11T07:40:49.388970+00:00",
-  "check_earliest_utc": "2026-09-11T10:10:49.388970+00:00",
+  "check_earliest_utc": "2026-09-11T14:37:45.790066+00:00",
   "anomaly_target_cpu_pct": 12.0,
   "normal_target_cpu_pct": 45.0,
   "instances": [
@@ -84,5 +84,6 @@
       "launch_time_utc": "2026-09-11T07:39:31+00:00",
       "profile": "target_cpu_45.0pct"
     }
-  ]
+  ],
+  "_note_reload": "부하 재적용(systemd-run 수정) 이후로 시각 갱신, 2026-09-11"
 }

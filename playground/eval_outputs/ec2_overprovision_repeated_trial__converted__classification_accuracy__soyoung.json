@@ -1,0 +1,18 @@
+{
+  "source_result_file": "playground\\eval_outputs\\ec2_overprovision_repeated_trial__converted.json",
+  "expected_label": "cost_inefficiency",
+  "rulebook": {
+    "total": 0,
+    "correct": 0,
+    "accuracy": null
+  },
+  "llm": {
+    "total": 5,
+    "correct": 4,
+    "accuracy": 0.8
+  },
+  "p_rulebook": 0.0,
+  "p_llm": 1.0,
+  "combined_classification_accuracy": 0.8,
+  "false_positive_classification_notes": []
+}

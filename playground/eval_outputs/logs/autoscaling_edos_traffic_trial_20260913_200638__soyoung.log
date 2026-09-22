@@ -1,0 +1,73 @@
+2026-09-13 20:06:38,201 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_200638.log (SCRIPT_VERSION=4)
+2026-09-13 20:06:40,419 [INFO] ALB 생성: detection-traffic-alb
+2026-09-13 20:08:27,652 [INFO] Target Group 생성: tg-anomaly-0 (listener port=8001)
+2026-09-13 20:08:27,747 [INFO] 리스너 생성: port=8001 -> tg-anomaly-0
+2026-09-13 20:08:27,940 [INFO] ASG 생성: detection-traffic-asg-anomaly-0
+2026-09-13 20:08:29,267 [INFO] Target Group 생성: tg-anomaly-1 (listener port=8002)
+2026-09-13 20:08:29,384 [INFO] 리스너 생성: port=8002 -> tg-anomaly-1
+2026-09-13 20:08:29,419 [INFO] ASG 생성: detection-traffic-asg-anomaly-1
+2026-09-13 20:08:30,593 [INFO] Target Group 생성: tg-anomaly-2 (listener port=8003)
+2026-09-13 20:08:30,707 [INFO] 리스너 생성: port=8003 -> tg-anomaly-2
+2026-09-13 20:08:30,821 [INFO] ASG 생성: detection-traffic-asg-anomaly-2
+2026-09-13 20:08:31,964 [INFO] Target Group 생성: tg-anomaly-3 (listener port=8004)
+2026-09-13 20:08:32,073 [INFO] 리스너 생성: port=8004 -> tg-anomaly-3
+2026-09-13 20:08:32,173 [INFO] ASG 생성: detection-traffic-asg-anomaly-3
+2026-09-13 20:08:33,498 [INFO] Target Group 생성: tg-anomaly-4 (listener port=8005)
+2026-09-13 20:08:33,611 [INFO] 리스너 생성: port=8005 -> tg-anomaly-4
+2026-09-13 20:08:33,687 [INFO] ASG 생성: detection-traffic-asg-anomaly-4
+2026-09-13 20:08:35,078 [INFO] Target Group 생성: tg-anomaly-5 (listener port=8006)
+2026-09-13 20:08:35,203 [INFO] 리스너 생성: port=8006 -> tg-anomaly-5
+2026-09-13 20:08:35,321 [INFO] ASG 생성: detection-traffic-asg-anomaly-5
+2026-09-13 20:08:36,784 [INFO] Target Group 생성: tg-anomaly-6 (listener port=8007)
+2026-09-13 20:08:36,901 [INFO] 리스너 생성: port=8007 -> tg-anomaly-6
+2026-09-13 20:08:36,954 [INFO] ASG 생성: detection-traffic-asg-anomaly-6
+2026-09-13 20:08:38,521 [INFO] Target Group 생성: tg-anomaly-7 (listener port=8008)
+2026-09-13 20:08:38,640 [INFO] 리스너 생성: port=8008 -> tg-anomaly-7
+2026-09-13 20:08:38,687 [INFO] ASG 생성: detection-traffic-asg-anomaly-7
+2026-09-13 20:08:40,397 [INFO] Target Group 생성: tg-anomaly-8 (listener port=8009)
+2026-09-13 20:08:40,518 [INFO] 리스너 생성: port=8009 -> tg-anomaly-8
+2026-09-13 20:08:40,573 [INFO] ASG 생성: detection-traffic-asg-anomaly-8
+2026-09-13 20:08:42,129 [INFO] Target Group 생성: tg-anomaly-9 (listener port=8010)
+2026-09-13 20:08:42,261 [INFO] 리스너 생성: port=8010 -> tg-anomaly-9
+2026-09-13 20:08:42,338 [INFO] ASG 생성: detection-traffic-asg-anomaly-9
+2026-09-13 20:08:43,850 [INFO] Target Group 생성: tg-anomaly-10 (listener port=8011)
+2026-09-13 20:08:43,988 [INFO] 리스너 생성: port=8011 -> tg-anomaly-10
+2026-09-13 20:08:44,017 [INFO] ASG 생성: detection-traffic-asg-anomaly-10
+2026-09-13 20:08:45,480 [INFO] Target Group 생성: tg-anomaly-11 (listener port=8012)
+2026-09-13 20:08:45,605 [INFO] 리스너 생성: port=8012 -> tg-anomaly-11
+2026-09-13 20:08:45,672 [INFO] ASG 생성: detection-traffic-asg-anomaly-11
+2026-09-13 20:08:47,132 [INFO] Target Group 생성: tg-anomaly-12 (listener port=8013)
+2026-09-13 20:08:47,271 [INFO] 리스너 생성: port=8013 -> tg-anomaly-12
+2026-09-13 20:08:47,316 [INFO] ASG 생성: detection-traffic-asg-anomaly-12
+2026-09-13 20:08:48,790 [INFO] Target Group 생성: tg-anomaly-13 (listener port=8014)
+2026-09-13 20:08:48,936 [INFO] 리스너 생성: port=8014 -> tg-anomaly-13
+2026-09-13 20:08:48,994 [INFO] ASG 생성: detection-traffic-asg-anomaly-13
+2026-09-13 20:08:50,563 [INFO] Target Group 생성: tg-anomaly-14 (listener port=8015)
+2026-09-13 20:08:50,720 [INFO] 리스너 생성: port=8015 -> tg-anomaly-14
+2026-09-13 20:08:50,775 [INFO] ASG 생성: detection-traffic-asg-anomaly-14
+2026-09-13 20:08:52,265 [INFO] Target Group 생성: tg-normal-0 (listener port=8016)
+2026-09-13 20:08:52,410 [INFO] 리스너 생성: port=8016 -> tg-normal-0
+2026-09-13 20:08:52,538 [INFO] ASG 생성: detection-traffic-asg-normal-0
+2026-09-13 20:08:53,924 [INFO] Target Group 생성: tg-normal-1 (listener port=8017)
+2026-09-13 20:08:54,070 [INFO] 리스너 생성: port=8017 -> tg-normal-1
+2026-09-13 20:08:54,154 [INFO] ASG 생성: detection-traffic-asg-normal-1
+2026-09-13 20:08:55,762 [INFO] Target Group 생성: tg-normal-2 (listener port=8018)
+2026-09-13 20:08:55,919 [INFO] 리스너 생성: port=8018 -> tg-normal-2
+2026-09-13 20:08:55,979 [INFO] ASG 생성: detection-traffic-asg-normal-2
+2026-09-13 20:08:57,547 [INFO] Target Group 생성: tg-normal-3 (listener port=8019)
+2026-09-13 20:08:57,699 [INFO] 리스너 생성: port=8019 -> tg-normal-3
+2026-09-13 20:08:57,734 [INFO] ASG 생성: detection-traffic-asg-normal-3
+2026-09-13 20:08:59,487 [INFO] Target Group 생성: tg-normal-4 (listener port=8020)
+2026-09-13 20:08:59,638 [INFO] 리스너 생성: port=8020 -> tg-normal-4
+2026-09-13 20:08:59,723 [INFO] ASG 생성: detection-traffic-asg-normal-4
+2026-09-13 20:09:01,264 [INFO] Target Group 생성: tg-normal-5 (listener port=8021)
+2026-09-13 20:09:01,438 [INFO] 리스너 생성: port=8021 -> tg-normal-5
+2026-09-13 20:09:01,523 [INFO] ASG 생성: detection-traffic-asg-normal-5
+2026-09-13 20:09:03,108 [INFO] Target Group 생성: tg-normal-6 (listener port=8022)
+2026-09-13 20:09:03,273 [INFO] 리스너 생성: port=8022 -> tg-normal-6
+2026-09-13 20:09:03,325 [INFO] ASG 생성: detection-traffic-asg-normal-6
+2026-09-13 20:09:04,783 [INFO] Target Group 생성: tg-normal-7 (listener port=8023)
+2026-09-13 20:09:04,953 [INFO] 리스너 생성: port=8023 -> tg-normal-7
+2026-09-13 20:09:05,051 [INFO] ASG 생성: detection-traffic-asg-normal-7
+2026-09-13 20:09:06,315 [INFO] 설정 완료. ALB DNS=detection-traffic-alb-326702442.ap-northeast-2.elb.amazonaws.com, 매니페스트=C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\autoscaling_edos_traffic_manifest.json
+2026-09-13 20:09:06,315 [INFO] 인스턴스가 헬스체크를 통과하려면(user-data 실행 시간 포함) 2~3분 정도 걸릴 수 있습니다.
