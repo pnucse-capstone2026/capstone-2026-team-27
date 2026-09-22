@@ -706,14 +706,26 @@ def _rule_based_fallback_action(allowed_actions: list[str]) -> str:
     )
 
 
-def _score_components(action: str, state: PipelineState) -> tuple[float, float, float, float]:
+def _score_components(
+    action: str, state: PipelineState, use_live_lookup: bool = True
+) -> tuple[float, float, float, float]:
     """
-    입력: action, state (resource_type/anomaly_type/raw_metrics 사용)
+    입력: action, state (resource_type/anomaly_type/raw_metrics 사용),
+          use_live_lookup (Resize 후보의 실제 인스턴스 타입을 describe_instances()로
+          조회할지 여부 — False면 cost 평균 역추정 폴백만 사용)
     출력: 액션 1개에 대한 (saving_rate, impact_score, stability_score, estimated_saving_usd)
 
     impact_score/stability_score는 [ADDED] 액션 선택이 LLM의 boto3 스펙 기반
     직접 선택(_select_action_with_llm)으로 바뀌면서 더 이상 추정하지 않고
     0.0 고정값으로 둔다 (CandidateAction 스키마 호환을 위해 필드는 유지).
+
+    [버그 수정] 이전에는 action=="Resize"일 때 실제 선택 여부와 무관하게
+    항상 describe_instances()를 호출했다 — Resize가 선택되지 않은 경우에도
+    candidate_actions 목록 채우기용으로 매번 실제 AWS 호출이 나가, 병렬 실행 시
+    스로틀링으로 decision 단계가 수십 초씩 늘어지는 원인이 됐다(실측 확인).
+    use_live_lookup=False면 resource_id를 넘기지 않아 _ec2_resize_saving()이
+    자체 내장된 cost 평균 역추정 폴백만 쓰도록 한다 — Resize가 실제 선택된
+    경우에만 정확한 실제 조회값이 필요하므로 그때만 True로 부른다.
     """
     if action == "NoAction":
         saving, _, _ = RULE_BASED_SCORE_TABLE["NoAction"]
@@ -748,7 +760,8 @@ def _score_components(action: str, state: PipelineState) -> tuple[float, float, 
                 action, anomaly_type, resource_type, raw_metrics
             )
     elif action == "Resize":
-        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(raw_metrics, state.get("resource_id"))
+        resize_resource_id = state.get("resource_id") if use_live_lookup else None
+        saving_rate, estimated_saving_usd, _ = _ec2_resize_saving(raw_metrics, resize_resource_id)
     elif action in ("Throttle", "ScaleDown"):
         result = _trend_based_partial_saving(raw_metrics)
         if result is not None:
@@ -827,13 +840,17 @@ def decision_node(state: PipelineState) -> PipelineState:
             used_llm=bool(pseudo_code),
         )
 
-    # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지
-    saving_rate, _, _, estimated_saving_usd = _score_components(selected_action, state)
-
-    # candidate_actions는 allowed_actions 전체에 대해 saving_rate만 채워서 기록
+    # saving_rate / estimated_saving_usd는 기존 결정론적 계산 그대로 유지.
+    # candidate_actions는 allowed_actions 전체에 대해 saving_rate만 채워서 기록하는데,
+    # 이때 실제로 선택되지 않은 액션까지 실제 AWS 조회(describe_instances)를 태우지
+    # 않도록 선택된 액션에만 use_live_lookup=True를 준다 (위 버그 수정 참고).
+    # selected_action은 allowed_actions에 항상 포함되므로 중복 계산도 함께 없앤다.
+    saving_rate = estimated_saving_usd = None
     candidates: list[CandidateAction] = []
     for action in allowed_actions:
-        s_rate, _, _, s_usd = _score_components(action, state)
+        s_rate, _, _, s_usd = _score_components(action, state, use_live_lookup=(action == selected_action))
+        if action == selected_action:
+            saving_rate, estimated_saving_usd = s_rate, s_usd
         candidates.append(
             {
                 "action": action,  # type: ignore[typeddict-item]

@@ -1,0 +1,139 @@
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+Lambda Throttle 실패 (detection-test-lambda): An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].
+원본: lambda_retry_repeated_trial__phase15m_n8-5_scriptv1_20260910.json (측정 2026-09-09T18:09:52.888348+00:00, 시행 13개 - 같은 함수를 순차 재생하므로 병렬 실행 안 함)
+=== Lambda 13개 순차 재생 파이프라인 시작 ===
+[anomaly rep=0] detection 0.011s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=0] decision -> Throttle risk=MED approval=True
+[anomaly rep=0] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly rep=0] action 1.400s -> Throttle failed
+[anomaly rep=0] qa 300.446s -> passed=True
+[logging_node] DB 저장 성공 (run_id=d60951ba-6193-4d54-bbcc-29641fc17541)
+[anomaly rep=1] detection 0.016s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=1] decision -> Throttle risk=MED approval=True
+[anomaly rep=1] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly rep=1] action 0.202s -> Throttle failed
+[anomaly rep=1] qa 300.341s -> passed=True
+[logging_node] DB 저장 성공 (run_id=7aacf25d-12e8-4874-9bff-19e4a9382083)
+[anomaly rep=2] detection 0.015s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=2] decision -> Throttle risk=MED approval=True
+[anomaly rep=2] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly rep=2] action 0.214s -> Throttle failed
+[anomaly rep=2] qa 300.300s -> passed=True
+[logging_node] DB 저장 성공 (run_id=b9a6a89c-ccfd-41cf-b07c-d6bee7b418af)
+[anomaly rep=3] detection 0.015s -> flag=True triggered=['error_count', 'invocation_count']
+[anomaly rep=3] decision -> Throttle risk=MED approval=True
+[anomaly rep=3] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly rep=3] action 0.228s -> Throttle failed
+[anomaly rep=3] qa 300.448s -> passed=True
+[logging_node] DB 저장 성공 (run_id=56104885-9c95-43c6-85a5-e1e79d0e44e7)
+[anomaly rep=4] detection 0.024s -> flag=True triggered=['invocation_count', 'cost', 'error_count']
+[anomaly rep=4] decision -> Throttle risk=MED approval=True
+[anomaly rep=4] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly rep=4] action 0.205s -> Throttle failed
+[anomaly rep=4] qa 300.419s -> passed=True
+[logging_node] DB 저장 성공 (run_id=fe164f9f-b774-46a1-8e54-1bb4fe9b0da3)
+[normal rep=0] detection 0.017s -> flag=False triggered=[]
+[normal rep=1] detection 0.011s -> flag=False triggered=[]
+[normal rep=2] detection 0.008s -> flag=False triggered=[]
+[normal rep=3] detection 0.008s -> flag=False triggered=[]
+[normal rep=4] detection 0.010s -> flag=False triggered=[]
+[normal rep=5] detection 0.008s -> flag=False triggered=[]
+[normal rep=6] detection 0.008s -> flag=False triggered=[]
+[normal rep=7] detection 0.009s -> flag=True triggered=['invocation_count', 'cost']
+[normal rep=7] decision -> Throttle risk=MED approval=True
+[normal rep=7] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[normal rep=7] action 0.217s -> Throttle failed
+[normal rep=7] qa 300.330s -> passed=True
+[logging_node] DB 저장 성공 (run_id=b40be993-8c2c-4531-95b1-d7c04c9c5b24)
+
+=== 집계 ===
+{
+  "n_resources": 13,
+  "n_error": 0,
+  "detection": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 1,
+      "TN": 7
+    },
+    "accuracy": 0.9230769230769231,
+    "recall": 1.0,
+    "false_positive_rate": 0.125
+  },
+  "stopped_at": {
+    "detection": 7,
+    "approval_gate": 0,
+    "null": 6
+  },
+  "action": {
+    "n_executed": 6,
+    "n_success": 0,
+    "success_rate": 0.0,
+    "by_action": {
+      "Throttle": 6
+    }
+  },
+  "qa": {
+    "n_judged": 6,
+    "n_passed": 6,
+    "pass_rate": 1.0
+  },
+  "timings": {
+    "detection": {
+      "n": 13,
+      "mean_sec": 0.012,
+      "stdev_sec": 0.005,
+      "min_sec": 0.008,
+      "max_sec": 0.024
+    },
+    "classification": {
+      "n": 6,
+      "mean_sec": 0.001,
+      "stdev_sec": 0.001,
+      "min_sec": 0.0,
+      "max_sec": 0.002
+    },
+    "decision": {
+      "n": 6,
+      "mean_sec": 0.002,
+      "stdev_sec": 0.001,
+      "min_sec": 0.002,
+      "max_sec": 0.003
+    },
+    "action": {
+      "n": 6,
+      "mean_sec": 0.411,
+      "stdev_sec": 0.485,
+      "min_sec": 0.202,
+      "max_sec": 1.4
+    },
+    "qa": {
+      "n": 6,
+      "mean_sec": 300.381,
+      "stdev_sec": 0.065,
+      "min_sec": 300.3,
+      "max_sec": 300.448
+    },
+    "logging": {
+      "n": 6,
+      "mean_sec": 0.087,
+      "stdev_sec": 0.024,
+      "min_sec": 0.059,
+      "max_sec": 0.124
+    },
+    "total": {
+      "n": 13,
+      "mean_sec": 138.881,
+      "stdev_sec": 156.123,
+      "min_sec": 0.008,
+      "max_sec": 301.931
+    }
+  }
+}
+
+결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\batch_pipeline_replay__Lambda_20260910_060714.json

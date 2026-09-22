@@ -1,0 +1,73 @@
+{
+  "source_result_file": "C:\\Users\\soyoung\\Desktop\\work\\4-졸업과제\\detection\\langgraph_study\\playground\\eval_outputs\\s3_repeated_trial__window2.5h_objsize50kb_n8-5_scriptv5_20260910.json",
+  "zscore_standalone_approx": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "accuracy_ci_95": [
+      0.752947361999529,
+      1.0
+    ],
+    "recall": 1.0,
+    "recall_ci_95": [
+      0.47817624989501856,
+      1.0
+    ],
+    "false_positive_rate": 0.0,
+    "fpr_ci_95": [
+      0.0,
+      0.3694166475528192
+    ]
+  },
+  "iforest_standalone_approx": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 4,
+      "TN": 4
+    },
+    "accuracy": 0.6923076923076923,
+    "accuracy_ci_95": [
+      0.38573833824929465,
+      0.9090796054279033
+    ],
+    "recall": 1.0,
+    "recall_ci_95": [
+      0.47817624989501856,
+      1.0
+    ],
+    "false_positive_rate": 0.5,
+    "fpr_ci_95": [
+      0.15701277048705797,
+      0.842987229512942
+    ]
+  },
+  "ensemble_actual": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 1,
+      "TN": 7
+    },
+    "accuracy": 0.9230769230769231,
+    "accuracy_ci_95_clopper_pearson": [
+      0.6397025647321226,
+      0.9980543715026533
+    ],
+    "recall": 1.0,
+    "recall_ci_95_clopper_pearson": [
+      0.47817624989501856,
+      1.0
+    ],
+    "precision": 0.8333333333333334,
+    "false_positive_rate": 0.125,
+    "fpr_ci_95_clopper_pearson": [
+      0.003159723531251909,
+      0.5265096708752065
+    ]
+  }
+}

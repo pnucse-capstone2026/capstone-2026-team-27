@@ -1,0 +1,3 @@
+{"trace_id": "342ae017-41e8-4fec-9346-fc14b5d9e4b8", "executed_at": "2026-09-09T17:47:33.848434Z", "resource_id": "detection-trial-anomaly-0", "resource_type": "S3", "action": "Block", "status": "success", "error": null}
+{"trace_id": "156ee73b-8255-4c52-ada9-ffb2f28ba141", "executed_at": "2026-09-09T17:47:33.859476Z", "resource_id": "detection-trial-anomaly-1", "resource_type": "S3", "action": "Block", "status": "success", "error": null}
+{"trace_id": "40ed3b50-5ae5-44a3-a2ac-a9c67440be4b", "executed_at": "2026-09-09T17:47:33.897467Z", "resource_id": "detection-trial-anomaly-3", "resource_type": "S3", "action": "Block", "status": "success", "error": null}

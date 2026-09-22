@@ -181,7 +181,7 @@ def detect_both(resource_type: str, resource_id: str, resource_age_seconds: floa
             z_persist = True
 
     if_score_p, if_trig_p = da._iforest_score_and_trigger(resource_type, usage_with_cost)
-    _, idle_trig = da._low_utilization_check(resource_type, usage_with_cost, resource_age_seconds)
+    _, idle_trig, _ = da._low_utilization_check(resource_type, usage_with_cost, resource_age_seconds)
     _, surge_trig = da._lambda_error_rate_check(resource_type, usage_with_cost)
 
     out["production"] = {

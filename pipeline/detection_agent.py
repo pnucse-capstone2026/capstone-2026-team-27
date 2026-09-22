@@ -65,10 +65,12 @@ logger = logging.getLogger(__name__)
 # 합성 평가 데이터셋(435개) 기준 정확도가 76.78%에 머물러 80% 목표에 미달했던 것을,
 # "학습 버퍼를 리소스 타입당 다수 윈도우로 확장"(아래 학습 버퍼 섹션 참고)하면서
 # 재튜닝해 0.5 / 2.75로 변경 — 정확도 80.46%, 결합(다변량) 이상 탐지율 99.29% 확인.
-Z_SCORE_THRESHOLD = 2.75                     # k = 2.75 (기존 3.0)
-Z_SCORE_EPSILON = 1e-9                       # ε (분모 0 방지)
-IFOREST_THRESHOLD = 0.5                      # τ = 0.5 (기존 0.6)
-IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
+Z_SCORE_THRESHOLD = 2.75  # k = 2.75 (기존 3.0)
+Z_SCORE_EPSILON = 1e-9  # ε (분모 0 방지)
+IFOREST_THRESHOLD = 0.5  # τ = 0.5 (기존 0.6)
+IFOREST_CONTAMINATION = (
+    0.1  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
+)
 IFOREST_RANDOM_STATE = 42
 IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
 MIN_POINTS_FOR_IFOREST = 5
@@ -100,7 +102,18 @@ PERSISTENCE_WINDOW_POINTS = 3
 # (참고로 "5%"는 Compute Optimizer 기준이고, "4일 이상"은 별개 체크인 Trusted
 # Advisor의 Low Utilization EC2 Instances 체크(CPU 10%대)에서 온 것이라 두 체크가
 # 섞여 있었음 — 이번에 5%(Compute Optimizer) 쪽으로 통일해서 채택.)
-EC2_IDLE_CPU_THRESHOLD_PCT = 5.0   # peak(윈도우 내 최댓값) 기준
+EC2_IDLE_CPU_THRESHOLD_PCT = 5.0  # peak(윈도우 내 최댓값) 기준
+
+# ── EC2 오버프로비저닝 체크 (절대임계값, 신규) ─────────────────────────────────
+# 좀비(완전 유휴)와 별개로 "쓰긴 쓰는데 사양이 과한" 케이스를 구분한다.
+# AWS Compute Optimizer의 오버프로비저닝 판정은 percentile(P99.5/P90)+headroom
+# 조합이라 우리 스코프에서 그대로 재현하기 어렵다 — 대신 AWS의 두 공식 저사용률
+# 체크(Compute Optimizer idle 5%, Trusted Advisor Low Utilization 10%)를 참고해
+# 그 위에 안전 마진을 둔 20%를 자체 채택했다(실측으로 조정 가능, 팀 논의 2026-09-11).
+#   peak CPU ≤ 5%         → 좀비(zombie)         → Stop
+#   5% < peak CPU ≤ 20%   → 오버프로비저닝(overprovisioned) → Resize
+#   peak CPU > 20%         → 정상
+EC2_OVERPROVISION_CPU_THRESHOLD_PCT = 20.0
 
 _EC2_IDLE_NETWORK_IO_MB_PER_DAY = 5.0
 _EC2_IDLE_WINDOW_HOURS = (30 * 300) / 3600  # n_points × period_seconds 기본값 = 2.5시간
@@ -124,10 +137,10 @@ EC2_IDLE_TARGET_METRICS = ("cpu_utilization", "network_in", "network_out")
 # 재사용, 기본 3개=15분) 지속 여부를 본다 — 유휴 탐지는 신생 리소스 오탐을 피하려고
 # 일부러 보수적으로(느리게) 설계했지만, 비용이 실시간으로 새는 재시도 폭증은 반대로
 # 빨리 반응하는 게 유리하기 때문 (설계 의도가 정반대).
-LAMBDA_ERROR_RATE_THRESHOLD = 0.5   # 50% — Lambda 기본 재시도 최대 2회 감안, 진짜 지속적
-                                     # 장애면 호출의 절반 이상이 실패로 나타날 가능성이 높음.
-                                     # 이보다 낮추면(예: 20%) 정상 서비스의 베이스라인 에러율
-                                     # (외부 API 오류 등)까지 폭증으로 오탐할 위험이 커짐.
+LAMBDA_ERROR_RATE_THRESHOLD = 0.5  # 50% — Lambda 기본 재시도 최대 2회 감안, 진짜 지속적
+# 장애면 호출의 절반 이상이 실패로 나타날 가능성이 높음.
+# 이보다 낮추면(예: 20%) 정상 서비스의 베이스라인 에러율
+# (외부 API 오류 등)까지 폭증으로 오탐할 위험이 커짐.
 
 # 노이즈 방지용 최소 호출수 게이트(포인트당). 베이스라인 에러율 5%인 정상 서비스가
 # 우연히 한 포인트에서 50% 이상 에러로 보일 확률: N=3이면 약 0.7%, N=5면 약 0.11%,
@@ -153,8 +166,8 @@ LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
 THROTTLE_RATE_MIN_ACTIVITY = 10
 
 # ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
-MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
-RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
+MAX_WINDOWS_PER_TYPE = 30  # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
+RETRAIN_EVERY_N_NEW_WINDOWS = 5  # 새 윈도우가 이만큼 쌓일 때마다 재학습
 
 # ⚠️ 임시 동결 플래그 (사전학습 mock 시딩 도입, 2026-09-09) ───────────────────
 # playground/seed_mock_iforest_buffer.py로 5개 타입 × 30개씩 mock 윈도우를
@@ -172,9 +185,9 @@ RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다
 # 그 전엔 정상운영 판정 자체가 아직 미확정이라 어떤 실데이터를 받아들일지
 # 기준이 없음).
 MOCK_SEED_BUFFER_FROZEN = True
-BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
-BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
-                                    # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
+BUFFER_SCORE_MARGIN = 0.9  # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
+BUFFER_ZSCORE_MARGIN = 0.9  # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
+# 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
 
 # Z-score는 "비용, 네트워크 입력, 호출 횟수" 지표에만 적용 (보고서 3.3.1).
 # 리소스마다 필드명이 달라 의미 단위로 매핑한다.
@@ -214,8 +227,7 @@ _raw_metrics_type = typing.get_type_hints(PipelineState)["raw_metrics"]
 _metric_typeddicts = typing.get_args(_raw_metrics_type)
 
 _RESOURCE_TYPEDDICTS: dict[str, type] = {
-    td.__name__.removesuffix("Metrics"): td
-    for td in _metric_typeddicts
+    td.__name__.removesuffix("Metrics"): td for td in _metric_typeddicts
 }
 
 RESOURCE_TYPES: list[str] = list(_RESOURCE_TYPEDDICTS.keys())
@@ -234,9 +246,11 @@ RESOURCE_METRIC_KEYS: dict[str, list[str]] = {
 
 _all_metrics_set = set()
 
-for keys in RESOURCE_METRIC_KEYS.values():   # 바깥 루프: 리소스별 지표 리스트를 하나씩 꺼냄
-    for metric in keys:                       # 안쪽 루프: 그 리스트 안의 지표 이름을 하나씩 꺼냄
-        _all_metrics_set.add(metric)          # set에 추가 (중복이면 자동 무시됨)
+for (
+    keys
+) in RESOURCE_METRIC_KEYS.values():  # 바깥 루프: 리소스별 지표 리스트를 하나씩 꺼냄
+    for metric in keys:  # 안쪽 루프: 그 리스트 안의 지표 이름을 하나씩 꺼냄
+        _all_metrics_set.add(metric)  # set에 추가 (중복이면 자동 무시됨)
 
 ALL_METRICS: list[str] = sorted(_all_metrics_set)
 
@@ -302,8 +316,9 @@ def _low_utilization_check(
     resource_type: str,
     metrics: dict[str, list[float]],
     resource_age_seconds: Optional[float] = None,
-) -> tuple[list[str], bool]:
-    """EC2 저사용률(유휴/좀비) 절대임계값 체크. EC2_IDLE_* 상수 정의 위 주석 참고.
+) -> tuple[list[str], bool, Optional[str]]:
+    """EC2 저사용률(좀비/오버프로비저닝) 절대임계값 체크. EC2_IDLE_*/EC2_OVERPROVISION_*
+    상수 정의 위 주석 참고.
 
     ⚠️ 2026-09-12: detection_node는 이 함수를 더 이상 직접 호출하지 않는다 —
     아래 _derived_features가 이 함수의 판정 결과를 재사용해 ec2_idle_flag
@@ -312,11 +327,14 @@ def _low_utilization_check(
     스크립트들이 여전히 직접 import해서 쓰므로 하위호환을 위해 남겨둔다.
 
     z-score/IForest와 달리 window 내부 평균·표준편차를 쓰지 않는 절대 기준이라,
-    "윈도우 내내 낮기만 하고 변동이 없는" 진짜 유휴 패턴(z-score가 놓치는 케이스)도
-    잡을 수 있다. peak(=max) CPU와 window 전체 network I/O 합산을 보므로, 윈도우
-    30포인트 전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
+    "윈도우 내내 낮기만 하고 변동이 없는" 패턴(z-score가 못 잡는 케이스 — 벗어날
+    평균 자체가 없음)도 잡을 수 있다. peak(=max) CPU를 보므로, 윈도우 30포인트
+    전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
 
-    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 (), False 반환.
+    출력의 세 번째 값(utilization_band)은 "zombie"/"overprovisioned"/None 중 하나 —
+    decision_node가 이 값으로 Stop(좀비)과 Resize(오버프로비저닝)를 구분한다.
+
+    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 ([], False, None) 반환.
 
     ⚠️ 신생 인스턴스 오탐 방지 가드 (2026-09-05 실 AWS 테스트에서 발견): CloudWatch는
     리소스가 존재하기 전 구간을 0으로 채워서 반환한다(cloudwatch_client.py:85-89).
@@ -327,21 +345,34 @@ def _low_utilization_check(
     가드를 적용하지 않고 기존처럼 그냥 평가한다(하위호환 기본값).
     """
     if resource_type != "EC2":
-        return [], False
+        return [], False, None
     if not all(m in metrics and metrics[m] for m in EC2_IDLE_TARGET_METRICS):
-        return [], False
-    if resource_age_seconds is not None and resource_age_seconds < _EC2_IDLE_WINDOW_HOURS * 3600:
-        return [], False
+        return [], False, None
+    if (
+        resource_age_seconds is not None
+        and resource_age_seconds < _EC2_IDLE_WINDOW_HOURS * 3600
+    ):
+        return [], False, None
 
     peak_cpu = max(metrics["cpu_utilization"])
     network_io_bytes = sum(metrics["network_in"]) + sum(metrics["network_out"])
 
-    is_idle = (
-        peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT
-        and network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD
-    )
-    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if is_idle else []
-    return triggered_metrics, is_idle
+    # network I/O가 정상 범위면 CPU만 낮아도 "실제로 트래픽을 처리 중"이라는 뜻이라
+    # 좀비/오버프로비저닝 둘 다 아니다(AND 조건 — 기존 좀비 체크의 회귀 테스트가
+    # 이미 검증한 시맨틱스를 오버프로비저닝에도 동일하게 유지, 2026-09-11).
+    if network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD:
+        if peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT:
+            utilization_band = "zombie"
+        elif peak_cpu <= EC2_OVERPROVISION_CPU_THRESHOLD_PCT:
+            utilization_band = "overprovisioned"
+        else:
+            utilization_band = None
+    else:
+        utilization_band = None
+
+    triggered = utilization_band is not None
+    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if triggered else []
+    return triggered_metrics, triggered, utilization_band
 
 
 def _lambda_error_rate_check(
@@ -370,7 +401,9 @@ def _lambda_error_rate_check(
     """
     if resource_type != "Lambda":
         return [], False
-    if not all(m in metrics and metrics[m] for m in ("invocation_count", "error_count")):
+    if not all(
+        m in metrics and metrics[m] for m in ("invocation_count", "error_count")
+    ):
         return [], False
 
     invocation = metrics["invocation_count"]
@@ -380,7 +413,8 @@ def _lambda_error_rate_check(
     recent_error = error[-k_eff:]
 
     is_surge = all(
-        inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS and (err / inv) >= LAMBDA_ERROR_RATE_THRESHOLD
+        inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+        and (err / inv) >= LAMBDA_ERROR_RATE_THRESHOLD
         for inv, err in zip(recent_invocation, recent_error)
     )
     triggered_metrics = ["error_count", "invocation_count"] if is_surge else []
@@ -425,7 +459,9 @@ def _derived_features(
 
     # ec2_idle_flag: _low_utilization_check(판정 로직 원본)를 그대로 재사용해
     # 윈도우 단위 boolean을 얻고, n_points개 전부 같은 값으로 broadcast한다.
-    _, idle_triggered = _low_utilization_check(resource_type, metrics, resource_age_seconds)
+    _, idle_triggered = _low_utilization_check(
+        resource_type, metrics, resource_age_seconds
+    )
     ec2_idle_flag = [1.0 if idle_triggered else 0.0] * n
 
     # lambda_error_rate: 시점별 error_count/invocation_count. 최소 호출수
@@ -495,12 +531,15 @@ def build_unified_feature_matrix(
 
     return np.column_stack(cols)
 
+
 def _model_path(resource_type: str) -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
     return os.path.join(IFOREST_MODEL_DIR, f"iforest_{resource_type}.pkl")
 
 
-def _load_cached_model(resource_type: str) -> Optional[tuple[IsolationForest, list[str]]]:
+def _load_cached_model(
+    resource_type: str,
+) -> Optional[tuple[IsolationForest, list[str]]]:
     """캐시된 (model, feature_keys) 로드. 캐시가 없으면 None.
 
     ⚠️ 예전엔 "24시간 지나면 캐시 전체 무효화"가 있었는데 제거함 — 그 방식은 리셋될
@@ -520,7 +559,9 @@ def _load_cached_model(resource_type: str) -> Optional[tuple[IsolationForest, li
     return model, feature_keys
 
 
-def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[str]) -> None:
+def _save_model(
+    resource_type: str, model: IsolationForest, feature_keys: list[str]
+) -> None:
     with open(_model_path(resource_type), "wb") as f:
         pickle.dump((model, feature_keys, time.time()), f)
 
@@ -538,6 +579,7 @@ def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[s
 # 탐지 임계값보다 더 보수적인 기준으로) 윈도우"를 잠정적 정상으로 간주해 버퍼에
 # 쌓는 자기참조(self-referential) 방식을 쓴다 — 실제 정확도는
 # playground/validate_self_referential_buffer.py로 라벨 없이도 검증함.
+
 
 def _buffer_path() -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
@@ -557,7 +599,9 @@ def _load_training_buffer() -> tuple[dict[str, list[np.ndarray]], int]:
         return {}, 0
 
 
-def _save_training_buffer(buffer_by_type: dict[str, list[np.ndarray]], pending_count: int) -> None:
+def _save_training_buffer(
+    buffer_by_type: dict[str, list[np.ndarray]], pending_count: int
+) -> None:
     with open(_buffer_path(), "wb") as f:
         pickle.dump((buffer_by_type, pending_count), f)
 
@@ -667,7 +711,9 @@ def _absolute_score_and_admit(
     return float(raw[-1]), believed_normal
 
 
-def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
+def _score_with_model(
+    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]
+) -> float:
     return float(_normalized_scores(model, resource_type, metrics)[-1])
 
 
@@ -681,7 +727,9 @@ SELF_CHECK_RECENT_WINDOW = 6
 SELF_CHECK_MIN_OUTLIERS = 2
 
 
-def _self_referential_iforest_check(resource_type: str, metrics: dict[str, list[float]]) -> bool:
+def _self_referential_iforest_check(
+    resource_type: str, metrics: dict[str, list[float]]
+) -> bool:
     """콜드스타트 시드 후보 검증 전용. 아직 저장된 모델이 없어 정식 IForest 점수를
     못 매기므로(_score_with_model은 학습된 모델이 필요), 이 윈도우 자체(30개 행)로
     임시 IsolationForest를 하나 학습시켜서 "최근 시점들 중 다수가 나머지 대비
@@ -689,7 +737,9 @@ def _self_referential_iforest_check(resource_type: str, metrics: dict[str, list[
     Z-score의 window-max(_zscore_max)와 같은 철학: 윈도우 자기 자신을 기준으로 삼는다.
     반환값 True면 시드 거부 대상."""
     X = build_unified_feature_matrix(resource_type, metrics)
-    temp_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    temp_model = IsolationForest(
+        contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE
+    )
     predictions = temp_model.fit_predict(X)  # -1=이상치, 1=정상
 
     k_eff = min(SELF_CHECK_RECENT_WINDOW, len(predictions))
@@ -753,7 +803,9 @@ def _get_or_train_iforest(
                 type_unseen = not buffer_by_type.get(resource_type)
 
                 if type_unseen:
-                    z_max, believed_normal = _model_independent_seed_check(resource_type, metrics)
+                    z_max, believed_normal = _model_independent_seed_check(
+                        resource_type, metrics
+                    )
                     # 0.0: "모델 기반 score 조건은 이 경로에서 평가 안 함 — z_max/자기참조
                     # IForest만으로 판단"이라는 뜻. score=None을 쓰지 않는 이유: 이 로그를
                     # 파싱하는 playground/phase6_detection_node_e2e.py의
@@ -772,7 +824,9 @@ def _get_or_train_iforest(
                     bucket = buffer_by_type.setdefault(resource_type, [])
                     bucket.append(build_unified_feature_matrix(resource_type, metrics))
                     if len(bucket) > MAX_WINDOWS_PER_TYPE:
-                        del bucket[: len(bucket) - MAX_WINDOWS_PER_TYPE]  # FIFO — 오래된 것부터 제거
+                        del bucket[
+                            : len(bucket) - MAX_WINDOWS_PER_TYPE
+                        ]  # FIFO — 오래된 것부터 제거
                     pending_count += 1
                     # ⚠️ 로그 인자 순서 (resource_type, score, z_max, ...)는 playground/
                     # phase6_detection_node_e2e.py의 _BufferDecisionCapture가
@@ -781,13 +835,21 @@ def _get_or_train_iforest(
                     logger.info(
                         "[iforest_buffer] 채택 resource_type=%s score=%.4f z_max=%.4f "
                         "버퍼크기=%d pending=%d (신규타입=%s)",
-                        resource_type, provisional_score, z_max, len(bucket), pending_count, type_unseen,
+                        resource_type,
+                        provisional_score,
+                        z_max,
+                        len(bucket),
+                        pending_count,
+                        type_unseen,
                     )
                 else:
                     logger.info(
                         "[iforest_buffer] 제외(경계/이상 의심) resource_type=%s score=%.4f z_max=%.4f "
                         "(신규타입=%s)",
-                        resource_type, provisional_score, z_max, type_unseen,
+                        resource_type,
+                        provisional_score,
+                        z_max,
+                        type_unseen,
                     )
 
                 _save_training_buffer(buffer_by_type, pending_count)
@@ -796,13 +858,18 @@ def _get_or_train_iforest(
                 # 반영한다 — 안 그러면 이 타입은 다음 정기 재학습 전까지 계속 "모델이
                 # 모르는 타입" 상태로 남아 매번 다시 튕겨날 수 있다.
                 type_just_learned = believed_normal and type_unseen
-                if (pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS or type_just_learned) and buffer_by_type:
-                    combined = np.vstack([np.vstack(v) for v in buffer_by_type.values() if v])
+                if (
+                    pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS or type_just_learned
+                ) and buffer_by_type:
+                    combined = np.vstack(
+                        [np.vstack(v) for v in buffer_by_type.values() if v]
+                    )
                     model = _fit_and_cache_unified(combined)
                     _save_training_buffer(buffer_by_type, 0)
                     logger.info(
                         "[iforest_buffer] 재학습 완료 총 윈도우=%d (타입별=%s)%s",
-                        combined.shape[0], {k: len(v) for k, v in buffer_by_type.items()},
+                        combined.shape[0],
+                        {k: len(v) for k, v in buffer_by_type.items()},
                         " (신규 타입 즉시 반영)" if type_just_learned else "",
                     )
 
@@ -820,7 +887,8 @@ def _get_or_train_iforest(
         logger.info(
             "[iforest_buffer] 콜드스타트 시드 거부(첫 윈도우가 이미 이상해 보임) "
             "resource_type=%s z_max=%.4f — 다음 사이클에 재시도",
-            resource_type, z_max,
+            resource_type,
+            z_max,
         )
         return None
 
@@ -888,6 +956,7 @@ def _iforest_score_and_trigger(
 # SHAP(TreeExplainer)로 각 피처가 최종 이상 점수에 얼마나/어느 방향으로 기여했는지를
 # 사후적으로 계산해서, "이 케이스에서 어떤 지표가 결정적이었는지" 보고서용으로 뽑는다.
 
+
 def _unified_feature_names() -> list[str]:
     """build_unified_feature_matrix가 만드는 컬럼 순서와 1:1로 대응하는 이름 목록."""
     names: list[str] = []
@@ -904,7 +973,9 @@ def _unified_feature_names() -> list[str]:
 
 
 def explain_iforest(
-    resource_type: str, metrics: dict[str, list[float]], model: Optional[IsolationForest] = None
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    model: Optional[IsolationForest] = None,
 ) -> dict[str, float]:
     """윈도우의 마지막 시점(=_iforest_score가 실제로 이상 여부를 판단하는 시점)에 대한
     피처별 SHAP 기여도를 전부(값/마스크/원-핫 컬럼 포함) 반환한다.
@@ -979,7 +1050,10 @@ def detection_node(state: PipelineState) -> PipelineState:
     # 반드시 이 model을 그대로 넘겨써야 한다.
     iforest_model = _get_or_train_iforest(resource_type, metrics)
     iforest_score, iforest_triggered = _iforest_score_and_trigger(
-        resource_type, metrics, resource_age_seconds=resource_age_seconds, model=iforest_model
+        resource_type,
+        metrics,
+        resource_age_seconds=resource_age_seconds,
+        model=iforest_model,
     )
 
     # ── 2-1) SHAP 해석가능성 — IForest가 실제로 트리거된 경우에만 계산 (2026-09-14) ──
@@ -996,7 +1070,9 @@ def detection_node(state: PipelineState) -> PipelineState:
         except Exception:
             logger.exception(
                 "[detection_node] SHAP 설명 계산 실패 — 탐지 자체는 정상 진행 "
-                "(resource_id=%s, resource_type=%s)", state.get("resource_id"), resource_type,
+                "(resource_id=%s, resource_type=%s)",
+                state.get("resource_id"),
+                resource_type,
             )
 
     # ── 3) EC2 저사용률(유휴) — 트리거 앙상블의 예외 경로로 유지 (2026-09-13 재확인) ──
@@ -1023,6 +1099,18 @@ def detection_node(state: PipelineState) -> PipelineState:
         for m in EC2_IDLE_TARGET_METRICS:
             if m not in triggered_metrics:
                 triggered_metrics.append(m)
+
+    # ec2_idle_flag는 트리거 여부(0/1)만 담고 있어 zombie/overprovisioned를
+    # 구분 못 한다 — decision_agent.py의 Stop(zombie) vs Resize(overprovisioned)
+    # 라우팅이 state["ec2_utilization_band"]에 의존하므로(rule_engine.py 참고)
+    # 별도로 채워야 한다.
+    if resource_type == "EC2":
+        _, _, ec2_utilization_band = _low_utilization_check(
+            resource_type, metrics, resource_age_seconds
+        )
+        state["ec2_utilization_band"] = ec2_utilization_band
+    else:
+        state["ec2_utilization_band"] = None
 
     # ── 4) Lambda 에러 재시도 폭증 — 2026-09-13부터 직접 트리거 아님, IForest에 위임 ──
     # EC2 idle과 달리 이 feature의 "이상" 값(에러율 50%+)은 다른 타입의 0(해당없음)
@@ -1079,46 +1167,42 @@ def detection_node(state: PipelineState) -> PipelineState:
 # 넘기지 않고 하나씩 순차적으로 detection_node를 돌려서 발견 즉시 넘긴다
 # (병렬 fan-out이 아니라 의도적인 순차 처리).
 
+
 def _build_initial_state(resource: dict) -> PipelineState:
     """resource: {resource_id, resource_type, raw_metrics, timestamp(optional)}
     나머지 PipelineState 필드는 파이프라인 시작 전 기본값으로 채운다.
     """
     return {
-        "trace_id":      None,
-        "resource_id":   resource["resource_id"],
+        "trace_id": None,
+        "resource_id": resource["resource_id"],
         "resource_type": resource["resource_type"],
-        "raw_metrics":   resource["raw_metrics"],
-        "timestamp":     resource.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "raw_metrics": resource["raw_metrics"],
+        "timestamp": resource.get("timestamp")
+        or datetime.now(timezone.utc).isoformat(),
         "resource_age_seconds": resource.get("resource_age_seconds"),
-
-        "anomaly_flag":          False,
-        "anomaly_score_zscore":  None,
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
         "anomaly_score_iforest": None,
-        "triggered_metrics":     [],
-        "shap_top_features":     None,
-
-        "anomaly_type":             None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+        "anomaly_type": None,
         "classification_reasoning": None,
-        "interim_action_taken":     None,
-        "matched_rule_id":          None,
-
-        "candidate_actions":   [],
-        "selected_action":     None,
-        "risk_level":          None,
-        "requires_approval":   False,
-        "decision_reasoning":  None,
+        "interim_action_taken": None,
+        "matched_rule_id": None,
+        "candidate_actions": [],
+        "selected_action": None,
+        "risk_level": None,
+        "requires_approval": False,
+        "decision_reasoning": None,
         "target_instance_type": None,
-
         "pre_action_snapshot": None,
-        "action_executed":     None,
-        "action_result":       None,
-
-        "qa_passed":         None,
-        "sla_check_result":  None,
-        "rollback_count":    0,
+        "action_executed": None,
+        "action_result": None,
+        "qa_passed": None,
+        "sla_check_result": None,
+        "rollback_count": 0,
         "qa_matched_rule_id": None,
-        "whitelisted":       False,
-
+        "whitelisted": False,
         "log_entries": [],
     }
 
