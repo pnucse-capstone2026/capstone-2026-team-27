@@ -22,6 +22,8 @@ class LambdaMetrics(TypedDict):
     error_count: list[float]  # 횟수
     duration_avg: list[float]  # ms
     cost: list[float]  # USD
+    throttle_count: list[float]  # 횟수 (AWS/Lambda Throttles)
+    async_event_age: list[float]  # ms, 비동기 큐 대기시간 (AWS/Lambda AsyncEventAge)
 
 
 class S3Metrics(TypedDict):
@@ -178,12 +180,10 @@ class PipelineState(TypedDict):
     anomaly_score_zscore: Optional[float]
     anomaly_score_iforest: Optional[float]
     triggered_metrics: list[str]
-
-    # EC2 저사용률 절대임계값 체크(detection_agent._low_utilization_check)의 세부 판정.
-    # "zombie"(peak CPU ≤5%, 완전 유휴) / "overprovisioned"(5~20%, 쓰긴 하나 과사양) /
-    # None(해당 없음 또는 EC2 외 타입) 중 하나. decision_node가 이 값으로
-    # cost_inefficiency 액션을 Stop(좀비) vs Resize(오버프로비저닝)로 분기한다.
-    ec2_utilization_band: Optional[Literal["zombie", "overprovisioned"]]
+    # IForest가 트리거된 경우에 한해 채워지는 SHAP 상위 기여 지표(지표명 -> 기여도,
+    # 절댓값 내림차순 최대 SHAP_TOP_N개). Z-score/EC2 유휴 단독 트리거는 IForest
+    # 판단이 아니므로 None. detection_agent.py의 detection_node() 참고.
+    shap_top_features: Optional[dict[str, float]]
 
     # EC2 저사용률 절대임계값 체크(detection_agent._low_utilization_check)의 세부 판정.
     # "zombie"(peak CPU ≤5%, 완전 유휴) / "overprovisioned"(5~20%, 쓰긴 하나 과사양) /
