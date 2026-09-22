@@ -9,40 +9,44 @@ from typing import TypedDict, Optional, Literal
 # 각 list[float]는 슬라이딩 윈도우 30개 포인트 (CloudWatch 1분 단위)
 # cost만 Cost Explorer 1시간 단위
 
+
 class EC2Metrics(TypedDict):
-    cpu_utilization: list[float]   # %
-    network_in:      list[float]   # bytes
-    network_out:     list[float]   # bytes
-    cost:            list[float]   # USD
+    cpu_utilization: list[float]  # %
+    network_in: list[float]  # bytes
+    network_out: list[float]  # bytes
+    cost: list[float]  # USD
+
 
 class LambdaMetrics(TypedDict):
     invocation_count: list[float]  # 횟수
-    error_count:      list[float]  # 횟수
-    duration_avg:     list[float]  # ms
-    cost:             list[float]  # USD
-    # 2026-09-12 추가 — 스로틀(429)/시스템 에러 재시도 폭증 시나리오 대응.
-    # invocation_count/error_count와 달리 스로틀된 재시도는 여기 안 잡힌다(AWS
-    # 공식 문서 확인: "Throttled requests and other invocation errors don't
-    # count as either Invocations or Errors") — 그래서 별도 지표가 필요함.
-    throttle_count:   list[float]  # 횟수 (AWS/Lambda Throttles)
-    async_event_age:  list[float]  # ms, 비동기 큐 대기시간 (AWS/Lambda AsyncEventAge)
+    error_count: list[float]  # 횟수
+    duration_avg: list[float]  # ms
+    cost: list[float]  # USD
+
 
 class S3Metrics(TypedDict):
     number_of_requests: list[float]  # 횟수
-    bytes_downloaded:   list[float]  # bytes
-    cost:               list[float]  # USD
+    bytes_downloaded: list[float]  # bytes
+    cost: list[float]  # USD
+
 
 class RDSMetrics(TypedDict):
-    cpu_utilization:      list[float]  # %
+    cpu_utilization: list[float]  # %
     database_connections: list[float]  # 연결 수
-    read_iops:            list[float]  # IOPS
-    write_iops:           list[float]  # IOPS
-    cost:                 list[float]  # USD
+    read_iops: list[float]  # IOPS
+    write_iops: list[float]  # IOPS
+    cost: list[float]  # USD
+
 
 class AutoScalingMetrics(TypedDict):
-    group_desired_capacity:    list[float]  # 목표 인스턴스 수
-    group_in_service_instances: list[float] # 실행 중 인스턴스 수
-    cost:                      list[float]  # USD
+    group_desired_capacity: list[float]  # 목표 인스턴스 수
+    group_in_service_instances: list[float]  # 실행 중 인스턴스 수
+    cost: list[float]  # USD
+    # 2026-09-12 추가: EDoS는 트래픽(원인)이 capacity(결과)를 밀어올리는 구조인데,
+    # group_desired_capacity는 "순간 인스턴스 개수"라 값의 가짓수가 극히 적어(이산적)
+    # 통계적 탐지(z-score/IForest)에 불리함을 실측으로 확인했다. ALB의 RequestCount처럼
+    # 일정 기간 누적되는 지표는 값의 폭이 넓어 탐지에 유리할 것으로 보고 추가한다.
+    request_count: list[float]  # ALB RequestCount(Sum) - 원인(트래픽) 직접 관측용
 
 
 # ── pre_action_snapshot 리소스별 구조 ────────────────────────────────────────
@@ -50,34 +54,41 @@ class AutoScalingMetrics(TypedDict):
 # S3: boto3 get_bucket_policy()["Policy"]는 JSON 문자열로 반환되므로
 #     저장 시 json.loads() 후 dict로 변환 필수. 롤백 시 json.dumps()로 복원.
 
+
 class EC2Snapshot(TypedDict):
-    instance_type:     str        # 예: "t3.medium"
-    state:             str        # 예: "running"
-    security_group_ids: list[str] # 예: ["sg-0abc123"]
+    instance_type: str  # 예: "t3.medium"
+    state: str  # 예: "running"
+    security_group_ids: list[str]  # 예: ["sg-0abc123"]
+
 
 class LambdaSnapshot(TypedDict):
-    reserved_concurrency: int     # 설정 없으면 -1
+    reserved_concurrency: int  # 설정 없으면 -1
+
 
 class S3BucketPolicy(TypedDict):
-    Version:   str
+    Version: str
     Statement: list[dict]
 
+
 class S3PublicAccessBlock(TypedDict):
-    BlockPublicAcls:       bool
-    IgnorePublicAcls:      bool
-    BlockPublicPolicy:     bool
+    BlockPublicAcls: bool
+    IgnorePublicAcls: bool
+    BlockPublicPolicy: bool
     RestrictPublicBuckets: bool
 
+
 class S3Snapshot(TypedDict):
-    bucket_policy:        S3BucketPolicy       # json.loads() 후 저장
-    public_access_block:  S3PublicAccessBlock
+    bucket_policy: S3BucketPolicy  # json.loads() 후 저장
+    public_access_block: S3PublicAccessBlock
+
 
 class RDSSnapshot(TypedDict):
-    instance_class: str   # 예: "db.t3.medium"
-    multi_az:       bool
+    instance_class: str  # 예: "db.t3.medium"
+    multi_az: bool
+
 
 class AutoScalingSnapshot(TypedDict):
-    max_size:         int
+    max_size: int
     desired_capacity: int
 
 
@@ -87,26 +98,29 @@ class AutoScalingSnapshot(TypedDict):
 #   cost_spike        → NoAction, Throttle, Block, ScaleDown
 #   risk_security     → NoAction, Block, ScaleDown
 
+
 class CandidateAction(TypedDict):
-    action:          Literal["NoAction", "Stop", "Stop+Schedule", "Resize",
-                             "Throttle", "Block", "ScaleDown"]
-    saving_rate:     float   # 비용 절감 효과  [0.0, 1.0] (정규화된 비율)
-    impact_score:    float   # 서비스 영향도   [0.0, 1.0]  낮을수록 좋음
-    stability_score: float   # 시스템 안정성   [0.0, 1.0]
-    score:           float   # 0.5×saving - 0.3×impact + 0.2×stability
+    action: Literal[
+        "NoAction", "Stop", "Stop+Schedule", "Resize", "Throttle", "Block", "ScaleDown"
+    ]
+    saving_rate: float  # 비용 절감 효과  [0.0, 1.0] (정규화된 비율)
+    impact_score: float  # 서비스 영향도   [0.0, 1.0]  낮을수록 좋음
+    stability_score: float  # 시스템 안정성   [0.0, 1.0]
+    score: float  # 0.5×saving - 0.3×impact + 0.2×stability
     estimated_saving_usd: float  # saving_rate 산출에 쓰인 절감 예상액(시간당 USD).
-                                  # 결정론적으로 계산 불가능해 LLM 추정치를 그대로
-                                  # saving_rate로 쓴 경우 0.0 (근거 없는 금액을
-                                  # 만들어내지 않기 위한 안전장치, decision_agent.py 참고)
+    # 결정론적으로 계산 불가능해 LLM 추정치를 그대로
+    # saving_rate로 쓴 경우 0.0 (근거 없는 금액을
+    # 만들어내지 않기 위한 안전장치, decision_agent.py 참고)
 
 
 # ── SLA 검증 결과 단위 구조 (QA Agent가 생성) ────────────────────────────────
 
+
 class SlaCheckResult(TypedDict):
-    cpu_ok:          bool
-    cost_ok:         bool
+    cpu_ok: bool
+    cost_ok: bool
     availability_ok: bool
-    detail:          str    # 실패 시 상세 사유
+    detail: str  # 실패 시 상세 사유
 
 
 # ── risk_level 판단 룰 (Decision Agent가 적용) ───────────────────────────────
@@ -117,28 +131,30 @@ class SlaCheckResult(TypedDict):
 
 ANOMALY_TYPE_DEFAULT_RISK: dict[str, str] = {
     "cost_inefficiency": "LOW",
-    "cost_spike":        "MED",
-    "risk_security":     "HIGH",
+    "cost_spike": "MED",
+    "risk_security": "HIGH",
 }
 
 ACTION_RISK_FLOOR: dict[str, str] = {
     "Stop+Schedule": "MED",
-    "Resize":        "MED",
-    "Block":         "HIGH",
+    "Resize": "MED",
+    "Block": "HIGH",
 }
 
 ALLOWED_ACTIONS: dict[str, list[str]] = {
     "cost_inefficiency": ["NoAction", "Stop", "Stop+Schedule", "Resize"],
-    "cost_spike":        ["NoAction", "Throttle", "Block", "ScaleDown"],
-    "risk_security":     ["NoAction", "Block", "ScaleDown"],
+    "cost_spike": ["NoAction", "Throttle", "Block", "ScaleDown"],
+    "risk_security": ["NoAction", "Block", "ScaleDown"],
 }
 
 RISK_ORDER: dict[str, int] = {"LOW": 0, "MED": 1, "HIGH": 2}
 
 
-def resolve_risk_level(anomaly_type: str, selected_action: str) -> Literal["LOW", "MED", "HIGH"]:
+def resolve_risk_level(
+    anomaly_type: str, selected_action: str
+) -> Literal["LOW", "MED", "HIGH"]:
     """anomaly_type 기본값에서 시작해 selected_action으로 상향 조정."""
-    base  = ANOMALY_TYPE_DEFAULT_RISK.get(anomaly_type, "HIGH")
+    base = ANOMALY_TYPE_DEFAULT_RISK.get(anomaly_type, "HIGH")
     floor = ACTION_RISK_FLOOR.get(selected_action, "LOW")
     result = base if RISK_ORDER[base] >= RISK_ORDER[floor] else floor
     return result  # type: ignore[return-value]
@@ -146,24 +162,28 @@ def resolve_risk_level(anomaly_type: str, selected_action: str) -> Literal["LOW"
 
 # ── 메인 파이프라인 State ────────────────────────────────────────────────────
 
-class PipelineState(TypedDict):
 
+class PipelineState(TypedDict):
     # ── Step 0: 수집된 원본 데이터 ───────────────────────────────────────────
-    trace_id:      Optional[str]  # 파이프라인 실행 추적용 UUID (LLM 로그 ↔ QA 결과 연결)
-    resource_id:   str
+    trace_id: Optional[str]  # 파이프라인 실행 추적용 UUID (LLM 로그 ↔ QA 결과 연결)
+    resource_id: str
     resource_type: Literal["EC2", "Lambda", "S3", "RDS", "AutoScaling"]
-    raw_metrics:   EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
-    timestamp:     str  # ISO 8601
+    raw_metrics: (
+        EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
+    )
+    timestamp: str  # ISO 8601
 
     # ── Step 1: Detection Agent ───────────────────────────────────────────────
-    anomaly_flag:          bool
-    anomaly_score_zscore:  Optional[float]
+    anomaly_flag: bool
+    anomaly_score_zscore: Optional[float]
     anomaly_score_iforest: Optional[float]
-    triggered_metrics:     list[str]
-    # IForest가 트리거된 경우에 한해 채워지는 SHAP 상위 기여 지표(지표명 -> 기여도,
-    # 절댓값 내림차순 최대 SHAP_TOP_N개). Z-score/EC2 유휴 단독 트리거는 IForest
-    # 판단이 아니므로 None. detection_agent.py의 detection_node() 참고.
-    shap_top_features:     Optional[dict[str, float]]
+    triggered_metrics: list[str]
+
+    # EC2 저사용률 절대임계값 체크(detection_agent._low_utilization_check)의 세부 판정.
+    # "zombie"(peak CPU ≤5%, 완전 유휴) / "overprovisioned"(5~20%, 쓰긴 하나 과사양) /
+    # None(해당 없음 또는 EC2 외 타입) 중 하나. decision_node가 이 값으로
+    # cost_inefficiency 액션을 Stop(좀비) vs Resize(오버프로비저닝)로 분기한다.
+    ec2_utilization_band: Optional[Literal["zombie", "overprovisioned"]]
 
     # 리소스가 생성(EC2는 LaunchTime)된 지 몇 초 지났는지. detection_agent.py의
     # 저사용률(유휴) 절대임계값 체크가 "관측 윈도우만큼도 안 된 신생 리소스"를
@@ -176,18 +196,31 @@ class PipelineState(TypedDict):
     # ── Step 2: Classification Agent ─────────────────────────────────────────
     anomaly_type: Optional[Literal["cost_inefficiency", "cost_spike", "risk_security"]]
     classification_reasoning: Optional[str]
-    interim_action_taken:     Optional[str]
+    interim_action_taken: Optional[str]
     matched_rule_id: Optional[str]  # 매칭된 Rule Book 규칙 ID (예: "CLF-001")
 
     # ── Step 3: Decision Agent ────────────────────────────────────────────────
-    candidate_actions:  list[CandidateAction]
-    selected_action:    Optional[Literal["NoAction", "Stop", "Stop+Schedule",
-                                         "Resize", "Throttle", "Block", "ScaleDown"]]
-    risk_level:         Optional[Literal["LOW", "MED", "HIGH"]]
-    requires_approval:  bool
+    candidate_actions: list[CandidateAction]
+    selected_action: Optional[
+        Literal[
+            "NoAction",
+            "Stop",
+            "Stop+Schedule",
+            "Resize",
+            "Throttle",
+            "Block",
+            "ScaleDown",
+        ]
+    ]
+    risk_level: Optional[Literal["LOW", "MED", "HIGH"]]
+    requires_approval: bool
     decision_reasoning: Optional[str]
-    target_instance_type: Optional[str]  # Decision Agent가 Resize 선택 시 채움 (기본값 None)
-    decision_pseudo_code: Optional[str]  # LLM이 액션 선택 근거를 if-else 한 줄로 표현한 것 (실패 시 "")
+    target_instance_type: Optional[
+        str
+    ]  # Decision Agent가 Resize 선택 시 채움 (기본값 None)
+    decision_pseudo_code: Optional[
+        str
+    ]  # LLM이 액션 선택 근거를 if-else 한 줄로 표현한 것 (실패 시 "")
     matched_decision_rule_id: Optional[str]  # 매칭된 Decision 규칙 ID (예: "DEC-001")
 
     # ── Step 4: Action Agent ──────────────────────────────────────────────────
@@ -195,18 +228,18 @@ class PipelineState(TypedDict):
         EC2Snapshot | LambdaSnapshot | S3Snapshot | RDSSnapshot | AutoScalingSnapshot
     ]
     action_executed: Optional[str]
-    action_result:   Optional[dict]
+    action_result: Optional[dict]
 
     # 인바운드 트래픽 제어 옵션 (선택적)
-    dry_run: bool              # True면 실제 API 호출 없이 계획만 반환
-    apply_waf: bool            # AutoScaling ScaleDown 시 WAF Rate-based Rule 병행
-    waf_rate_limit: int        # WAF 제한 (5분간 요청 수, 기본 2000)
+    dry_run: bool  # True면 실제 API 호출 없이 계획만 반환
+    apply_waf: bool  # AutoScaling ScaleDown 시 WAF Rate-based Rule 병행
+    waf_rate_limit: int  # WAF 제한 (5분간 요청 수, 기본 2000)
     associated_alb_arn: Optional[str]  # WAF 적용 대상 ALB ARN
 
     # ── Step 5: QA Agent ──────────────────────────────────────────────────────
-    qa_passed:        Optional[bool]
+    qa_passed: Optional[bool]
     sla_check_result: Optional[SlaCheckResult]
-    rollback_count:   int  # 기본값 0, 최대 2
+    rollback_count: int  # 기본값 0, 최대 2
     qa_matched_rule_id: Optional[str]  # 매칭된 QA 규칙 ID (예: "QA-001")
     whitelisted: bool  # 화이트리스트에 의해 스킵되었는지
     # [ADDED] QA가 액션 후 실측 재조회로 raw_metrics를 덮어쓰기 전, 액션 *전*
@@ -215,5 +248,12 @@ class PipelineState(TypedDict):
         EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
     ]
 
+    # [ADDED] 단계별(detection/classification/decision/action/qa) 소요 시간(ms).
+    # pipeline/graph.py가 각 노드 호출을 감싸며 채우고, logging_agent.py가
+    # agent_steps.duration_ms(그동안 항상 NULL이었음)에 그대로 기록한다.
+    step_timings: dict[str, int]
+
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────
     log_entries: list[str]
+
+    _demo_replay: Optional[dict]

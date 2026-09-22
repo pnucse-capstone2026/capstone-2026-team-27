@@ -12,6 +12,8 @@ LangGraph 파이프라인 그래프 조립.
     실패 + 2회 초과    → logging (현재 상태 유지, 관리자 알림은 logging_node에서)
 """
 
+import time
+
 from langgraph.graph import StateGraph, END
 from schema.state import PipelineState
 
@@ -24,6 +26,37 @@ from pipeline.approval_gate import approval_gate_node
 from pipeline.notify_gate import notify_gate_node
 from pipeline.QA_agent import qa_node
 from pipeline.logging_agent import logging_node
+from pipeline.live_events import emit_decision_event, emit_qa_event
+
+
+def _timed(step_name: str, node_fn):
+    """노드 함수를 감싸서 실행 시간(ms)을 state["step_timings"][step_name]에 기록한다.
+
+    agent_steps.duration_ms가 지금까지 항상 NULL이었던 것(logging_agent.py 참고)을
+    채우기 위함 — 각 agent 파일(detection/classification/decision/action/QA)을
+    직접 건드리지 않고 그래프 조립 단계에서만 계측하도록 그래프 레벨에 wrapping했다.
+    롤백 루프로 같은 노드를 여러 번 거치면 마지막 실행 시간으로 덮어써진다(로깅은
+    실행 종료 시점 상태 한 번만 스냅샷하므로 이걸로 충분하다).
+    """
+    def wrapped(state: PipelineState) -> PipelineState:
+        start = time.perf_counter()
+        new_state = node_fn(state)
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        timings = dict(new_state.get("step_timings") or {})
+        timings[step_name] = elapsed_ms
+        new_state["step_timings"] = timings
+        return new_state
+    return wrapped
+
+
+def _with_live_event(node_fn, emit_fn):
+    """노드 실행 직후 실시간 토스트 알림용 이벤트를 남기는 wrapping.
+    _timed()와 별개 관심사(계측 vs 알림)라 따로 둔다."""
+    def wrapped(state: PipelineState) -> PipelineState:
+        new_state = node_fn(state)
+        emit_fn(new_state)
+        return new_state
+    return wrapped
 
 
 def detection_router(state: PipelineState) -> str:
@@ -55,11 +88,11 @@ def build_graph(qa_node_override=None, with_approval_gate: bool = False) -> Stat
 
     graph = StateGraph(PipelineState)
 
-    graph.add_node("detection",      detection_node)
-    graph.add_node("classification", classification_node)
-    graph.add_node("decision",       decision_node)
-    graph.add_node("action",         action_node)
-    graph.add_node("qa",             _qa_node)
+    graph.add_node("detection",      _timed("detection", detection_node))
+    graph.add_node("classification", _timed("classification", classification_node))
+    graph.add_node("decision",       _timed("decision", _with_live_event(decision_node, emit_decision_event)))
+    graph.add_node("action",         _timed("action", action_node))
+    graph.add_node("qa",             _timed("qa", _with_live_event(_qa_node, emit_qa_event)))
     graph.add_node("logging",        logging_node)
 
     graph.set_entry_point("detection")
