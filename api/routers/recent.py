@@ -1,10 +1,10 @@
 """
-대시보드 "최근 탐지" 목록 — 승인 대기 중(checkpointer)인 것과 
+대시보드 "최근 탐지" 목록 — 승인 대기 중(checkpointer)인 것과
 이미 끝난 실행(Postgres agent_runs)을 시간순으로 합쳐서 보여준다.
 
 상태 표시 규칙:
   - 승인 대기 중         -> 예상 절감액 ($/hr)
-  - status='completed'  -> "처리 완료"
+  - status='completed'  -> "조치 완료"
   - 그 외(실패)          -> "실패"
 """
 
@@ -60,7 +60,8 @@ def _finished_items(limit: int) -> list[dict]:
 
             cur.execute(
                 """
-                SELECT resource_id, resource_type, selected_action, risk_level, status, finished_at
+                SELECT resource_id, resource_type, selected_action, risk_level, status,
+                       finished_at, estimated_saving_usd
                 FROM agent_runs
                 WHERE anomaly_flag = true
                 ORDER BY finished_at DESC
@@ -74,11 +75,16 @@ def _finished_items(limit: int) -> list[dict]:
 
     items = []
     for row in rows:
-        display = (
-            {"type": "status", "value": "처리 완료"}
-            if row["status"] == "completed"
-            else {"type": "status", "value": "실패"}
-        )
+        saving = row.get("estimated_saving_usd")
+        if row["status"] != "completed":
+            display = {"type": "status", "value": "실패"}
+        elif saving:
+            display = {
+                "type": "status",
+                "value": f"조치 완료 (예상 절감 ${saving:.2f}/hr)",
+            }
+        else:
+            display = {"type": "status", "value": "조치 완료"}
         items.append(
             {
                 "id": f"run-{row['resource_id']}-{row['finished_at'].isoformat()}",

@@ -189,7 +189,7 @@ export default function SettingsTab({
               color: colors.text,
             }}
           >
-            ({local.priority_weight}/100) {priorityDescription(local.priority_weight)}
+            {priorityDescription(local.priority_weight)}
           </div>
         </div>
 
