@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Header from "./components/Header.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import SettingsTab from "./components/SettingsTab.jsx";
@@ -9,6 +9,7 @@ import PromotionsQueue from "./components/PromotionsQueue.jsx";
 import LlmLogs from "./components/LlmLogs.jsx";
 import FailuresList from "./components/FailuresList.jsx";
 import Login from "./components/Login.jsx";
+import ToastStack from "./components/Toast.jsx";
 import { api, AuthError, getStoredToken, logout as apiLogout } from "./api.js";
 import { colors, applyTheme, getStoredTheme, font, gridBackground } from "./styles.js";
 
@@ -33,6 +34,16 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [failures, setFailures] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [pipelineProcess, setPipelineProcess] = useState(null); // {running, pid, started_at}
+  const [pipelineActionPending, setPipelineActionPending] = useState(false);
+
+  const [toasts, setToasts] = useState([]);
+  const lastEventIdRef = useRef(0);
+  const notifBaselineSetRef = useRef(false);
+
+  const dismissToast = useCallback((eventId) => {
+    setToasts((prev) => prev.filter((t) => t.event_id !== eventId));
+  }, []);
 
   // 401(AuthError) 받으면 로그인 화면으로 돌려보냄, 그 외 에러는 그냥 콘솔에만
   const handleError = useCallback((err) => {
@@ -47,7 +58,22 @@ export default function App() {
     if (!isAuthed) return;
     api.getStatus().then(setStatus).catch(handleError).finally(() => setStatusLoading(false));
     api.getRecentDetections().then(setRecentDetections).catch(handleError);
+    api.getPipelineProcessStatus().then(setPipelineProcess).catch(handleError);
+    api.getQueue().then((q) => {
+      setQueue(q);
+      pruneResolvedApprovalToasts(q);
+    }).catch(handleError);
   }, [isAuthed, handleError]);
+
+  const pruneResolvedApprovalToasts = useCallback((currentQueue) => {
+    const pendingResourceIds = new Set(currentQueue.map((q) => q.resource_id));
+    setToasts((prev) =>
+      prev.filter((t) => {
+        const isPendingApprovalToast = t.event_type === "decision" && t.requires_approval;
+        return !isPendingApprovalToast || pendingResourceIds.has(t.resource_id);
+      })
+    );
+  }, []);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -55,6 +81,34 @@ export default function App() {
     const interval = setInterval(refreshStatus, 5000);
     return () => clearInterval(interval);
   }, [isAuthed, refreshStatus]);
+
+  useEffect(() => {
+    if (!isAuthed) return;
+
+    const poll = () => {
+      api
+        .getRecentNotifications(lastEventIdRef.current)
+        .then(({ events, latest_id, db_latest_id }) => {
+          if (!notifBaselineSetRef.current) {
+            lastEventIdRef.current = db_latest_id;
+            notifBaselineSetRef.current = true;
+            return;
+          }
+          if (events?.length) {
+            setToasts((prev) => {
+              const existingIds = new Set(prev.map((t) => t.event_id));
+              const deduped = events.filter((e) => !existingIds.has(e.event_id));
+              return [...deduped, ...prev];
+            });
+            lastEventIdRef.current = latest_id;
+          }
+        })
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [isAuthed]);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -69,7 +123,11 @@ export default function App() {
 
   // ── 승인 대기 ──
   function handleApprove(id) {
-    setQueue((prev) => prev.filter((q) => q.id !== id));
+    setQueue((prev) => {
+      const next = prev.filter((q) => q.id !== id);
+      pruneResolvedApprovalToasts(next);
+      return next;
+    });
     api.approveQueueItem(id).catch((err) => {
       console.error(err);
       api.getQueue().then(setQueue);
@@ -77,7 +135,11 @@ export default function App() {
   }
 
   function handleReject(id) {
-    setQueue((prev) => prev.filter((q) => q.id !== id));
+    setQueue((prev) => {
+      const next = prev.filter((q) => q.id !== id);
+      pruneResolvedApprovalToasts(next);
+      return next;
+    });
     api.rejectQueueItem(id).catch((err) => {
       console.error(err);
       api.getQueue().then(setQueue);
@@ -161,6 +223,27 @@ export default function App() {
     });
   }
 
+  function handleExportSettings() {
+    return api.exportSettingsYaml();
+  }
+
+  // ── 파이프라인 실행/종료 ──
+  function handleStartPipeline() {
+    setPipelineActionPending(true);
+    api.startPipeline()
+      .then(setPipelineProcess)
+      .catch((err) => alert(err.message || "파이프라인 시작 실패"))
+      .finally(() => setPipelineActionPending(false));
+  }
+
+  function handleStopPipeline() {
+    setPipelineActionPending(true);
+    api.stopPipeline()
+      .then(setPipelineProcess)
+      .catch((err) => alert(err.message || "파이프라인 종료 실패"))
+      .finally(() => setPipelineActionPending(false));
+  }
+
   if (!isAuthed) {
     return <Login onSuccess={() => setIsAuthed(true)} />;
   }
@@ -178,9 +261,14 @@ export default function App() {
       <Header
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        pipelineRunning={status?.pipeline_running ?? false}
+        /* status.pipeline_running은 agent_runs 최근 기록 유무로 "돌고 있는듯"을
+           추정하는 값이라, 수동 재생 스크립트 등으로 DB에 기록만 남아도 오탐한다
+           (실측 확인 2026-09-20). pipeline/status는 실제 PID를 확인하는 값이라
+           사이드바 배지는 이쪽을 써야 진짜 실행 여부와 항상 일치한다. */
+        pipelineRunning={pipelineProcess?.running ?? false}
         pendingCount={queue.length}
         promotionsCount={(promotions.classification?.length || 0) + (promotions.decision?.length || 0)}
+        lastNormalCheckAt={status?.last_normal_check_at ?? null}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         onLogout={() => {
@@ -198,7 +286,17 @@ export default function App() {
             onNavigateToFailures={() => setActiveTab("failures")}
           />
         )}
-        {activeTab === "settings" && <SettingsTab settings={settings} onUpdate={handleUpdateSettings} />}
+        {activeTab === "settings" && (
+          <SettingsTab
+            settings={settings}
+            onUpdate={handleUpdateSettings}
+            onExport={handleExportSettings}
+            pipelineProcess={pipelineProcess}
+            pipelineActionPending={pipelineActionPending}
+            onStartPipeline={handleStartPipeline}
+            onStopPipeline={handleStopPipeline}
+          />
+        )}
         {activeTab === "queue" && (
           <ApprovalQueue queue={queue} onApprove={handleApprove} onReject={handleReject} />
         )}
@@ -219,6 +317,7 @@ export default function App() {
         {activeTab === "logs" && <LlmLogs logs={logs} />}
         {activeTab === "failures" && <FailuresList failures={failures} />}
       </div>
+      <ToastStack toasts={toasts} onDismiss={dismissToast} onNavigateToQueue={() => setActiveTab("queue")} />
     </div>
   );
 }
