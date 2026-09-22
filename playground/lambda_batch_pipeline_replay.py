@@ -52,6 +52,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 from pipeline.detection_agent import detection_node
@@ -61,18 +62,25 @@ from pipeline.action_agent import action_node
 from pipeline.QA_agent import qa_node
 from pipeline.logging_agent import logging_node
 from pipeline.cost_estimator import estimate_cost_series
+from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 
 def find_source() -> Path:
-    candidates = sorted(glob.glob(str(RESULT_DIR / "lambda_retry_repeated_trial__*.json")))
+    candidates = sorted(
+        glob.glob(str(RESULT_DIR / "lambda_retry_repeated_trial__*.json"))
+    )
     if not candidates:
-        raise FileNotFoundError(f"{RESULT_DIR}에 lambda_retry_repeated_trial__*.json 원본이 없음")
+        raise FileNotFoundError(
+            f"{RESULT_DIR}에 lambda_retry_repeated_trial__*.json 원본이 없음"
+        )
     return Path(candidates[-1])
 
 
-def _build_state(resource_id: str, raw_metrics: dict, measured_at: str | None = None) -> dict:
+def _build_state(
+    resource_id: str, raw_metrics: dict, measured_at: str | None = None
+) -> dict:
     """batch_pipeline_replay.py._build_state와 동일한 패턴(EC2 docstring 참고).
 
     Lambda 저장 raw_metrics엔 EC2와 달리 이미 cost가 들어있는 경우가 대부분이지만
@@ -85,8 +93,11 @@ def _build_state(resource_id: str, raw_metrics: dict, measured_at: str | None = 
         raw_metrics = {
             **raw_metrics,
             "cost": estimate_cost_series(
-                "Lambda", resource_id, usage_metrics,
-                end_time=end_time, currently_running=True,
+                "Lambda",
+                resource_id,
+                usage_metrics,
+                end_time=end_time,
+                currently_running=True,
             ),
         }
 
@@ -123,8 +134,13 @@ def _build_state(resource_id: str, raw_metrics: dict, measured_at: str | None = 
     }
 
 
-def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
-            bypass_approval_for_timing: bool = False) -> dict:
+def run_one(
+    rep: int,
+    label: str,
+    raw_metrics: dict,
+    measured_at: str | None,
+    bypass_approval_for_timing: bool = False,
+) -> dict:
     """저장된 지표로 detection부터 시작해 파이프라인을 끝까지 흘린다 (Lambda, 1시행)."""
     resource_id = "detection-test-lambda"
     timings: dict[str, float] = {}
@@ -141,8 +157,10 @@ def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
         out["anomaly_score_zscore"] = state["anomaly_score_zscore"]
         out["anomaly_score_iforest"] = state["anomaly_score_iforest"]
         out["triggered_metrics"] = state["triggered_metrics"]
-        print(f"[{label} rep={rep}] detection {timings['detection']:.3f}s "
-              f"-> flag={state['anomaly_flag']} triggered={state['triggered_metrics']}")
+        print(
+            f"[{label} rep={rep}] detection {timings['detection']:.3f}s "
+            f"-> flag={state['anomaly_flag']} triggered={state['triggered_metrics']}"
+        )
 
         if not state["anomaly_flag"]:
             timings["total"] = time.time() - t_total
@@ -165,8 +183,10 @@ def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
         out["requires_approval"] = bool(state["requires_approval"])
         out["matched_decision_rule_id"] = state.get("matched_decision_rule_id")
         out["candidate_actions"] = state.get("candidate_actions")
-        print(f"[{label} rep={rep}] decision -> {state['selected_action']} "
-              f"risk={state['risk_level']} approval={state['requires_approval']}")
+        print(
+            f"[{label} rep={rep}] decision -> {state['selected_action']} "
+            f"risk={state['risk_level']} approval={state['requires_approval']}"
+        )
 
         out["approval_bypassed_for_timing"] = False
         if state["requires_approval"] and bypass_approval_for_timing:
@@ -174,7 +194,9 @@ def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
             # MED라 실제 운영에서는 항상 사람 승인이 필요하다(schema/state.py 참고).
             # 승인 대기시간은 무한정이라 자동 측정이 불가능하므로, Action/QA/timing을
             # 재기 위해서만 여기서 우회한다 — 실제 승인 게이트 정책을 바꾸는 게 아니다.
-            print(f"[{label} rep={rep}] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함")
+            print(
+                f"[{label} rep={rep}] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함"
+            )
             state["requires_approval"] = False
             out["approval_bypassed_for_timing"] = True
         elif state["requires_approval"]:
@@ -189,9 +211,13 @@ def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
         timings["action"] = time.time() - t0
         out["action_executed"] = state.get("action_executed")
         out["action_result"] = state.get("action_result")
-        out["action_success"] = (state.get("action_result") or {}).get("status") == "success"
-        print(f"[{label} rep={rep}] action {timings['action']:.3f}s "
-              f"-> {state.get('action_executed')} {(state.get('action_result') or {}).get('status')}")
+        out["action_success"] = (state.get("action_result") or {}).get(
+            "status"
+        ) == "success"
+        print(
+            f"[{label} rep={rep}] action {timings['action']:.3f}s "
+            f"-> {state.get('action_executed')} {(state.get('action_result') or {}).get('status')}"
+        )
 
         t0 = time.time()
         state = qa_node(state)
@@ -200,7 +226,9 @@ def run_one(rep: int, label: str, raw_metrics: dict, measured_at: str | None,
         out["sla_check_result"] = state.get("sla_check_result")
         out["rollback_count"] = state.get("rollback_count", 0)
         out["qa_matched_rule_id"] = state.get("qa_matched_rule_id")
-        print(f"[{label} rep={rep}] qa {timings['qa']:.3f}s -> passed={state.get('qa_passed')}")
+        print(
+            f"[{label} rep={rep}] qa {timings['qa']:.3f}s -> passed={state.get('qa_passed')}"
+        )
 
         t0 = time.time()
         try:
@@ -242,9 +270,13 @@ def _summarize(results: list[dict]) -> dict:
         vals = [r["timings"][key] for r in ok if key in r.get("timings", {})]
         if not vals:
             return None
-        return {"n": len(vals), "mean_sec": round(statistics.mean(vals), 3),
-                "stdev_sec": round(statistics.stdev(vals), 3) if len(vals) > 1 else 0.0,
-                "min_sec": round(min(vals), 3), "max_sec": round(max(vals), 3)}
+        return {
+            "n": len(vals),
+            "mean_sec": round(statistics.mean(vals), 3),
+            "stdev_sec": round(statistics.stdev(vals), 3) if len(vals) > 1 else 0.0,
+            "min_sec": round(min(vals), 3),
+            "max_sec": round(max(vals), 3),
+        }
 
     total = tp + fn + fp + tn
     return {
@@ -256,39 +288,67 @@ def _summarize(results: list[dict]) -> dict:
             "recall": tp / (tp + fn) if (tp + fn) else None,
             "false_positive_rate": fp / (fp + tn) if (fp + tn) else None,
         },
-        "stopped_at": {k: sum(1 for r in ok if r.get("stopped_at") == k)
-                       for k in ["detection", "approval_gate", None]},
+        "stopped_at": {
+            k: sum(1 for r in ok if r.get("stopped_at") == k)
+            for k in ["detection", "approval_gate", None]
+        },
         "action": {
             "n_executed": len(executed),
             "n_success": len(action_ok),
             "success_rate": (len(action_ok) / len(executed)) if executed else None,
-            "by_action": {a: sum(1 for r in executed if r.get("action_executed") == a)
-                          for a in sorted({r.get("action_executed") for r in executed if r.get("action_executed")})},
+            "by_action": {
+                a: sum(1 for r in executed if r.get("action_executed") == a)
+                for a in sorted(
+                    {
+                        r.get("action_executed")
+                        for r in executed
+                        if r.get("action_executed")
+                    }
+                )
+            },
         },
         "qa": {
             "n_judged": len(qa_judged),
             "n_passed": len(qa_pass),
             "pass_rate": (len(qa_pass) / len(qa_judged)) if qa_judged else None,
         },
-        "timings": {k: stat(k) for k in
-                    ["detection", "classification", "decision", "action", "qa", "logging", "total"]},
+        "timings": {
+            k: stat(k)
+            for k in [
+                "detection",
+                "classification",
+                "decision",
+                "action",
+                "qa",
+                "logging",
+                "total",
+            ]
+        },
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", default=None,
-                        help="원본 실측 결과 JSON (생략 시 최신 lambda_retry_repeated_trial__*.json)")
-    parser.add_argument("--bypass-approval", action="store_true",
-                        help="[측정 전용] cost_spike는 항상 MED라 실제 승인 대기가 무한정이므로, "
-                             "Action/QA/timing 측정을 위해서만 승인 게이트를 우회한다")
+    parser.add_argument(
+        "--source",
+        default=None,
+        help="원본 실측 결과 JSON (생략 시 최신 lambda_retry_repeated_trial__*.json)",
+    )
+    parser.add_argument(
+        "--bypass-approval",
+        action="store_true",
+        help="[측정 전용] cost_spike는 항상 MED라 실제 승인 대기가 무한정이므로, "
+        "Action/QA/timing 측정을 위해서만 승인 게이트를 우회한다",
+    )
     args = parser.parse_args()
 
     source = Path(args.source) if args.source else find_source()
     payload_src = json.loads(source.read_text(encoding="utf-8"))
     trials = payload_src["anomaly_trials"] + payload_src["normal_trials"]
-    print(f"원본: {source.name} (측정 {payload_src.get('generated_at')}, 시행 {len(trials)}개 "
-          f"- 같은 함수를 순차 재생하므로 병렬 실행 안 함)")
+    print(
+        f"원본: {source.name} (측정 {payload_src.get('generated_at')}, 시행 {len(trials)}개 "
+        f"- 같은 함수를 순차 재생하므로 병렬 실행 안 함)"
+    )
 
     print(f"=== Lambda {len(trials)}개 순차 재생 파이프라인 시작 ===")
     t0 = time.time()
@@ -298,14 +358,21 @@ def main() -> None:
         if not after.get("raw_metrics"):
             print(f"[rep={t.get('rep')}] raw_metrics 없음 - 건너뜀")
             continue
-        results.append(run_one(t["rep"], t["label"], after["raw_metrics"],
-                                payload_src.get("generated_at"), args.bypass_approval))
+        results.append(
+            run_one(
+                t["rep"],
+                t["label"],
+                after["raw_metrics"],
+                payload_src.get("generated_at"),
+                args.bypass_approval,
+            )
+        )
 
     summary = _summarize(results)
     print("\n=== 집계 ===")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     out_path = RESULT_DIR / f"batch_pipeline_replay__Lambda_{ts}.json"
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     out = {
@@ -313,14 +380,18 @@ def main() -> None:
         "resource_type": "Lambda",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "replayed_from": source.name,
-        "replay_note": ("detection 입력만 저장된 실측 raw_metrics(재시도폭증이 살아있던 시점)이고, "
-                        "action은 실제 함수에 실행되며(Throttle) QA는 라이브 지표를 재조회하는 "
-                        "하이브리드. EC2와 달리 13개 시행이 같은 함수 하나를 공유하므로 순차 실행함."),
+        "replay_note": (
+            "detection 입력만 저장된 실측 raw_metrics(재시도폭증이 살아있던 시점)이고, "
+            "action은 실제 함수에 실행되며(Throttle) QA는 라이브 지표를 재조회하는 "
+            "하이브리드. EC2와 달리 13개 시행이 같은 함수 하나를 공유하므로 순차 실행함."
+        ),
         "bypass_approval_for_timing": args.bypass_approval,
-        "bypass_approval_note": ("cost_spike는 ANOMALY_TYPE_DEFAULT_RISK상 액션과 무관하게 항상 MED라 "
-                                 "실제 운영에서는 항상 사람 승인이 필요하다. 승인 대기시간은 무한정이라 "
-                                 "자동 측정이 불가능하므로, --bypass-approval을 켰을 때만 Action/QA/timing "
-                                 "측정을 위해 게이트를 우회했다 — 실제 승인 정책이 바뀐 게 아니다."),
+        "bypass_approval_note": (
+            "cost_spike는 ANOMALY_TYPE_DEFAULT_RISK상 액션과 무관하게 항상 MED라 "
+            "실제 운영에서는 항상 사람 승인이 필요하다. 승인 대기시간은 무한정이라 "
+            "자동 측정이 불가능하므로, --bypass-approval을 켰을 때만 Action/QA/timing "
+            "측정을 위해 게이트를 우회했다 — 실제 승인 정책이 바뀐 게 아니다."
+        ),
         "wall_clock_sec": round(time.time() - t0, 1),
         "summary": summary,
         "results": results,

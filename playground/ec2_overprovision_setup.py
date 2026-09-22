@@ -53,9 +53,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import boto3
+
+from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
@@ -63,20 +66,26 @@ RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 AMI_ID = "ami-08d82cf148c92fcc3"
 SECURITY_GROUP_IDS = ["sg-01eb420b11ed6706e"]
 SUBNET_ID = "subnet-08c39c64faa7c9364"
-INSTANCE_TYPE = "t3.small"   # t3.micro는 최저 tier라 Resize 절감액이 항상 0 — 반드시 한 단계 위
+INSTANCE_TYPE = (
+    "t3.small"  # t3.micro는 최저 tier라 Resize 절감액이 항상 0 — 반드시 한 단계 위
+)
 IAM_INSTANCE_PROFILE = "detection-test-ec2-ssm-role"
 N_VCPU = 2  # t3.small
 
 N_ANOMALY = 5
 N_NORMAL = 8
-ANOMALY_TARGET_CPU_PCT = 12.0   # 5% < x <= 20% (오버프로비저닝 밴드)
-NORMAL_TARGET_CPU_PCT = 45.0    # 20%를 확실히 넘겨 경계 근처 애매함 방지
+ANOMALY_TARGET_CPU_PCT = 12.0  # 5% < x <= 20% (오버프로비저닝 밴드)
+NORMAL_TARGET_CPU_PCT = 45.0  # 20%를 확실히 넘겨 경계 근처 애매함 방지
 
 WINDOW_POINTS = 30
 PERIOD_SECONDS = 300
-WINDOW_SECONDS = WINDOW_POINTS * PERIOD_SECONDS  # 9000s = 2.5h — detection_agent의 나이가드와 동일
+WINDOW_SECONDS = (
+    WINDOW_POINTS * PERIOD_SECONDS
+)  # 9000s = 2.5h — detection_agent의 나이가드와 동일
 
-DUTY_CYCLE_PERIOD_SEC = 1.0  # busy+idle 합이 이 값이 되도록 (짧을수록 CPU% 변동이 매끈함)
+DUTY_CYCLE_PERIOD_SEC = (
+    1.0  # busy+idle 합이 이 값이 되도록 (짧을수록 CPU% 변동이 매끈함)
+)
 
 
 def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> list[str]:
@@ -86,13 +95,24 @@ def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> li
     stress-ng 등 별도 설치 없이 AL2023 기본 셸만으로 동작하도록 설계."""
     busy = round(DUTY_CYCLE_PERIOD_SEC * target_pct / 100, 3)
     idle = round(DUTY_CYCLE_PERIOD_SEC - busy, 3)
+    # [버그 수정, 2026-09-11] \$로 이스케이프해야 한다 — bash -c "..."로 한 겹 더
+    # 감싸므로, 안 하면 바깥 셸이 $(date +%s)를 dispatch 시점에 한 번만 계산해
+    # 고정값으로 박아버려서 반복문이 살아있는 시계를 못 본다(실측으로 확인).
     loop = (
-        f'END=$(( $(date +%s) + {duration_sec} )); '
-        f'while [ $(date +%s) -lt $END ]; do '
-        f'timeout {busy} yes > /dev/null 2>&1; sleep {idle}; '
-        f'done'
+        f"END=\\$(( \\$(date +%s) + {duration_sec} )); "
+        f"while [ \\$(date +%s) -lt \\$END ]; do "
+        f"timeout {busy} yes > /dev/null 2>&1; sleep {idle}; "
+        f"done"
     )
-    return [f'nohup bash -c "{loop}" >/dev/null 2>&1 &' for _ in range(n_vcpu)]
+    # [버그 수정, 2026-09-11] nohup bash -c "..." & 만으로는 SSM RunCommand 세션이
+    # 종료될 때 프로세스 그룹째 정리돼서 백그라운드 루프가 죽어버린다(실측으로 확인 —
+    # 13대 전부 실제 CPU가 계속 ~0.2%로 남아있었음, 목표 12%/45%가 전혀 반영 안 됨).
+    # systemd-run으로 SSM 세션과 완전히 독립된 transient 서비스로 띄워야 살아남는다.
+    return [
+        f"sudo systemd-run --unit=cpuload-{i} --property=Type=simple "
+        f'-- bash -c "{loop}"'
+        for i in range(n_vcpu)
+    ]
 
 
 def _launch_instances(label: str, n: int, name_prefix: str) -> list[str]:
@@ -105,14 +125,16 @@ def _launch_instances(label: str, n: int, name_prefix: str) -> list[str]:
         SecurityGroupIds=SECURITY_GROUP_IDS,
         SubnetId=SUBNET_ID,
         IamInstanceProfile={"Name": IAM_INSTANCE_PROFILE},
-        TagSpecifications=[{
-            "ResourceType": "instance",
-            "Tags": [
-                {"Key": "Name", "Value": f"{name_prefix}-{label}"},
-                {"Key": "detection-test", "Value": "ec2-overprovision"},
-                {"Key": "true_label", "Value": label},
-            ],
-        }],
+        TagSpecifications=[
+            {
+                "ResourceType": "instance",
+                "Tags": [
+                    {"Key": "Name", "Value": f"{name_prefix}-{label}"},
+                    {"Key": "detection-test", "Value": "ec2-overprovision"},
+                    {"Key": "true_label", "Value": label},
+                ],
+            }
+        ],
     )
     ids = [i["InstanceId"] for i in resp["Instances"]]
     print(f"[{label}] {n}대 launch 요청: {ids}")
@@ -127,18 +149,24 @@ def _wait_ssm_online(instance_ids: list[str], timeout_sec: int = 300) -> None:
         info = ssm.describe_instance_information(
             Filters=[{"Key": "InstanceIds", "Values": list(pending)}]
         )
-        online = {i["InstanceId"] for i in info["InstanceInformationList"] if i["PingStatus"] == "Online"}
+        online = {
+            i["InstanceId"]
+            for i in info["InstanceInformationList"]
+            if i["PingStatus"] == "Online"
+        }
         pending -= online
         if online:
             print(f"  SSM 온라인 확인: {sorted(online)}")
         if pending:
             time.sleep(10)
     if pending:
-        print(f"⚠️ SSM 미등록 상태로 타임아웃됨(재부팅 필요할 수 있음): {sorted(pending)}")
+        print(
+            f"⚠️ SSM 미등록 상태로 타임아웃됨(재부팅 필요할 수 있음): {sorted(pending)}"
+        )
 
 
 def setup() -> None:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     name_prefix = f"detection-test-ec2-overprovision-{ts}"
 
     anomaly_ids = _launch_instances("anomaly", N_ANOMALY, name_prefix)
@@ -151,7 +179,8 @@ def setup() -> None:
     desc = ec2.describe_instances(InstanceIds=all_ids)
     launch_times = {
         i["InstanceId"]: i["LaunchTime"].astimezone(timezone.utc).isoformat()
-        for r in desc["Reservations"] for i in r["Instances"]
+        for r in desc["Reservations"]
+        for i in r["Instances"]
     }
 
     print("SSM 등록 대기(최대 5분, 부팅+에이전트 기동 시간 필요)...")
@@ -161,12 +190,24 @@ def setup() -> None:
     ssm = boto3.client("ssm")
     for iid in anomaly_ids:
         cmds = _duty_cycle_command(ANOMALY_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
-        ssm.send_command(InstanceIds=[iid], DocumentName="AWS-RunShellScript", Parameters={"commands": cmds})
-        print(f"[anomaly {iid}] 목표 CPU {ANOMALY_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)")
+        ssm.send_command(
+            InstanceIds=[iid],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": cmds},
+        )
+        print(
+            f"[anomaly {iid}] 목표 CPU {ANOMALY_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)"
+        )
     for iid in normal_ids:
         cmds = _duty_cycle_command(NORMAL_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
-        ssm.send_command(InstanceIds=[iid], DocumentName="AWS-RunShellScript", Parameters={"commands": cmds})
-        print(f"[normal {iid}] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)")
+        ssm.send_command(
+            InstanceIds=[iid],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": cmds},
+        )
+        print(
+            f"[normal {iid}] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)"
+        )
 
     check_earliest = datetime.now(timezone.utc) + timedelta(seconds=WINDOW_SECONDS)
     manifest = {
@@ -177,12 +218,21 @@ def setup() -> None:
         "anomaly_target_cpu_pct": ANOMALY_TARGET_CPU_PCT,
         "normal_target_cpu_pct": NORMAL_TARGET_CPU_PCT,
         "instances": [
-            {"instance_id": iid, "true_label": "anomaly", "launch_time_utc": launch_times[iid],
-             "profile": f"target_cpu_{ANOMALY_TARGET_CPU_PCT}pct"}
+            {
+                "instance_id": iid,
+                "true_label": "anomaly",
+                "launch_time_utc": launch_times[iid],
+                "profile": f"target_cpu_{ANOMALY_TARGET_CPU_PCT}pct",
+            }
             for iid in anomaly_ids
-        ] + [
-            {"instance_id": iid, "true_label": "normal", "launch_time_utc": launch_times[iid],
-             "profile": f"target_cpu_{NORMAL_TARGET_CPU_PCT}pct"}
+        ]
+        + [
+            {
+                "instance_id": iid,
+                "true_label": "normal",
+                "launch_time_utc": launch_times[iid],
+                "profile": f"target_cpu_{NORMAL_TARGET_CPU_PCT}pct",
+            }
             for iid in normal_ids
         ],
     }
@@ -193,8 +243,12 @@ def setup() -> None:
 
     print(f"\n매니페스트 저장: {manifest_path}")
     print(f"측정 가능 시점(2.5시간 뒤): {check_earliest.isoformat()}")
-    print(f"\n측정 명령:\n  python playground/ec2_lambda_repeated_trial.py --scenario ec2 --run --manifest {manifest_path}")
-    print(f"\n종료 후 정리(반드시 실행):\n  python playground/ec2_overprovision_setup.py --teardown --instance-ids {','.join(all_ids)}")
+    print(
+        f"\n측정 명령:\n  python playground/ec2_lambda_repeated_trial.py --scenario ec2 --run --manifest {manifest_path}"
+    )
+    print(
+        f"\n종료 후 정리(반드시 실행):\n  python playground/ec2_overprovision_setup.py --teardown --instance-ids {','.join(all_ids)}"
+    )
 
 
 def teardown(instance_ids: list[str]) -> None:
@@ -206,9 +260,15 @@ def teardown(instance_ids: list[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--setup", action="store_true", help="인스턴스 생성 + 부하 시작 + 매니페스트 작성")
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="인스턴스 생성 + 부하 시작 + 매니페스트 작성",
+    )
     parser.add_argument("--teardown", action="store_true", help="인스턴스 종료")
-    parser.add_argument("--instance-ids", type=str, help="--teardown용, 콤마로 구분된 인스턴스 ID 목록")
+    parser.add_argument(
+        "--instance-ids", type=str, help="--teardown용, 콤마로 구분된 인스턴스 ID 목록"
+    )
     args = parser.parse_args()
 
     if args.setup:
