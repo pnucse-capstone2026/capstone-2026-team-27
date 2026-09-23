@@ -69,6 +69,16 @@ class RuleEngine:
         now = datetime.now(ZoneInfo("UTC"))
 
         for entry in self.whitelist:
+            # 시작 체크 (이벤트 기간처럼 미래에 시작하는 항목을 미리 등록해둘 수 있게)
+            effective_from = entry.get("effective_from")
+            if effective_from:
+                try:
+                    start_dt = datetime.fromisoformat(effective_from.replace("Z", "+00:00"))
+                    if now < start_dt:
+                        continue  # 아직 시작 전
+                except ValueError:
+                    pass
+
             # 만료 체크
             expires_at = entry.get("expires_at")
             if expires_at:
@@ -78,6 +88,21 @@ class RuleEngine:
                         continue  # 만료됨
                 except ValueError:
                     pass  # 파싱 실패 시 무시
+
+            # 2026-09-13 추가: category="recurring_hours"면 effective_from/expires_at
+            # (날짜 범위)과 별개로, "매일 이 시:분 사이"인지도 확인한다(예: 매일 22~06시
+            # 야간). daily_end_hour < daily_start_hour면 자정을 넘기는 구간으로 취급.
+            if entry.get("category") == "recurring_hours":
+                start_h = entry.get("daily_start_hour")
+                end_h = entry.get("daily_end_hour")
+                if start_h is not None and end_h is not None:
+                    current_h = now.hour
+                    if start_h <= end_h:
+                        in_window = start_h <= current_h < end_h
+                    else:
+                        in_window = current_h >= start_h or current_h < end_h  # 자정 넘김
+                    if not in_window:
+                        continue  # 지금은 그 시간대가 아님
 
             # 리소스 타입 체크
             entry_type = entry.get("resource_type")
@@ -174,6 +199,28 @@ class RuleEngine:
             if not self._evaluate_metric_thresholds(metric_thresholds, state):
                 return False
 
+        # sustained_fraction 조건 (EDoS vs 단순 인기 폭증 구분용, 2026-09-11)
+        # "진짜 인기 폭증은 몇 시간 안에 꺾이고, 공격은 계속 유지된다"는 가정 하에,
+        # latest 시점 하나만 튄 게 아니라 최근 구간 대부분이 계속 높게 유지되는지 확인한다.
+        sustained_fraction = conditions.get("sustained_fraction")
+        if sustained_fraction:
+            if not self._evaluate_sustained_fraction(sustained_fraction, state):
+                return False
+
+        # skip_if_whitelisted 조건 (이벤트 기간 등록용, 2026-09-11)
+        # "요청자 집중"/"에러 동반"은 인프라가 없어 스코프 밖이지만, "알려진 이벤트
+        # 기간인지"는 whitelist.json에 category="event_period"로 미리 등록해두는
+        # 것으로 대체한다 — 세일 등으로 예정된 트래픽 증가를 EDoS로 오탐하지 않게 함.
+        # ⚠️ 화이트리스트엔 "개발서버 제외" 같은 이벤트와 무관한 항목도 있으므로,
+        # category가 정확히 "event_period"인 항목에 매칭될 때만 예외 처리한다 —
+        # 화이트리스트 매칭 여부 자체만으로 판단하지 않는다.
+        if conditions.get("skip_if_whitelisted"):
+            resource_id = state.get("resource_id", "")
+            resource_type = state.get("resource_type", "")
+            is_wl, wl_entry = self.is_whitelisted(resource_id, resource_type)
+            if is_wl and wl_entry and wl_entry.get("category") == "event_period":
+                return False
+
         # time_window 조건
         time_window = conditions.get("time_window")
         if time_window:
@@ -264,6 +311,40 @@ class RuleEngine:
                     return False
 
         return True
+
+    def _evaluate_sustained_fraction(self, spec: dict, state: PipelineState) -> bool:
+        """최근 구간 대부분이 기준선 대비 계속 높게 유지되는지 확인 (EDoS vs 단순 인기 폭증 구분).
+
+        latest 한 시점만 튀었다가 이미 꺾인 경우(단순 인기 폭증)와, 최근 구간 내내
+        높게 유지되는 경우(EDoS 의심)를 구분한다. 윈도우를 baseline 구간(앞부분)과
+        recent 구간(뒷부분)으로 나눠서, baseline 평균 대비 factor배를 넘는 지점이
+        recent 구간에서 min_fraction 이상 차지해야 통과한다.
+
+        spec 예시: {"metric": "group_desired_capacity", "factor": 2.0,
+                   "min_fraction": 0.6, "recent_window_ratio": 0.2, "min_recent_points": 3}
+        """
+        raw_metrics = state.get("raw_metrics", {})
+        metric_name = spec.get("metric")
+        values = raw_metrics.get(metric_name, [])
+
+        factor = spec.get("factor", 2.0)
+        min_fraction = spec.get("min_fraction", 0.5)
+        recent_ratio = spec.get("recent_window_ratio", 0.2)
+        min_recent_points = spec.get("min_recent_points", 3)
+
+        n_recent = max(min_recent_points, round(len(values) * recent_ratio))
+        if len(values) <= n_recent:
+            return False  # baseline 구간이 없으면 판단 불가
+
+        baseline_values = values[:-n_recent]
+        recent_values = values[-n_recent:]
+        baseline_mean = sum(baseline_values) / len(baseline_values)
+        if baseline_mean <= 0:
+            return False  # 기준선이 0이면 배율 비교 자체가 의미 없음
+
+        threshold = baseline_mean * factor
+        above_count = sum(1 for v in recent_values if v > threshold)
+        return (above_count / len(recent_values)) >= min_fraction
 
     def check_time_window(self, time_window: TimeWindow) -> bool:
         """시간대 조건 체크"""
