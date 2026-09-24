@@ -261,10 +261,6 @@ export default function App() {
       <Header
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        /* status.pipeline_running은 agent_runs 최근 기록 유무로 "돌고 있는듯"을
-           추정하는 값이라, 수동 재생 스크립트 등으로 DB에 기록만 남아도 오탐한다
-           (실측 확인 2026-09-20). pipeline/status는 실제 PID를 확인하는 값이라
-           사이드바 배지는 이쪽을 써야 진짜 실행 여부와 항상 일치한다. */
         pipelineRunning={pipelineProcess?.running ?? false}
         pendingCount={queue.length}
         promotionsCount={(promotions.classification?.length || 0) + (promotions.decision?.length || 0)}
