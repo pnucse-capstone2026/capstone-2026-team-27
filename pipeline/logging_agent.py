@@ -210,7 +210,7 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
             "step_name":   step_name,
             "status":      status,
             "output":      output,
-            "duration_ms": None,  # TODO: timing instrumentation 추가 후 채움
+            "duration_ms": None,
         })
     return records
 

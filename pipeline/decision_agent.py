@@ -77,21 +77,10 @@ from utils.llm_utils import call_gemini
 
 logger = logging.getLogger(__name__)
 
-# [ADDED] LLM의 액션 선택 판단(pseudo_code 포함) 로그 경로.
-# classification_agent.py의 llm_classification_log.jsonl과 동일한 패턴 —
-# trace_id로 QA_agent가 이후 qa_result를 채워주고, decision_pseudocode_promoter.py가
-# 이 로그를 모아 반복되는 판단 패턴을 분석한다.
 LLM_DECISION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "llm_decision_log.jsonl"
 )
 
-# [ADDED] "예측 절감액 vs 실측 절감액" 사후 검증(playground/verify_cost_predictions.py)
-# 전용 로그. llm_decision_log.jsonl에도 비용 숫자가 들어있긴 하지만 decision_reasoning
-# 문자열 안에 파묻혀 있어서(예: "cost 1.07 -> 0.99 USD/hr") 파싱하기 번거롭고, 그 로그는
-# QA_agent가 used_llm=True(LLM 판단)인 경우에만 qa_result를 채워줘서 Rule Book 매칭
-# 케이스는 사후 추적이 어렵다. 여기는 action_executed 여부와 무관하게 매 결정마다
-# resource_id/current_cost_usd/estimated_saving_usd를 구조화된 필드로 그대로 남겨서,
-# 나중에 실제 CloudWatch를 재조회해 "예측이 얼마나 맞았는지" 계산할 수 있게 한다.
 COST_PREDICTION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "cost_prediction_log.jsonl"
 )
@@ -189,8 +178,6 @@ RULE_BASED_SCORE_TABLE: dict[str, tuple[float, float, float]] = {
     "ScaleDown": (0.6, 0.3, 0.7),
 }
 
-# [ADDED] 액션 선택을 LLM에게 맡기기 위한 boto3 공식 API 스펙 테이블.
-# ALLOWED_ACTIONS로 허용된 액션에 한해서만 이 스펙이 프롬프트에 포함된다.
 BOTO3_SPEC: dict[str, dict] = {
     "Stop": {
         "api": "ec2.stop_instances(InstanceIds=['string'], Force=True|False)",
@@ -328,11 +315,6 @@ def _clamp01(value: float) -> float:
 def _mean(values: list[float]) -> float:
     """입력: values 출력: 산술 평균, 빈 리스트면 0.0"""
     return sum(values) / len(values) if values else 0.0
-
-
-# [REMOVED] _get_llm() — GEMINI_API_KEY 하나로 ChatGoogleGenerativeAI 클라이언트를
-# 직접 만들던 함수. utils/llm_utils.call_gemini()가 GEMINI_KEY_1/2/3 순환과
-# "키가 하나도 없음"까지 전부 RuntimeError로 처리해주므로 더 이상 필요 없음.
 
 
 # ── saving_rate 결정론적 계산 (cost 시계열 기반) ─────────────────────────────
@@ -506,14 +488,6 @@ def _build_saving_rate_only_prompt(
         """
 
 
-# [REMOVED] _build_impact_stability_prompt() — 후보별 impact/stability 점수 공식이
-# 폐기되면서 더 이상 필요 없음. 대신 LLM이 boto3 스펙을 직접 보고 액션 1개를
-# 선택하는 _build_action_selection_prompt()로 교체됨.
-
-
-# [ADDED] 관리자 대시보드의 "가용성 ↔ 비용 절감" 슬라이더(priority_weight, 0~100)를
-# LLM 선택 기준에 반영하는 지침 문구. 프론트(SettingsTab.jsx)의 3구간 설명과 경계값을
-# 그대로 맞췄다 — 관리자가 화면에서 본 설명과 실제 LLM에게 가는 지침이 일치해야 하므로.
 def _priority_guidance_text(priority_weight: int) -> str:
     if priority_weight <= 34:
         return (
@@ -533,7 +507,6 @@ def _priority_guidance_text(priority_weight: int) -> str:
         )
 
 
-# [ADDED] LLM이 boto3 스펙을 근거로 액션을 직접 선택하도록 만드는 프롬프트.
 def _build_action_selection_prompt(
     allowed_actions: list[str],
     anomaly_type: str,
@@ -557,10 +530,6 @@ def _build_action_selection_prompt(
   복구 가능: {spec.get("reversible", True)}
 """
 
-    # [ADDED] 액션별로 이미 결정론적으로 계산된 saving_rate/estimated_saving_usd를
-    # LLM에게 그대로 제공한다 (LLM이 비용 수치를 다시 추정하지 않도록 하기 위함).
-    # _score_components()는 dict에서 resource_type/anomaly_type/raw_metrics 세
-    # 키만 읽으므로, 전체 PipelineState 대신 이 세 값만 담은 최소 dict로 충분하다.
     pseudo_state = {
         "resource_type": resource_type,
         "anomaly_type": anomaly_type,
@@ -590,11 +559,6 @@ def _build_action_selection_prompt(
 
     priority_weight = get_priority_weight()
 
-    # [ADDED] 2026-09-12: pseudo_code에서 쓸 변수명을 미리 고정해서 프롬프트에 못박아준다.
-    # 예전엔 "cpu_mean" 대신 "avg_cpu"/"cpu_avg" 등으로 매번 다르게 표현해서, 같은
-    # 판단 로직인데도 decision_pseudocode_promoter.py의 문자열 일치 비교(정규화 후에도)
-    # 에서 다른 패턴으로 취급되는 문제가 있었다(pseudo_code 일관성이 액션 일관성보다
-    # 훨씬 낮게 나옴). 여기서 쓸 수 있는 변수명 목록을 명시하고 그것만 쓰도록 강제한다.
     metric_var_names = [f"{key}_mean" for key in metrics_summary] + [
         f"{key}_latest" for key in metrics_summary
     ]
@@ -716,12 +680,6 @@ def _estimate_saving_rate_with_llm(
     return _clamp01(parsed.get("saving_rate", 0.0))
 
 
-# [REMOVED] _estimate_impact_stability_with_llm() — 후보별 impact/stability 점수
-# 추정이 폐기되면서 더 이상 필요 없음. 대신 LLM이 boto3 스펙을 보고 액션을
-# 직접 하나 선택하는 _select_action_with_llm()으로 교체됨.
-
-
-# [ADDED] LLM이 boto3 스펙을 보고 액션 1개를 직접 추천하도록 하는 함수.
 def _select_action_with_llm(
     allowed_actions: list[str],
     anomaly_type: str,
@@ -750,7 +708,7 @@ def _select_action_with_llm(
 
     llm_action = parsed.get("action", "NoAction")
     reason = parsed.get("reason", "")
-    pseudo_code = parsed.get("pseudo_code", "")  # [ADDED]
+    pseudo_code = parsed.get("pseudo_code", "")
 
     # 환각 방어: ALLOWED_ACTIONS 범위 밖이면 fallback
     if llm_action not in allowed_actions:
@@ -768,7 +726,6 @@ def _select_action_with_llm(
     return llm_action, reason, pseudo_code
 
 
-# [ADDED] LLM의 액션 선택 판단을 JSONL에 기록 (pseudo_code 패턴 분석용).
 def _log_llm_decision(
     state: PipelineState,
     allowed_actions: list[str],
@@ -975,7 +932,6 @@ def decision_node(state: PipelineState) -> PipelineState:
         # 규칙 매칭 실패 → LLM 호출
         state["matched_decision_rule_id"] = None
 
-        # [ADDED] LLM이 boto3 스펙을 보고 액션을 직접 선택
         selected_action, llm_reason, pseudo_code = _select_action_with_llm(
             allowed_actions, anomaly_type, resource_type, raw_metrics
         )
@@ -1028,12 +984,6 @@ def decision_node(state: PipelineState) -> PipelineState:
             raw_metrics, state.get("resource_id")
         )
 
-    # [ADDED] "비용이 얼마에서 얼마로 줄었는지"를 decision_reasoning에서 바로 확인할 수 있도록
-    # 현재 비용(before)과 절감 적용 후 예상 비용(after)을 함께 계산한다.
-    # Throttle/ScaleDown은 estimated_saving_usd 자체가 raw_metrics 전체 평균이 아니라
-    # "최근 급증 구간 평균 대비 기준선" 기준으로 계산되므로(_trend_based_partial_saving),
-    # before 비용도 전체 평균이 아니라 같은 최근 급증 구간 평균을 써야 앞뒤가 맞는다
-    # (target_instance_type을 위해 _ec2_resize_saving을 다시 부르는 것과 같은 패턴).
     if selected["action"] in ("Throttle", "ScaleDown", "Block"):
         trend_result = _trend_based_partial_saving(raw_metrics)
         current_cost_per_period = (
@@ -1075,7 +1025,7 @@ def decision_node(state: PipelineState) -> PipelineState:
         and selected["action"] == "ScaleDown"
         and anomaly_type == "risk_security"
     )
-    state["decision_pseudo_code"] = pseudo_code  # [ADDED]
+    state["decision_pseudo_code"] = pseudo_code
     state["decision_reasoning"] = (
         f"LLM boto3 스펙 기반 선택: '{selected_action}' - {llm_reason} "
         f"(risk={risk}, cost {current_cost_usd:.4f} -> {after_cost_usd:.4f} USD/hr, "

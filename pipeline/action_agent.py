@@ -55,8 +55,6 @@ DEFAULT_LAMBDA_THROTTLE_LIMIT = 5
 # AutoScaling ScaleDown 시 축소할 최대 인스턴스 수 기본값
 DEFAULT_ASG_SCALEDOWN_MAX_SIZE = 2
 
-# [ADDED] "Action 실행 성공률" 실측 집계용 로그. NoAction/pending_approval은
-# 실행 자체가 없었으므로 기록 안 함 — 실제 boto3 호출이 실제로 시도된 것만 남긴다.
 ACTION_EXECUTION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "action_execution_log.jsonl"
 )

@@ -179,11 +179,6 @@ RETRAIN_EVERY_N_NEW_WINDOWS = 5  # 새 윈도우가 이만큼 쌓일 때마다 �
 # 모델을 그대로만 반환한다 — 즉 실제 데이터가 버퍼에 못 들어가고 mock 상태가
 # 계속 유지된다.
 #
-# TODO(정상 경로 전환): mock→실데이터 자연 교체를 켜려면 이 값을 False로
-# 바꾸기만 하면 된다 — 그 아래 버퍼 채택/FIFO/재학습 로직은 이미 구현·검증돼
-# 있어서 추가 코드 변경이 필요 없다(단, Stage 2 후보A 확정 후 전환 권장 —
-# 그 전엔 정상운영 판정 자체가 아직 미확정이라 어떤 실데이터를 받아들일지
-# 기준이 없음).
 MOCK_SEED_BUFFER_FROZEN = True
 BUFFER_SCORE_MARGIN = 0.9  # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
 BUFFER_ZSCORE_MARGIN = 0.9  # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
@@ -196,10 +191,6 @@ BUFFER_ZSCORE_MARGIN = 0.9  # 구간에서 채택률이 24%에 그쳐 완화. �
 #   호출 횟수    → invocation_count       (Lambda)
 #               → number_of_requests     (S3)
 #   전송량      → bytes_downloaded       (S3)
-# [ADDED] bytes_downloaded 누락 수정: classification_rules.json의 CLF-003(S3 대량
-# 다운로드 -> risk_security)이 triggered_metrics에 "bytes_downloaded"가 있어야
-# 매칭되는데, 이 지표가 원래 대상에서 빠져있어서 Z-score로는 절대 안 잡히고
-# IForest 콜드스타트(모델 없을 때)에만 우연히 걸리는 불안정한 상태였음.
 Z_SCORE_TARGET_METRICS = {
     "cost",
     "network_in",

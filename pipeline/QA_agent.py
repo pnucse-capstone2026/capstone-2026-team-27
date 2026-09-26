@@ -38,21 +38,6 @@ from utils.slack_notifier import send_slack_alert
 
 logger = logging.getLogger(__name__)
 
-# [ADDED] 액션 직후 QA가 판단에 쓰던 raw_metrics는 원래 Detection 때(액션 *전*)
-# 가져온 것 그대로였다 — cost_ok/cpu_ok 체크가 "액션 후 실제 효과"가 아니라
-# "액션 전 트렌드"만 보고 있었던 구조적 문제(세션에서 확인, 팀원 B 승인 후 적용).
-# CloudWatch가 5분 단위 구간이라 액션 직후 조회해도 새 구간이 안 잡혀서, 짧게라도
-# 기다렸다가 재조회해야 의미가 있다.
-#
-# 2026-09-14: 중간에 짧은 주기로 폴링하며 "값이 바뀌면 조기 종료"하는 방식을
-# 검토했으나 폐기했다 — 조회 윈도우가 항상 "지금부터 과거 300초"를 담는
-# 슬라이딩 윈도우라서, 300초가 채 지나기 전에 재조회하면 액션 전후 데이터가
-# 섞인 값만 얻는다. 섞인 값에서 감지되는 "변화"는 판단에 쓸 만큼 깨끗한
-# 신호가 아니라서(액션 전 구간이 아직 다수 섞여 있음), SLA 판단은 액션 이후
-# 데이터로만 온전히 채워지는 시점 — 즉 정확히 POST_ACTION_WAIT_SECONDS(300초)
-# 경과 시점의 값으로만 한다. 리소스 타입(EC2/Lambda/S3 등)과 무관하게 조회
-# 윈도우 폭 자체가 300초로 통일되어 있으므로, 이 상수도 리소스 타입 구분 없이
-# 동일하게 적용한다.
 POST_ACTION_WAIT_SECONDS = 300
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
@@ -127,13 +112,6 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
         print(f"[QA_agent] LLM 로그 QA 결과 업데이트 실패: {e}")
 
 
-# [ADDED] "QA 정확도(전체 케이스 기준)" 실측용. _update_llm_log_with_qa_result()는
-# Rule Book 처리 건을 의도적으로 스킵하는데(그 로그는 "LLM 판단 승격 후보 추적"이
-# 목적이라 이미 규칙인 것은 대상이 아님 — 이 스킵 자체는 그대로 둔다), 그러면
-# Rule Book으로 처리되는 대부분의 실제 케이스(S3 등)는 QA 정확도를 측정할 방법이
-# 아예 없어진다. 그래서 decision_agent.py가 Rule Book/LLM 구분 없이 전부 남기는
-# cost_prediction_log.jsonl에 qa_passed를 별도로 업데이트한다 — 기존 로그의 의미는
-# 안 건드리고, 전체 케이스를 커버하는 새 경로를 추가하는 것.
 COST_PREDICTION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "cost_prediction_log.jsonl"
 )
