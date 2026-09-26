@@ -1,25 +1,17 @@
 """
-QA Agent
---------
-액션 수행 이후 SLA 준수 여부를 검증하고, 실패 시 롤백을 트리거
+QA Agent (SLA 검증)
+
+액션 수행 후 SLA 준수 여부 검증, 실패 시 롤백 트리거.
 
 검증 항목:
-1) CPU SLA: 액션 후 CPU 사용률이 임계값(80%) 이하인지
-2) 비용 SLA: 액션이 실제 비용 절감 효과를 가져왔는지
-3) 가용성 SLA: 서비스 가용성이 유지되는지 (액션 결과 정상 여부)
+  - CPU SLA: 사용률 80% 이하
+  - 비용 SLA: 실제 비용 절감 효과 확인
+  - 가용성 SLA: 서비스 가용성 유지
 
-처리 흐름 (A안 — 실패 원인 구분 없이 항상 롤백 후 재시도):
-- 검증 통과 → qa_passed=True, logging으로 이동
-- 검증 실패 + rollback_count < 2
-    → pre_action_snapshot으로 즉시 rollback_action() 실행 (실행 실패든 SLA 위반이든 동일하게 처리)
-    → qa_passed=False, rollback_count 증가, action으로 재시도
-- 검증 실패 + rollback_count >= 2 → qa_passed=False, 현재 상태 유지, 관리자 알림
-  (이 경우도 롤백 자체는 실행하되, 더 이상 action으로 재시도하지 않음)
-
-   주의: 여기서의 "재시도"는 node_contracts.md 스펙 그대로 "같은 selected_action을
-   처음부터 다시 실행"하는 것이다. SLA 위반(예: 비용 급증)으로 실패한 경우 원인이
-   그대로면 재시도해도 같은 이유로 다시 실패할 수 있다 — 이는 스펙상 의도된 동작이며,
-   rollback_count<2 만큼만 반복하고 그 이후엔 관리자 알림으로 넘어간다.
+처리 흐름:
+  - 통과 → qa_passed=True
+  - 실패 + rollback_count < 2 → 롤백 후 재시도
+  - 실패 + rollback_count >= 2 → 관리자 알림
 """
 
 import json
@@ -405,13 +397,7 @@ def _apply_rule_based_qa(
             None,
         )
 
-    # 2026-09-14 버그 수정: action_result.status가 "failed"가 아니라 "not_implemented"인
-    # 경우(예: EC2에 ScaleDown처럼 execute_action()에 분기 자체가 없는 액션이 선택된 경우)를
-    # 위 "failed" 체크가 못 잡아서, 아무 조치도 안 됐는데 뒤이은 일반 SLA 체크(지표가 우연히
-    # 정상이면 통과)로 새서 qa_passed=True로 잘못 기록되는 사례가 실측(batch_pipeline_replay
-    # __EC2_20260912_134432.json의 i-018cb1f361adb89e8, ScaleDown)으로 확인됐다. "액션을
-    # 선택했는데 실행 자체가 안 된 것"은 "실패"보다도 더 명확한 검증 실패이므로 별도로 우선
-    # 처리한다.
+    # 액션 미구현 상태도 실패로 처리
     if action_result.get("status") == "not_implemented":
         return (
             {
@@ -431,13 +417,7 @@ def _apply_rule_based_qa(
     cost_ok, cost_detail = _check_cost_sla(state)
     avail_ok, avail_detail = _check_availability_sla(state)
 
-    # 2026-09-14 버그 수정: 이 함수는 모든 분기에서 tuple을 반환해서 qa_node의
-    # `if rule_result is not None` 조건이 항상 참이 되고, 그 아래 LLM 기반 QA
-    # (_call_llm_qa, "모호한 케이스"를 처리하도록 설계된 폴백)가 실제로는 한 번도
-    # 호출되지 않는 죽은 코드였다(실측 확인). 규칙 기반 체크가 판단할 데이터 자체가
-    # 부족해서 "일단 통과"로 낙관 처리한 경우(_check_cpu_sla/_check_cost_sla가
-    # "지표 없음"/"데이터 부족"으로 자동 True를 준 경우)는 규칙만으로 확신할 수 없는
-    # 모호한 케이스이므로, 여기서 None을 반환해 LLM 검증으로 위임한다.
+    # 데이터 부족으로 판단 불가 시 LLM 검증으로 위임
     ambiguous = "체크할 트리거 지표 없음" in cpu_detail or "데이터 부족" in cost_detail
     if ambiguous:
         return None

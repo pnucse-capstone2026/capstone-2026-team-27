@@ -89,9 +89,7 @@ class RuleEngine:
                 except ValueError:
                     pass  # 파싱 실패 시 무시
 
-            # 2026-09-13 추가: category="recurring_hours"면 effective_from/expires_at
-            # (날짜 범위)과 별개로, "매일 이 시:분 사이"인지도 확인한다(예: 매일 22~06시
-            # 야간). daily_end_hour < daily_start_hour면 자정을 넘기는 구간으로 취급.
+            # recurring_hours: 매일 반복되는 시간대 체크
             if entry.get("category") == "recurring_hours":
                 start_h = entry.get("daily_start_hour")
                 end_h = entry.get("daily_end_hour")

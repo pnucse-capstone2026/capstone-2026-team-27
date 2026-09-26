@@ -32,8 +32,6 @@ METRIC_SPEC: dict[str, dict[str, tuple[str, str, str]]] = {
         "invocation_count": ("AWS/Lambda", "Invocations", "Sum"),
         "error_count":      ("AWS/Lambda", "Errors", "Sum"),
         "duration_avg":     ("AWS/Lambda", "Duration", "Average"),
-        # 2026-09-12 추가 — 스로틀/재시도 폭증 시나리오. 실측(F-1) 확인: FunctionName
-        # 차원만으로 정상 조회됨, 추가 차원 불필요.
         "throttle_count":   ("AWS/Lambda", "Throttles", "Sum"),
         "async_event_age":  ("AWS/Lambda", "AsyncEventAge", "Average"),
     },

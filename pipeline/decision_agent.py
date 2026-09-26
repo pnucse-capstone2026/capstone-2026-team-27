@@ -1,60 +1,19 @@
 """
-Decision Agent
-==============
-node_contracts.md Step 3 기준.
+Decision Agent (액션 결정)
 
-입력 :
-  - anomaly_type, resource_type, resource_id, classification_reasoning, raw_metrics
+입력: anomaly_type, resource_type, resource_id, raw_metrics
+출력: selected_action, risk_level, requires_approval, decision_reasoning
 
-출력 :
-  - candidate_actions, selected_action, risk_level,
-    requires_approval, decision_reasoning, target_instance_type
+saving_rate 계산 (결정론적):
+  - Stop: 100% (완전 중지)
+  - Stop+Schedule: 50% (업무시간 외 중지 가정)
+  - Resize: 인스턴스 타입 다운그레이드 단가 차이
+  - Throttle/ScaleDown/Block: 기준선 대비 급증분
 
-설계 :
-  - saving_rate는 "LLM이 추정하는 값"이 아니라 raw_metrics["cost"] 시계열로부터
-    결정론적으로 계산하는 것을 기본으로 한다. 액션별 계산 방식:
-      * Stop           : 리소스를 완전히 멈추므로 현재 평균 비용의 100%가 절감된다고 본다.
-      * Stop+Schedule  : "업무시간 외 절반 정도 꺼둔다"는 단순화된 가정(50%)을 적용한다.
-      * Resize         : ec2.describe_instances()로 실제 "현재 인스턴스 타입"을 조회하고,
-                         EC2_HOURLY_PRICE_USD 정적 단가표에서 한 단계 저렴한 tier로
-                         다운사이즈했을 때의 단가 차이로 계산한다. 실제 조회가 실패하거나
-                         (자격증명 없음 등) 타입이 단가표에 없으면 cost 평균 역추정으로
-                         폴백한다.
-      * Throttle/ScaleDown : 비용을 0으로 만드는 게 아니라 "급증분만 깎는" 액션이므로,
-                         cost 윈도우를 기준선(앞쪽)과 최근 급증 구간(뒤쪽)으로 나눠
-                         그 차이(초과분)를 절감 가능액으로 본다.
-      * Block          : [수정] 원래는 보안 위협 차단이 목적이라 saving_rate를 0.0으로
-                         고정했었으나, S3 대량다운로드를 risk_security가 아니라
-                         cost_spike(비용 급증)로 재분류하면서 성격이 바뀌었다. public
-                         접근을 막으면 그로 인한 초과 다운로드 비용이 실제로 없어지므로,
-                         Throttle/ScaleDown과 동일하게 기준선 대비 급증분을 절감액으로
-                         계산한다.
-      * NoAction       : 항상 (0.0, 0.0, 1.0) 룰 기반 더미 값.
-  - cost 데이터가 없거나 너무 짧아 위 결정론적 계산이 불가능한 예외 상황에서만
-    LLM에게 saving_rate 추정을 맡긴다 (_estimate_saving_rate_with_llm).
-  - impact_score / stability_score는 정량화가 어려운 값이라 리소스 타입에 관계없이
-    항상 LLM(Gemini)에게 위임한다 (기존과 동일, EC2 전용이 아니라 전 리소스 공통으로 통일).
-  - 각 후보 액션에는 saving_rate(비율, [0,1]) 외에 estimated_saving_usd(시간당 USD
-    절감 예상액)도 함께 기록한다. LLM fallback으로 산정된 saving_rate는 근거 있는
-    금액을 만들어낼 수 없으므로 estimated_saving_usd=0.0으로 둔다.
-  - LLM 미설정(GEMINI_API_KEY 없음) 시에도 동작해야 하므로,
-    LLM 호출은 항상 try/except로 감싸고 실패 시 룰 기반 fallback으로 전환한다.
-  - 환각 방어(보고서 4.1절):
-      1) 모든 점수를 [0.0, 1.0]로 클램핑
-      2) JSON 파싱 실패 시 최대 N회 재시도, 끝까지 실패하면 NoAction 쪽으로
-         점수가 떨어지도록 impact_score=1.0 / stability_score=0.0 처리
-      3) action은 ALLOWED_ACTIONS 표 밖의 값이 나올 수 없음
-         (LLM에게 액션 후보 자체를 만들게 하지 않고, 미리 정의된 액션에 대한
-          점수만 추정하게 했기 때문에 구조적으로 막혀 있음)
-      4) temperature=0.1로 고정
-
-한계 / 다음 단계 과제:
-  - EC2_HOURLY_PRICE_USD는 ap-northeast-2 리전 온디맨드 기준 정적 근사치이며
-    실제로는 AWS Pricing API로 대체해야 한다.
-  - [해결됨] Resize의 "현재 인스턴스 타입"은 이제 ec2.describe_instances()로 실제 조회한다
-    (cost 역추정은 조회 실패 시 폴백으로만 남아 있음).
-  - Stop+Schedule의 50% 가정은 실제 스케줄 정책(오프 시간 비율)이 정해지면
-    정교화해야 한다.
+환각 방어:
+  - 모든 점수 [0.0, 1.0] 클램핑
+  - JSON 파싱 실패 시 재시도 후 NoAction fallback
+  - ALLOWED_ACTIONS 외 액션 불가
 """
 
 from __future__ import annotations
@@ -244,16 +203,7 @@ BOTO3_SPEC: dict[str, dict] = {
     },
 }
 
-# 2026-09-12 버그 수정: ALLOWED_ACTIONS(schema/state.py)가 anomaly_type만 보고
-# resource_type을 안 보다 보니, 예를 들어 Lambda(cost_spike)에도 ScaleDown/Block이
-# "허용 액션"으로 잡혀서 LLM 프롬프트에 올라갔다. ScaleDown은 Lambda용 실행 로직이
-# action_agent.py에 아예 없고(not_implemented로 빠짐), Block은 실행은 되지만
-# (동시성 0으로 처리) 위 BOTO3_SPEC["Block"]은 S3 기준으로 적혀 있어 LLM한테
-# 완전히 엉뚱한 API 설명을 보여주는 문제가 있었다.
-#
-# action_agent.py의 실제 dispatcher(execute_action)와 반드시 일치시킬 것 - 여기서
-# "구현됨"이라고 적어놓고 실제로는 action_agent.py에 없으면 not_implemented로
-# 빠지는 액션이 또 생긴다.
+# 리소스 타입별 실제 구현된 액션 (action_agent.py execute_action과 일치 필수)
 RESOURCE_IMPLEMENTED_ACTIONS: dict[str, set[str]] = {
     "EC2": {
         "NoAction",
@@ -886,11 +836,7 @@ def decision_node(state: PipelineState) -> PipelineState:
     if not allowed_actions:
         allowed_actions = ["NoAction"]
 
-    # 2026-09-12 버그 수정: anomaly_type 기준 허용 목록을 리소스 타입에 실제로
-    # 구현된 액션과 교집합으로 다시 좁힌다 - 안 그러면 Lambda가 ScaleDown을(구현
-    # 안 됨) 제안받거나, Block의 API 설명이 리소스와 안 맞는 채로 LLM에게 간다.
-    # action_agent.py의 실제 dispatcher와 RESOURCE_IMPLEMENTED_ACTIONS를 반드시
-    # 같이 갱신할 것.
+    # 허용 목록을 실제 구현된 액션과 교집합으로 좁힘
     implemented = RESOURCE_IMPLEMENTED_ACTIONS.get(resource_type, {"NoAction"})
     allowed_actions = [a for a in allowed_actions if a in implemented] or ["NoAction"]
 

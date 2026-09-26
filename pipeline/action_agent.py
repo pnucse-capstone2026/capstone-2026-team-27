@@ -1,26 +1,17 @@
 """
-Action Agent
-============
-node_contracts.md Step 4 기준.
+Action Agent (액션 실행)
 
-입력 (읽는 필드):
-  - selected_action, resource_id, resource_type, requires_approval, target_instance_type
+입력: selected_action, resource_id, resource_type, requires_approval
+출력: pre_action_snapshot, action_executed, action_result
 
-출력 (채우는 필드):
-  - pre_action_snapshot, action_executed, action_result
+지원 액션:
+  - EC2: Stop, Resize
+  - Lambda: Throttle
+  - AutoScaling: ScaleDown
+  - S3: Block
 
-설계:
-  - EC2(Stop, Resize), Lambda(Throttle), AutoScaling(ScaleDown), S3(Block) 구현.
-    RDS는 NotImplementedAction 으로 표시해두고 추후 각자 확장.
-  - boto3 클라이언트는 모듈 레벨에서 만들지 않고 함수 안에서 생성
-    (테스트 시 monkeypatch/mock 주입하기 쉽도록).
-  - 리전은 항상 환경변수 AWS_DEFAULT_REGION에서 읽는다 (하드코딩 금지).
-  - NoAction이면 스냅샷 생략하고 바로 리턴.
-  - requires_approval=True 인 경우, 지금 단계에서는 실제 액션을 실행하지
-    않고 "pending_approval" 상태로만 표시한다.
-    (60분 대기 타이머는 추후 스케줄러로 별도 구현 — 보고서 2.2.4)
-  - 모든 boto3 호출은 ClientError를 잡아서 action_result에 실패 사유를 남긴다.
-  - rollback_action()은 QA Agent(강지원 담당)에서 import해서 사용하는 함수.
+requires_approval=True면 실행 보류 (pending_approval).
+rollback_action()은 QA Agent에서 호출.
 """
 
 from __future__ import annotations

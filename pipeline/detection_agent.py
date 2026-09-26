@@ -1,46 +1,19 @@
 """
-pipeline/detection_agent.py (박소영)
+Detection Agent (이상 탐지)
 
-3.3.1 Detection Agent (이상 탐지)
-- OR 앙상블은 세 경로: Z-score(단기 스파이크) + Isolation Forest(다변량 복합
-  드리프트) + EC2 저사용률(유휴, 결정론적 절대임계값 — 아래 참고, 예외적으로
-  독립 트리거 유지). 2026-09-13에 5개(Z-score/IForest/EC2 idle/Lambda 에러율/
-  Lambda 스로틀률)에서 3개로 축소했다.
-- EC2 저사용률(유휴, 좀비 인스턴스 대응)은 절대임계값 판정 로직 자체
-  (EC2_IDLE_* 상수)는 그대로 두고 detection_node의 독립 분기가 아니라
-  _derived_features가 계산하는 feature(ec2_idle_flag)로 통합했다 — IForest
-  입력에도 노출되고, **detection_node의 트리거 판단에도 여전히 직접 쓰인다**.
-  이건 예외 취급이다: 학습된 IForest 트리 100개 중 다수(54개, 상위 3레벨
-  기준)가 리소스 타입 onehot 컬럼으로 분할하지 않아서, "진짜 EC2 유휴"와
-  "다른 타입이라 원래 0으로 채워진 값"을 구분 못 하고 raw decision_function이
-  거의 항상 양수(정상)로 나온다(실측 확인, 2026-09-13) — 통합 모델의 구조적
-  한계라 mock 재학습으로 해결 안 되므로, EC2만 결정론적 게이트를 유지한다.
-  자세한 근거는 detection_node의 3) 단계 주석 참고.
-- Lambda 에러 재시도 폭증(`lambda_error_rate`)과 Lambda 스로틀(429)/시스템
-  에러 재시도 폭증(`throttle_rate`, 2026-09-12 신규 — invocation_count/
-  error_count에는 안 잡히고 Throttles/AsyncEventAge에만 나타나는 별개
-  메커니즘)은 **2026-09-13부터 IForest 입력 feature로만 작동**하고
-  detection_node의 직접 트리거에서는 제외됐다. EC2와 달리 이 두 feature의
-  "이상" 값은 다른 타입의 0(해당없음)이나 자체 정상 베이스라인과 전역적으로
-  겹치지 않아 raw decision_function이 뚜렷한 음수(이상)로 나옴을 확인했기
-  때문 — IForest 단독으로도 충분히 잡는다.
-  Lambda 에러율(`lambda_error_rate`)은 여전히 별도의 결정론적 임계값 체크가
-  코드에 남아 triggered_metrics 라벨링(CLF-002 매칭용)에 쓰인다 —
-  anomaly_flag 계산에만 관여하지 않는다. 반면 스로틀률(`throttle_rate`)은
-  2026-09-14부로 이 임계값 체크 자체를 제거했다 — triggered_metrics가
-  비었을 때 rule_engine의 범용 폴백(`_extract_spike_metrics`, raw_metrics
-  latest/mean 급증 추출)이 CLF-007 라벨링을 대신 처리하므로, 결정론적
-  게이트를 하나 더 두지 않고 IForest 판단에 일원화했다.
+OR 앙상블 3가지 경로:
+  1. Z-score: 단기 스파이크 탐지
+  2. Isolation Forest: 다변량 복합 드리프트 탐지
+  3. EC2 저사용률: 좀비/오버프로비저닝 판정 (절대임계값 기반)
 
-⚠️ 현재 AWS 미연동 상태
-- 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
-  지금은 state["raw_metrics"]로 전달되는 윈도우 데이터를 그대로 사용한다.
-- Isolation Forest 모델은 리소스 타입별로 파일(pickle)에 캐싱해두고, "모델이 확신하는
-  정상 윈도우"만 골라 학습 버퍼에 누적하며 5개 쌓일 때마다 재학습한다 (자기참조 학습,
-  아래 학습 버퍼 섹션 참고). 타입당 최대 MAX_WINDOWS_PER_TYPE개만 유지하고 오래된
-  것부터 자동으로 교체(FIFO)하는 방식으로 concept drift에 대응한다 — 예전엔 24시간마다
-  버퍼 전체를 통째로 리셋하는 방식이었는데, 리셋될 때마다 콜드 스타트(창 1개 학습)로
-  되돌아가 정확도가 급락하는 문제가 있어 제거했다.
+주요 feature:
+  - ec2_idle_flag: EC2 유휴 상태 (IForest가 잘 못잡아서 별도 게이트 유지)
+  - lambda_error_rate: Lambda 에러 재시도 폭증
+  - throttle_rate: Lambda 스로틀(429) 재시도 폭증
+
+IForest 학습:
+  - 정상 판정된 윈도우를 버퍼에 누적 (타입당 최대 MAX_WINDOWS_PER_TYPE개)
+  - 5개 쌓일 때마다 재학습, FIFO로 오래된 것부터 교체
 """
 
 from __future__ import annotations
@@ -197,20 +170,10 @@ Z_SCORE_TARGET_METRICS = {
     "invocation_count",
     "number_of_requests",
     "bytes_downloaded",
-    # 2026-09-12 추가 — 스로틀 재시도 폭증 시 비동기 큐 대기시간이 급증하는 신호
-    # (throttle_rate와 별개로, 기존 Z-score persistent check를 그대로 재사용).
-    "async_event_age",
+    "async_event_age",  # Lambda 스로틀 재시도 폭증 신호
 }
 
-# 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
-# network_in을 뺐다. 실제 AWS 실환경 검증(playground/validate_real_aws_buffer.py)에서
-# EC2 network_in이 20~40분 주기로 반복적으로 튀는(9K/16K/23K대 다단계) 패턴을 가진 걸
-# 확인했는데, window-max 방식이라 2.5시간 윈도우 안에 이 튐이 항상 하나쯤 들어있어서
-# 마진(BUFFER_SCORE_MARGIN/BUFFER_ZSCORE_MARGIN)을 아무리 풀어도 EC2 버퍼 채택률이
-# 7% 밑으로 막혀 있었다. 이 반복 패턴은 실제 이상이 아니라 이 리소스의 정상 트래픽
-# 특성이라, 버퍼 채택 판정에서만 network_in을 빼서 학습이 이 패턴을 정상으로
-# 받아들이게 한다. 알림 판단(detection_node)과 IForest 피처에는 network_in이
-# 그대로 남아있어서, 진짜 지속되는 이상은 여전히 감지된다.
+# 버퍼 채택 판정 전용 (network_in 제외 - EC2 주기적 트래픽 패턴이 채택률 저하 유발)
 BUFFER_ZSCORE_TARGET_METRICS = Z_SCORE_TARGET_METRICS - {"network_in"}
 
 # ── Isolation Forest 통합 모델용 스키마 (state.py에서 자동 추출) ──────────
@@ -1067,21 +1030,7 @@ def detection_node(state: PipelineState) -> PipelineState:
             )
 
     # ── 3) EC2 저사용률(유휴) — 트리거 앙상블의 예외 경로로 유지 (2026-09-13 재확인) ──
-    # ec2_idle_flag feature 자체가 윈도우 전체 판정을 내포하므로(_derived_features
-    # 문서 참고) PERSISTENCE_WINDOW_POINTS 지속성 체크 없이 flag==1을 그대로
-    # 트리거로 쓴다. 판정 기준 자체는 기존 _low_utilization_check와 100% 동일.
-    #
-    # ⚠️ 아래 4)/5)(Lambda)와 달리 EC2만 직접 트리거를 유지하는 이유(실측 근거,
-    # 2026-09-13): 학습된 IForest 트리 100개 중 17개만 루트에서, 46개만 상위
-    # 3레벨 이내에 onehot_* 컬럼으로 분할한다(트리 구조 직접 확인) — 나머지
-    # 다수는 리소스 타입을 구분하지 않고 "cpu_utilization≈0 AND network_in≈0"라는
-    # 값 자체로 판단하는데, 이 값은 Lambda/S3/AutoScaling처럼 해당 지표가 없는
-    # 타입이 전부 0으로 채워 넣은 학습 데이터(전체 버퍼의 60%)와 겹친다. 그래서
-    # "진짜 EC2 유휴"와 "다른 타입이라 원래 0"이 IForest 입장에서 구분이 안 돼
-    # raw decision_function이 항상 양수(정상)로 나옴 — 실측: 9/9 실 EC2 데이터
-    # 5건 중 4건은 Z-score(network_in 튐)가 우연히 잡아주지만 1건(무변동 유휴)은
-    # Z-score도 IForest도 임계값 미달로 완전히 놓침. mock 재학습으로 해결 안 되는
-    # 통합모델 구조적 한계라 EC2는 결정론적 게이트를 그대로 둔다.
+    # EC2 유휴: IForest가 타입 구분을 잘 못해서 별도 게이트 유지
     derived = _derived_features(resource_type, metrics, resource_age_seconds)
 
     ec2_idle_flag = derived["ec2_idle_flag"]
