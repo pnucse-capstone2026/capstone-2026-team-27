@@ -82,7 +82,7 @@
 | 분류 | 기술 | 버전 | 용도 |
 |------|------|------|------|
 | **Core Framework** | LangGraph | 1.1.10 | 멀티에이전트 오케스트레이션 |
-| **LLM** | Google Gemini | gemini-2.0-flash | 이상 유형 분류 및 의사결정 |
+| **LLM** | Google Gemini | gemini-2.5-flash | 이상 유형 분류 및 의사결정 |
 | **ML** | scikit-learn | 1.7.2 | Isolation Forest 이상 탐지 |
 | **Cloud SDK** | boto3 | 1.43.3 | AWS API 연동 |
 | **Backend** | FastAPI | 0.115.6 | REST API 서버 |
