@@ -237,10 +237,7 @@ def run_one(
 
         out["approval_bypassed_for_timing"] = False
         if state["requires_approval"] and bypass_approval_for_timing:
-            # [측정 전용] Resize는 ACTION_RISK_FLOOR상 MED라 실제 운영에서는 항상
-            # 사람 승인이 필요하다. 승인 대기시간은 무한정이라 자동 측정이 불가능
-            # 하므로, Action/QA/timing 측정을 위해서만 여기서 우회한다 — 실제
-            # 승인 게이트 정책을 바꾸는 게 아니다 (Lambda cost_spike와 동일한 사유).
+            # 측정 전용: 승인 대기 우회 (Action/QA/timing 측정 목적)
             print(
                 f"[{label} {resource_id}] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함"
             )

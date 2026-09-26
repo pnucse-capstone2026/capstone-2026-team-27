@@ -69,8 +69,7 @@ RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 # EC2 좀비 실험에 쓴 13대 (ec2_zombie_manifest.json과 동일 — 라벨은 원래 실험 기준)
 EC2_INSTANCES = [
-    # 2026-09-14 EC2 좀비 v3(버그 수정판) 재실험 인스턴스로 갱신
-    # (manifest: playground/eval_outputs/ec2_zombie_manifest_20260914_170255.json)
+    # EC2 좀비 v3 실험 인스턴스 (manifest: ec2_zombie_manifest_20260914_170255.json)
     ("i-0235ed717f891d57f", "anomaly", "idle_zombie"),
     ("i-0b46188f0826d02e0", "anomaly", "idle_zombie"),
     ("i-0b72ef53db68ffc5c", "anomaly", "idle_zombie"),

@@ -77,10 +77,7 @@ def _load_jsonl(path: Path) -> list[dict]:
     return entries
 
 
-# [수정] QA_agent._update_cost_prediction_log_with_qa_result()가 이제 Rule Book/LLM
-# 구분 없이 cost_prediction_log.jsonl 항목 자체에 qa_passed를 직접 채워준다 —
-# 그래서 더 이상 llm_decision_log.jsonl(LLM 판단 건에만 존재)을 따로 조회할 필요
-# 없이, entry.get("qa_passed")만 보면 전체 케이스를 커버한다.
+# cost_prediction_log.jsonl의 qa_passed 필드로 전체 케이스 커버 (Rule Book/LLM 구분 없음)
 
 
 def _real_current_cost(resource_type: str, resource_id: str) -> float | None:

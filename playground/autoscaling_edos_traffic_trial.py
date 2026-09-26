@@ -90,21 +90,12 @@ AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 CAPACITY = 1  # 이번 실험은 capacity를 아예 고정 - 트래픽 지표만 단독 검증
 LISTENER_PORT_BASE = 8001  # anomaly-0..(n_anomaly-1) -> 이 값부터 순서대로 할당
 
-# 2026-09-13 버그 수정: NORMAL_PORT_BASE가 8011로 고정돼 있어서, n_anomaly가 11 이상이면
-# anomaly용 포트(LISTENER_PORT_BASE..+n_anomaly-1)와 겹친다(예: n_anomaly=15면 anomaly가
-# 8001~8015를 쓰는데 normal도 8011부터 시작해서 8011~8015가 같은 ALB에서 리스너 포트
-# 충돌 - 실제로 n=15 설정 시 normal-0~4의 리스너 생성이 조용히 실패해 그 포트가 anomaly
-# target group에 붙은 채로 방치되는 사고가 났다). normal 포트를 anomaly 개수만큼 뒤로
-# 밀어서 항상 겹치지 않게 setup_all()에서 동적으로 계산한다.
+# normal 포트는 anomaly 개수만큼 뒤로 밀어서 포트 충돌 방지 (setup_all()에서 동적 계산)
 
 BASELINE_RPS = 1.0  # 정상/베이스라인 구간 초당 요청 수
 SPIKE_RPS = 50.0  # anomaly 구간 초당 요청 수 (폭증)
-EDGE_SPIKE_RPS = (
-    10.0  # [2026-09-14 추가] 경계(edge) 케이스 - baseline 대비 10배(50배보다
-)
-# 훨씬 완만한 증가)로, 극단적 스파이크가 아닌 애매한 트래픽 증가도
-# 탐지하는지 별도로 검증한다. label은 "anomaly"로 동일(진짜 이상
-# 상황이지만 강도만 약함) - profile 필드로 구분한다.
+# 경계(edge) 케이스: baseline 대비 10배 증가 (극단 50배보다 완만한 트래픽 증가 탐지 검증용)
+EDGE_SPIKE_RPS = 10.0
 
 VCPU_PER_INSTANCE = 2
 
@@ -285,14 +276,7 @@ def _ensure_launch_template(ec2, instance_sg: str) -> str:
 # ── ALB / 타겟그룹 / 리스너 ───────────────────────────────────────────────────
 
 
-# 2026-09-13 버그 수정: ALB ARN과 TargetGroup ARN은 "/"로 나뉘는 조각 수가 다르다
-# (ALB: "loadbalancer/app/이름/id" 4조각, TG: "targetgroup/이름/id" 3조각). "뒤에서
-# 3조각 자르기"를 둘 다 똑같이 했더니 ALB는 우연히 맞았지만 TG는 계정/리전이 포함된
-# ARN 전체가 그대로 남아, CloudWatch가 이 dimension과 매칭되는 데이터를 못 찾아서
-# RequestCount가 항상 0으로 조회됐다(v4 1차 실행에서 발견). ":"로 나눠 마지막
-# 조각(리소스 부분)만 뽑고, LoadBalancer 차원은 "loadbalancer/" 접두어를 벗겨서
-# "app/이름/id"로(CloudWatch가 이 형태를 기대함), TargetGroup 차원은 "targetgroup/"
-# 접두어를 그대로 남겨서(CloudWatch가 이 형태를 기대함) 만든다.
+# CloudWatch dimension 형식: ALB는 "app/이름/id", TG는 "targetgroup/이름/id"
 def _alb_dimension_value(alb_arn: str) -> str:
     resource = alb_arn.split(":")[-1]  # "loadbalancer/app/이름/id"
     return resource.split("/", 1)[1]  # "app/이름/id"
@@ -445,8 +429,7 @@ def setup_all(n_anomaly: int, n_normal: int, n_edge: int = 0) -> None:
     alb_arn, alb_dns, _ = _ensure_alb(vpc_id, subnet_ids, alb_sg)
     autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
 
-    # [2026-09-14] edge 그룹 추가 - anomaly/edge/normal 순서로 포트를 겹치지 않게 배치.
-    # (기존 버그: normal_port_base가 n_anomaly만 고려했음 - edge까지 고려해서 확장)
+    # anomaly/edge/normal 순서로 포트 배치 (충돌 방지)
     edge_port_base = LISTENER_PORT_BASE + n_anomaly
     normal_port_base = edge_port_base + n_edge
 
@@ -726,9 +709,7 @@ def run_full_pipeline_from_metrics(
     result["approval_bypassed"] = False
     if state.get("requires_approval"):
         if bypass_approval:
-            # [측정/검증 전용] risk_security는 항상 HIGH라 실제 운영에서는 승인이
-            # 필요하다. 승인 대기는 무한정이라 자동 실행 중엔 측정 불가하므로,
-            # WAF/QA까지 실제로 동작하는지 검증하는 목적에 한해서만 우회한다.
+            # 측정 전용: 승인 대기 우회 (자동 실행 중 WAF/QA 동작 검증 목적)
             state["requires_approval"] = False
             result["approval_bypassed"] = True
         else:
@@ -1126,9 +1107,7 @@ def main() -> None:
             lo, hi = m["recall_ci_95_clopper_pearson"]
             logger.info("    recall 95%% CI = [%.1f%%, %.1f%%]", lo * 100, hi * 100)
 
-    # [2026-09-14 추가] profile별(극단 스파이크 vs 경계 스파이크) recall을 따로 계산 -
-    # 합쳐서만 보면 "극단은 다 맞고 경계는 다 놓쳐도" recall이 좋게 보일 수 있어서,
-    # 반드시 나눠서 봐야 경계 케이스의 실제 탐지력을 알 수 있다.
+    # profile별 recall 분리 계산 (극단 vs 경계 스파이크 탐지력 개별 확인)
     normal_results = [r for r in results if r["label"] == "normal"]
     profile_metrics: dict[str, dict] = {}
     if args.n_edge > 0:
