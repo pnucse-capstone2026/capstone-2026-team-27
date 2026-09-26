@@ -314,14 +314,7 @@ def logging_node(state: PipelineState) -> PipelineState:
             logger.info("[logging_node] DB 저장 성공 (run_id=%s)", run_id)
         except Exception as e:
             conn.rollback()
-            # ⚠️ 2026-09-13 발견: 여기가 print()였을 때, Windows cp949 콘솔에서
-            # 메시지의 "—"(em dash)를 인코딩 못 해 UnicodeEncodeError로 죽었다.
-            # 그러면 이 except가 "원인 파악용으로 출력만 하고 넘어가는" 원래
-            # 의도와 반대로, 예외가 measure() 호출 전체를 타고 올라가 파이프라인이
-            # 통째로 죽어버렸다(Lambda 13개 반복시행에서 13개 전부 이렇게 유실됨).
-            # logging 모듈은 인코딩 불가 문자를 만나도 콘솔 출력에서 죽지 않는 걸
-            # 이 세션 내내 확인했으므로 print 대신 logger를 쓴다.
-            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: %r", e)
+            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계): %r", e)
         finally:
             conn.close()
     except Exception as e:

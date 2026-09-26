@@ -43,17 +43,8 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
     LLM 판단 로그에 QA 결과를 추가.
     trace_id로 해당 로그 엔트리를 찾아 qa_result 필드를 업데이트.
 
-    Decision 단계가 LLM 판단이 아닌 경우는 스킵.
-
-    ⚠️ 2026-09-12 버그 수정: 원래 이 조건이 state["matched_rule_id"]를 봤는데, 그건
-    Decision이 아니라 Classification 단계가 채우는 필드다(schema/state.py 참고 -
-    classification_agent.py의 CLF-xxx 규칙 매칭 결과). Classification은 거의 항상
-    규칙에 매칭되므로, Decision이 실제로 LLM을 썼어도 이 조건 때문에 매번 "LLM
-    판단 아님"으로 오판해 로깅을 건너뛰었다 - 그 결과 llm_decision_log.jsonl의
-    모든 LLM 판단 항목이 qa_result=null로 남아 decision_pseudocode_promoter.py가
-    검증된 패턴을 하나도 못 찾는 상태였다. Decision이 LLM을 썼는지는
-    decision_agent.py가 LLM 경로에서만 채우는 state["decision_pseudo_code"]로
-    판단해야 정확하다.
+    Decision 단계가 LLM 판단이 아닌 경우(Rule Book 매칭)는 스킵.
+    LLM 사용 여부는 state["decision_pseudo_code"] 존재로 판단.
     """
     trace_id = state.get("trace_id")
     decision_used_llm = bool(state.get("decision_pseudo_code"))
@@ -201,16 +192,8 @@ def _metrics_summary(raw_metrics: dict) -> dict:
     return summary
 
 
-# [수정] 원래 이름은 _check_cpu_sla였고 항상 cpu_utilization만 봤다 — Lambda/S3/
-# AutoScaling처럼 CPU 지표 자체가 없는 리소스는 사실상 이 체크가 전부 통과 처리돼서,
-# "액션 후 원래 튀었던 지표가 진짜 가라앉았는지"를 전혀 검증 못 하고 있었다(예: S3
-# 대량다운로드 Block 후에도 bytes_downloaded가 여전히 높으면 못 잡음). CPU 하드코딩
-# 대신 detection 단계에서 실제로 이상을 트리거했던 지표(triggered_metrics)를 그대로
-# 재검사하도록 일반화 — 리소스 타입별 하드코딩 없이 자동으로 맞는 지표를 본다.
-# SlaCheckResult 스키마 호환을 위해 반환 키 이름(cpu_ok)은 그대로 유지.
-
-# CPU처럼 절대 임계값(%)이 있는 지표. 그 외(bytes_downloaded, invocation_count 등)는
-# 절대 임계값 개념이 없어서 "액션 전 기준선 대비 얼마나 높아졌는지" 상대 비교로 판단.
+# triggered_metrics 기반 SLA 체크 (CPU 외 지표도 자동 검증)
+# 절대 임계값 있는 지표와 상대 비교 지표 구분
 _ABSOLUTE_THRESHOLD_METRICS = {"cpu_utilization": SLA_THRESHOLDS["cpu_utilization_max"]}
 _RELATIVE_SPIKE_RATIO = (
     1.5  # 기준선(초반 평균) 대비 1.5배 넘으면 아직 안 가라앉은 것으로 판단

@@ -281,9 +281,7 @@ def _cost_based_full_removal_saving(
     "현재 평균 비용(시간당 환산) × fraction"을 절감 예상액으로, fraction 자체를
     saving_rate(현재 지출 대비 제거되는 비율)로 사용한다.
 
-    [버그 수정 2026-09-20] raw_metrics["cost"]는 5분(COST_METRIC_PERIOD_SECONDS)당
-    금액이라 평균을 그대로 쓰면 estimated_saving_usd가 실제 시간당 절감액의 1/12로
-    찍혔다 - 여기서 시간당으로 환산한다.
+    raw_metrics["cost"]는 5분당 금액이므로 시간당으로 환산한다.
     """
     cost_values = raw_metrics.get("cost", [])
     if not cost_values:
@@ -379,16 +377,8 @@ def _trend_based_partial_saving(raw_metrics: dict) -> tuple[float, float, float]
     cost 윈도우를 앞쪽(기준선)과 뒤쪽(최근 급증 구간)으로 나눠, 급증 구간
     평균이 기준선 평균보다 얼마나 높은지를 "제거 가능한 초과분"으로 본다.
 
-    [버그 수정 2026-09-20] _cost_based_full_removal_saving()과 같은 문제 -
-    raw_metrics["cost"]가 5분(COST_METRIC_PERIOD_SECONDS)당 금액이라 excess를
-    그대로 쓰면 estimated_saving_usd가 실제 시간당 절감액의 1/12로 찍혔다.
-
-    recent_avg(최근 급증 구간 평균)도 함께 반환하는 이유: 이 액션들의
-    estimated_saving_usd는 raw_metrics 전체 평균이 아니라 이 recent_avg를
-    기준으로 계산됐기 때문에, decision_node에서 "before -> after 비용"을
-    표시할 때도 전체 평균이 아니라 이 recent_avg를 "before"로 써야
-    절감액과 앞뒤가 맞는다 (전체 평균을 쓰면 급증 이전 구간에 희석되어
-    after 비용이 0 밑으로 내려가는 문제가 있었음).
+    raw_metrics["cost"]는 5분당 금액이므로 시간당으로 환산한다.
+    recent_avg도 반환하여 "before -> after" 비용 표시에 사용.
     """
     cost_values = raw_metrics.get("cost", [])
     if len(cost_values) < MIN_COST_POINTS_FOR_TREND:
@@ -754,17 +744,8 @@ def _score_components(
           조회할지 여부 — False면 cost 평균 역추정 폴백만 사용)
     출력: 액션 1개에 대한 (saving_rate, impact_score, stability_score, estimated_saving_usd)
 
-    impact_score/stability_score는 [ADDED] 액션 선택이 LLM의 boto3 스펙 기반
-    직접 선택(_select_action_with_llm)으로 바뀌면서 더 이상 추정하지 않고
-    0.0 고정값으로 둔다 (CandidateAction 스키마 호환을 위해 필드는 유지).
-
-    [버그 수정] 이전에는 action=="Resize"일 때 실제 선택 여부와 무관하게
-    항상 describe_instances()를 호출했다 — Resize가 선택되지 않은 경우에도
-    candidate_actions 목록 채우기용으로 매번 실제 AWS 호출이 나가, 병렬 실행 시
-    스로틀링으로 decision 단계가 수십 초씩 늘어지는 원인이 됐다(실측 확인).
-    use_live_lookup=False면 resource_id를 넘기지 않아 _ec2_resize_saving()이
-    자체 내장된 cost 평균 역추정 폴백만 쓰도록 한다 — Resize가 실제 선택된
-    경우에만 정확한 실제 조회값이 필요하므로 그때만 True로 부른다.
+    impact_score/stability_score는 0.0 고정 (CandidateAction 스키마 호환용).
+    use_live_lookup=True면 Resize 시 실제 describe_instances() 호출.
     """
     if action == "NoAction":
         saving, _, _ = RULE_BASED_SCORE_TABLE["NoAction"]
@@ -777,11 +758,7 @@ def _score_components(
     estimated_saving_usd = 0.0
 
     if action == "Block":
-        # [수정] S3 대량다운로드를 risk_security(보안)가 아니라 cost_spike(비용)로
-        # 재분류하면서, Block도 "비용 급증분을 차단하는 조치"로 성격이 바뀌었다.
-        # public 접근을 막으면 그로 인한 초과 다운로드(=비용 유발분)가 실제로
-        # 없어지므로, Throttle/ScaleDown과 동일하게 "기준선 대비 급증분"을
-        # 절감액으로 계산한다 (예전엔 보안 목적이라 인위적으로 0 고정했었음).
+        # Block도 비용 급증분 차단으로 계산 (Throttle/ScaleDown과 동일)
         result = _trend_based_partial_saving(raw_metrics)
         if result is not None:
             saving_rate, estimated_saving_usd, _ = result
