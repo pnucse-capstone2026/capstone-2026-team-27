@@ -18,7 +18,7 @@ detection 입력만 저장된 실측 raw_metrics(재시도폭증이 살아있던
 실제 함수에 실행되며(Throttle) QA는 라이브 지표를 재조회하는 하이브리드인 것은
 EC2 replay와 동일하다.
 
-⚠️ 실제 AWS 액션이 실행된다 (Lambda cost_spike -> DEC-002 -> Throttle,
+실제 AWS 액션이 실행된다 (Lambda cost_spike -> DEC-002 -> Throttle,
    concurrency를 DEFAULT_LAMBDA_THROTTLE_LIMIT로 제한). 같은 함수에 5번
    반복 적용되지만 멱등적이라(같은 값으로 재설정) 문제없다.
 

@@ -11,11 +11,11 @@ measure_classification_accuracy.py를 그대로 쓸 수 있기 때문이다. 바
   - 여기: Lambda 함수를 실제로 호출하되, 일정 비율을 강제 에러로 만든다
           (payload {"force_error": true} → 핸들러가 예외를 던짐 → Errors 지표 상승)
 
-⚠️ 판정은 반드시 실제 프로덕션 detection_node()를 그대로 호출해서 얻는다.
+판정은 반드시 실제 프로덕션 detection_node()를 그대로 호출해서 얻는다.
    (예전 phase_g의 _detect() 헬퍼는 persistence/절대임계값/cost를 빼먹은 낡은 방식이라
     프로덕션과 결과가 달랐다 — s3_repeated_trial.py v4 주석 참고.)
 
-⚠️ 독립 시행을 위해 함수를 13개로 분리한다. CloudWatch 지표는 함수 단위로 집계되므로,
+독립 시행을 위해 함수를 13개로 분리한다. CloudWatch 지표는 함수 단위로 집계되므로,
    한 함수에 13번 반복하면 앞 시행의 트래픽이 뒤 시행의 창에 그대로 남아 시행이
    독립이 아니게 되고 Clopper-Pearson CI의 전제가 깨진다.
    또한 같은 그룹 안에서도 에러율/호출간격을 서로 다르게 준다 — 13개가 전부 같은
@@ -86,7 +86,7 @@ from _runner_tag import runner_suffix
 
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2")
 
-# ⚠️ 트래픽 생성(lambda:InvokeFunction)과 탐지(CloudWatch 조회)의 자격증명 (v2에서 변경).
+# 트래픽 생성(lambda:InvokeFunction)과 탐지(CloudWatch 조회)의 자격증명 (v2에서 변경).
 #   원래는 탐지=.env 프로필 / 유발=profile "default" 로 **고정**돼 있었다. 내 계정 하나만
 #   쓸 때는 맞는 얘기였지만(DetectionRuntimeRole에 lambda:InvokeFunction이 없어서 함수를
 #   만든 프로필로 호출해야 함), .env에 다른 계정의 액세스 키가 들어오면 기본 세션만 그
@@ -264,7 +264,7 @@ def _assert_same_account(invoke_session: boto3.Session | None) -> tuple[str, str
 # S3와 달리 Lambda는 "이상"과 "정상"이 같은 종류의 트래픽이고 에러 비율만 다르다.
 # 그래서 유발 로직을 하나로 두고 error_rate로만 구분한다.
 #
-# ⚠️ [v1 -> v2에서 수정] 원래는 마지막 15분(3개 구간)에만 트래픽을 넣고 나머지 27개
+# [v1 -> v2에서 수정] 원래는 마지막 15분(3개 구간)에만 트래픽을 넣고 나머지 27개
 # 구간은 손대지 않았다. 탐지는 최근 30포인트(2.5시간) 창을 보는데 그 앞부분이 0으로
 # 비어 있으면, z-score가 보는 기준선(평균/표준편차)이 "거의 0"이라 어떤 트래픽이든
 # 기계적으로 크게 튄다 — 즉 "정상 트래픽과 에러 폭증을 구분하는지"가 아니라 "0과
@@ -273,7 +273,7 @@ def _assert_same_account(invoke_session: boto3.Session | None) -> tuple[str, str
 # (n_points - spike_periods)개 구간을 baseline_error_rate로, 마지막 spike_periods개
 # 구간만 목표 에러율로 올린다. normal은 30개 구간 전부 평상시 수준을 유지한다.
 #
-# ⚠️ 비동기(Event) 호출이라 에러가 나면 Lambda가 기본 2회까지 자동 재시도하고, 그
+# 비동기(Event) 호출이라 에러가 나면 Lambda가 기본 2회까지 자동 재시도하고, 그
 # 재시도도 Invocations/Errors에 그대로 잡힌다 — 이게 바로 이 시나리오가 재현하려는
 # "재시도 폭증"이므로 의도된 동작이다(강제로 만든 에러율보다 실제 관측 에러율이 더
 # 높게 나오는 이유).

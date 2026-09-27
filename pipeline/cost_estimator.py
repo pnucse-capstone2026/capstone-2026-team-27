@@ -4,13 +4,13 @@ pipeline/cost_estimator.py
 Phase B: Cost Explorer 대신, CloudWatch 사용량 지표 + AWS 공개 단가로 비용을 직접 계산.
 Cost Allocation Tag 활성화(최대 24시간 대기) 없이 즉시 사용 가능.
 
-⚠️ 이건 "실제 청구액"이 아니라 추정치. Savings Plan 할인, 프리티어, 세부 리전
+이건 "실제 청구액"이 아니라 추정치. Savings Plan 할인, 프리티어, 세부 리전
    요금 차이 등은 반영 안 됨 — 이상 탐지(평소 대비 몇 배 증가했는가) 목적으로는 충분.
 
 단가 출처: AWS Pricing API(ap-northeast-2)로 직접 조회한 실제 값 (조회일 2026-08-25).
 가격은 바뀔 수 있으므로 주기적으로 재확인 필요.
 
-⚠️ 중요한 한계: EC2/RDS/AutoScaling은 "인스턴스가 켜져 있는 시간 × 시간당 단가"라서
+중요한 한계: EC2/RDS/AutoScaling은 "인스턴스가 켜져 있는 시간 × 시간당 단가"라서
    사용률(CPU/네트워크)과 무관하게 켜져 있는 동안은 cost가 항상 일정(flat)하다.
    즉 실사용 환경에서는 이 3개 리소스 타입의 cost 시계열이 좀비 리소스처럼 사용률이
    낮아도 스파이크를 일으키지 않는다 — Z-score의 cost 트리거는 주로 Lambda/S3처럼

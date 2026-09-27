@@ -96,7 +96,7 @@ def _make_metrics(resource_type: str) -> dict[str, list[float]]:
 def _measure_iforest_inference(resource_type: str, metrics: dict, model_dir: str) -> float:
     """캐시된 모델로 decision_function만 실행하는 순수 추론 시간 측정.
 
-    ⚠️ 리소스 타입별 개별 파일(iforest_{resource_type}.pkl)로 캐싱하던 예전 구조 기준
+    리소스 타입별 개별 파일(iforest_{resource_type}.pkl)로 캐싱하던 예전 구조 기준
     코드였음 — 지금은 IFOREST_UNIFIED_MODEL_NAME("unified") 하나로 전 타입을 같이
     캐싱하므로 그에 맞게 로드/피처 구성 방식을 수정."""
     da.IFOREST_MODEL_DIR = model_dir
@@ -160,11 +160,11 @@ def _measure_detection_node(resource_type: str, metrics: dict, model_dir: str) -
 
 def _verdict(avg_sec: float) -> str:
     if avg_sec < PASS_THRESHOLD:
-        return "✅ PASS (1초 미만)"
+        return "PASS (1초 미만)"
     elif avg_sec < FAIL_THRESHOLD:
-        return "⚠️  WARN (1초 이상 10초 미만)"
+        return " WARN (1초 이상 10초 미만)"
     else:
-        return "❌ FAIL (10초 이상)"
+        return "FAIL (10초 이상)"
 
 
 def _print_result(label: str, times: list[float]) -> str:
@@ -261,9 +261,9 @@ def main() -> None:
 
     print()
     if all_pass:
-        print("  최종 판정: ✅ 전 리소스 타입 기준 통과")
+        print("  최종 판정: 전 리소스 타입 기준 통과")
     else:
-        print("  최종 판정: ❌ 일부 리소스 타입 기준 초과 — 최적화 필요")
+        print("  최종 판정: 일부 리소스 타입 기준 초과 — 최적화 필요")
     print("=" * 100)
 
 

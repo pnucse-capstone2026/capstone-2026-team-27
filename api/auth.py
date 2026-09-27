@@ -31,7 +31,7 @@ _sessions: dict[str, dict] = {}
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=5)
 
-# ⚠️ 계정을 돌려가며 시도하면(id1 5번 -> id2 5번 -> ...) username별 제한만으로는
+# 계정을 돌려가며 시도하면(id1 5번 -> id2 5번 -> ...) username별 제한만으로는
 # 시스템 전체 시도 횟수가 계정 수만큼 늘어나는 허점이 있다. "전체 합산 잠금"으로
 # 막아볼 수도 있지만, 그러면 아무나 아무 계정에나 몇 번 틀리기만 해도 관리자
 # 전원이 한꺼번에 잠기는 더 큰 문제(셀프 DoS)가 생겨서 채택하지 않았다 — 이

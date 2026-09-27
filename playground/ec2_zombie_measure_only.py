@@ -26,7 +26,7 @@ from playground.ec2_zombie_real_pipeline_trial import (
 _setup_logging()
 ec2, ssm = _setup_clients()
 
-# ⚠️ 2026-09-13 발견: measure()가 스레드마다 처음으로 boto3 클라이언트를 만드는데,
+# 2026-09-13 발견: measure()가 스레드마다 처음으로 boto3 클라이언트를 만드는데,
 # detection-runtime 프로파일이 source_profile=default로 역할을 위임(assume role)하는
 # 체인이라, 13개 스레드가 동시에 최초 자격증명 해석을 시도하면 botocore 내부 상태가
 # 스레드-안전하지 않아 "Infinite loop in credential configuration detected"라는

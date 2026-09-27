@@ -8,13 +8,13 @@ Lambda "에러 재시도 폭증" 시나리오의 파이프라인 타이밍/절�
 3개 모두에 대해 병렬로 돌린다. measure()는 리소스 타입과 무관하게 이미 작성돼 있으므로
 그대로 재사용하고, 이 스크립트가 새로 하는 일은 "Lambda에 이상을 유발하는 것"뿐이다.
 
-⚠️ 유발 시간(--induce-minutes)의 기본값 15분에는 이유가 있다. detection_agent의
+유발 시간(--induce-minutes)의 기본값 15분에는 이유가 있다. detection_agent의
    _lambda_error_rate_check는 최근 PERSISTENCE_WINDOW_POINTS(=3)개 포인트가 "전부"
    invocation_count >= 10 AND error_count/invocation_count >= 0.5 여야 트리거된다.
    포인트 하나가 5분이므로 3개 = 15분. 이보다 짧으면 마지막 구간만 채워져서 지속성
    조건에 걸리고, 파이프라인이 detection에서 끝나 Action/QA 시간을 못 잰다.
 
-⚠️ 이 스크립트는 **실제 액션을 실행한다**. Lambda cost_spike -> Throttle(DEC-002)이므로
+이 스크립트는 **실제 액션을 실행한다**. Lambda cost_spike -> Throttle(DEC-002)이므로
    대상 함수의 예약 동시성이 action_agent.DEFAULT_LAMBDA_THROTTLE_LIMIT(=5)로 설정된다.
    원복은 --restore 로 따로 실행한다 — 측정 직후에 원복하면 안 되기 때문이다:
    verify_cost_predictions.py(가이드 D)가 60분 뒤에 "예측한 절감액이 실제로 실현됐는지"를
@@ -133,7 +133,7 @@ def _concurrency_snapshot_path(function_name: str) -> Path:
 
 
 def snapshot_concurrency_before_run(targets: list[str]) -> None:
-    """⚠️ 2026-09-13 수정: 예전엔 --restore 시점에 "현재 값"을 조회해서 그걸 기준으로
+    """2026-09-13 수정: 예전엔 --restore 시점에 "현재 값"을 조회해서 그걸 기준으로
     원복 여부를 판단했다 — 이러면 원래(=--run 시작 전) 동시성이 unset이 아니라 어떤
     값으로 설정돼 있던 경우, --restore가 그 진짜 원래 값을 모른 채 "설정돼 있으니
     삭제"해버려서 원래 설정을 지워버리는 사고가 날 수 있다(lambda_throttle_retry_trial.py

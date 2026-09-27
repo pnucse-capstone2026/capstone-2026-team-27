@@ -17,12 +17,12 @@ batch_pipeline_run.py는 detection도 라이브 CloudWatch를 조회한다. 그�
   - 좀비 5대 -> classification -> decision -> action -> qa 까지 진행
 결과적으로 라벨이 유효한 판정 위에서 Action 성공률 / QA / 실행시간을 재게 된다.
 
-⚠️ 하이브리드임을 분명히 해둔다.
+하이브리드임을 분명히 해둔다.
    detection 입력만 저장된 과거 실측이고, action은 **실제 현재 리소스**에 실행되며
    QA는 라이브 지표를 재조회한다. detection_node/classification_node/decision_node는
    raw_metrics만 보는 순수 함수라 재생이 성립하지만, action/qa는 그렇지 않다.
 
-⚠️ 실제 AWS 액션이 실행된다 (EC2 cost_inefficiency -> DEC-001).
+실제 AWS 액션이 실행된다 (EC2 cost_inefficiency -> DEC-001).
    대상 인스턴스가 running 상태여야 의미가 있으므로, 필요하면 --ensure-running으로
    먼저 start하고 running이 될 때까지 기다린다.
 

@@ -4,7 +4,7 @@ playground/ec2_zombie_real_pipeline_trial.py
 EC2 "좀비 인스턴스" 시나리오의 실 AWS 종단 검증 (정상 8 / 이상 5,
 run_3x_real_pipeline.py와 동일한 구조).
 
-⚠️ 배경 (2026-09-13 조사로 확인된 문제 재발 방지):
+배경 (2026-09-13 조사로 확인된 문제 재발 방지):
    batch_pipeline_run.py의 9/9 18:39 UTC 실행에서 "normal" 라벨 8대 중
    처리된 5대 전부가 cost_inefficiency로 오탐됐다. 원인은 탐지 로직 결함이
    아니라 **타이밍**이었다 — 원래 부하 생성기가 11:40~14:42 UTC(3시간)만
@@ -31,13 +31,13 @@ run_3x_real_pipeline.py와 동일한 구조).
    EC2 유휴 체크(_low_utilization_check)는 윈도우 내 "peak"(최댓값) 기준이라,
    각 프로파일 다 최소 한 구간에서는 5% 임계값을 확실히 넘도록 설계했다.
 
-⚠️ 신생 인스턴스 나이 가드: EC2 유휴 판정은 resource_age_seconds가
+신생 인스턴스 나이 가드: EC2 유휴 판정은 resource_age_seconds가
    _EC2_IDLE_WINDOW_HOURS(2.5시간) 미만이면 보류된다. 인스턴스를 정지 후
    재시작하면 LaunchTime이 그 시점으로 갱신되므로(실측 확인됨), 최소
    2.5시간을 기다려야 "이상"(anomaly) 5대도 정상적으로 판정 대상이 된다.
    WAIT_BEFORE_MEASURE_SEC=3시간으로 여유를 둔다.
 
-⚠️ 실제 비용 발생: t3.micro 13대 x 4시간 정도 (대략 수백원 수준으로 추정).
+실제 비용 발생: t3.micro 13대 x 4시간 정도 (대략 수백원 수준으로 추정).
 
 [실행 방법]
   python playground/ec2_zombie_real_pipeline_trial.py --run
@@ -72,7 +72,7 @@ from playground.measure_pipeline_timing import measure
 
 AWS_REGION = "ap-northeast-2"
 
-# ⚠️ .env의 AWS_PROFILE(detection-runtime)은 최소권한이라 IAM instance-profile
+# .env의 AWS_PROFILE(detection-runtime)은 최소권한이라 IAM instance-profile
 # 연결/SSM 명령 실행 권한이 없다 — lambda_throttle_retry_trial.py와 동일한 이유로
 # 이 스크립트의 "테스트 셋업" 전용 클라이언트는 SETUP_PROFILE을 명시적으로 쓴다.
 SETUP_PROFILE = "default"
@@ -214,7 +214,7 @@ def start_and_prepare(ec2, ssm, targets: list[tuple[str, str, str]]) -> None:
 def inject_load(ssm, targets: list[tuple[str, str, str]]) -> None:
     """"normal" 라벨 인스턴스에만 프로파일별 부하를 건다. "anomaly"는 그대로 둔다.
 
-    ⚠️ 2026-09-13 버그로 발견: send_command의 최상위 TimeoutSeconds는 "명령이
+    2026-09-13 버그로 발견: send_command의 최상위 TimeoutSeconds는 "명령이
     시작되길 기다리는 시간"이지 "실행 지속시간"이 아니다 — AWS-RunShellScript의
     실제 실행 시간 제한은 Parameters.executionTimeout(플러그인 레벨, 기본 3600초
     =1시간)이 따로 있는데 이걸 빠뜨려서, 4시간짜리 부하 스크립트가 1시간 만에

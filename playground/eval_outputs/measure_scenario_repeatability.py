@@ -5,7 +5,7 @@ test_scenarios.py의 3개 시나리오(좀비 EC2 / Lambda 호출 폭증 / EDoS 
 N회 반복 실행해서, 탐지 스코어(z-score/iforest)와 처리 시간(elapsed)의
 평균/표준편차를 뽑는다. 포스터/보고서용 에러바 차트 데이터 소스.
 
-⚠️ raw_metrics는 test_scenarios.py와 동일하게 여전히 "만든" 값이다 (실제
+raw_metrics는 test_scenarios.py와 동일하게 여전히 "만든" 값이다 (실제
 CloudWatch/Cost Explorer에서 가져온 값이 아니다 — resource_id만 .env의 실제
 AWS 리소스 ID를 쓰고, 지표 자체는 시나리오 취지에 맞춰 사람이 설계한 고정
 패턴이다). 원본과의 차이는, 그 고정 패턴 위에 매 반복(rep)마다 독립적인

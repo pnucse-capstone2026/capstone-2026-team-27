@@ -5,7 +5,7 @@ s3_repeated_trial.py(또는 동일 스키마의 다른 리소스용 반복실험
 읽어서, Z-score 단독 / IForest 단독 / 실제 앙상블(OR 결합, 프로덕션 그대로)의
 accuracy/recall/FPR을 따로 계산한다.
 
-⚠️ 한계: 여기서 쓰는 "IForest 단독"/"Z-score 단독" 판정은 각 지표의 원점수를
+한계: 여기서 쓰는 "IForest 단독"/"Z-score 단독" 판정은 각 지표의 원점수를
 IFOREST_THRESHOLD(0.5)/Z_SCORE_THRESHOLD(2.75)와 단순 비교한 근사치다. 실제
 detection_node()의 판정은 지속성 체크(최근 K개 연속 조건)까지 포함하는데, 그
 지속성 체크에 쓰인 개별 시점별 점수는 결과 JSON에 저장돼 있지 않아서 정확히
@@ -113,7 +113,7 @@ def main() -> None:
             print(f"  recall 95% CI=[{rec_ci[0]*100:.1f}%, {rec_ci[1]*100:.1f}%]")
         print()
 
-    print("⚠️ 단독 수치는 지속성 체크 미반영 근사치, 앙상블만 정확한 실측값\n")
+    print("단독 수치는 지속성 체크 미반영 근사치, 앙상블만 정확한 실측값\n")
     show("Z-score 단독 (근사)", zscore_metrics)
     show("IForest 단독 (근사)", iforest_metrics)
     show("앙상블 (실측, 프로덕션 detection_node 그대로)", ensemble_metrics, is_ensemble=True)

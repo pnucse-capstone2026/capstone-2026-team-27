@@ -156,7 +156,7 @@ def _wait_ssm_online(instance_ids: list[str], timeout_sec: int = 300) -> None:
             time.sleep(10)
     if pending:
         print(
-            f"⚠️ SSM 미등록 상태로 타임아웃됨(재부팅 필요할 수 있음): {sorted(pending)}"
+            f"SSM 미등록 상태로 타임아웃됨(재부팅 필요할 수 있음): {sorted(pending)}"
         )
 
 

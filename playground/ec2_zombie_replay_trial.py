@@ -20,7 +20,7 @@ IForest 모델만 최신으로 바꿔서 다시 통과시킨다. 재생이 유�
     정상/이상 구분이 실제로 존재한다 (normal-heavy CPU 25% vs anom-silent 0.3%)
   - IForest 모델은 seed_iforest_from_scenario_mock.py로 재학습된 최신본이 쓰인다
 
-⚠️ 따라서 이 결과의 z-score/IForest 점수는 원본 측정 당시 값이 아니라 **재학습된
+따라서 이 결과의 z-score/IForest 점수는 원본 측정 당시 값이 아니라 **재학습된
    모델 기준의 최신 값**이다. 원본과 다를 수 있고, 그게 의도다.
 
 [실행 방법]

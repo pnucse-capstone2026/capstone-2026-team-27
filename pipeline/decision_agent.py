@@ -57,7 +57,7 @@ def _log_cost_prediction(
 ) -> None:
     """결정 시점의 예측 절감액을 한 줄 append. NoAction은 검증할 예측이 없으므로 스킵.
 
-    ⚠️ risk_level/requires_approval은 state.get()이 아니라 인자로 직접 받는다 —
+    risk_level/requires_approval은 state.get()이 아니라 인자로 직접 받는다 —
     이 함수가 decision_node 안에서 state["risk_level"]을 실제로 대입하기 *전에*
     호출되기 때문에, state에서 읽으면 이전 호출의 값(또는 초기값 None)이 찍히는
     버그가 있었다.

@@ -184,7 +184,7 @@ def setup_buckets(n_anomaly: int, n_normal: int) -> tuple[list[str], list[str]]:
 
 
 # ── 탐지 (실제 프로덕션 detection_node()를 그대로 호출) ─────────────────────────
-# ⚠️ [v3 -> v4에서 수정] 원래 여기서 z_max/iforest_score를 직접 계산했는데, 이게
+# [v3 -> v4에서 수정] 원래 여기서 z_max/iforest_score를 직접 계산했는데, 이게
 # 실제 detection_node()와 규칙이 달랐다:
 #   - z-score: detection_node는 최근 3개 연속 초과(_zscore_check_persistent) 기준인데
 #     여기는 창 30개 중 아무 점이나 초과하면 트리거(_zscore_max)로 계산 — 훨씬 느슨함
@@ -229,7 +229,7 @@ def detect(resource_type: str, resource_id: str, n_points: int = 30, period_seco
 
 # ── anomaly 시행 (27개 구간 정상 트래픽 + 마지막 3개 구간 폭증, generate_mock_s3.py의
 #    generate_anomaly_s3_window와 동일한 구조) ──────────────────────────────────
-# ⚠️ [v2 -> v3에서 수정] "이전(before)"이 텅 빈 배경이면 아무 신호나 다 이상으로
+# [v2 -> v3에서 수정] "이전(before)"이 텅 빈 배경이면 아무 신호나 다 이상으로
 # 보여서 "진짜 폭증을 정상과 구분해내는지"를 검증하는 게 아니라 "0과 0 아님을
 # 구분하는지"만 보게 된다 — normal 시행과 같은 이유로 여기도 실제 정상 배경을
 # 먼저 깔아야 한다.
@@ -294,7 +294,7 @@ def run_anomaly_trial(bucket: str, rep: int, multiplier: float, object_size_byte
 # 침묵(0건)이 아니라 이 정도 꾸준한 트래픽에서도 오탐이 없어야 진짜 "정상 오탐률"
 # 검증이 된다.
 #
-# ⚠️ [v2 -> v3에서 수정] 마지막 5분 구간에만 트래픽을 몰아넣으면, 나머지 29개 구간이
+# [v2 -> v3에서 수정] 마지막 5분 구간에만 트래픽을 몰아넣으면, 나머지 29개 구간이
 # 여전히 0으로 비어있어서 "거의 텅 빈 배경 대비 극단적 스파이크"로 보여 오탐이 100%
 # 나오는 구조적 문제가 있었다(실측으로 확인됨: normal 8개 z_max가 전부 5.38로 동일 —
 # 배경이 0에 가까워 어떤 크기의 트래픽이든 기계적으로 크게 튀는 현상). 그래서

@@ -13,18 +13,18 @@ s3_repeated_trial.py / ec2_lambda_repeated_trial.py와 같은 설계를 따른�
 - 판정은 teammate_compat(옛 phase_g 방식) / production(detection_node 실제 방식)
   둘 다 기록한다. 판정 로직은 ec2_lambda_repeated_trial.detect_both()에 일원화.
 
-⚠️ 두 시나리오 모두 절대임계값 체크가 없다(EC2 유휴·Lambda 재시도폭증과 달리).
+두 시나리오 모두 절대임계값 체크가 없다(EC2 유휴·Lambda 재시도폭증과 달리).
    따라서 z-score와 IForest가 유일한 탐지 수단이고, production과 iforest_only의
    차이는 z-score 기여분뿐이다.
 
-⚠️ 워밍업(베이스라인 히스토리)이 결과를 좌우한다:
+워밍업(베이스라인 히스토리)이 결과를 좌우한다:
    탐지는 최근 30포인트(2.5시간) 창을 본다. 리소스를 새로 만들면 생성 이전 구간이
    CloudWatch에서 0으로 채워져서(cloudwatch_client 주석 참고), 어떤 트래픽이든
    "0에서 갑자기 튀어오른 것"처럼 보여 탐지율이 실제보다 좋게 나온다.
    그래서 --baseline-minutes 기본값을 150분(=창 전체)으로 뒀다. 짧게 줄이면
    결과가 낙관적으로 왜곡되므로, 줄일 경우 보고서에 그 사실을 명시해야 한다.
 
-⚠️ EDoS는 실제 EC2 인스턴스가 뜬다(비용 + vCPU 쿼터):
+EDoS는 실제 EC2 인스턴스가 뜬다(비용 + vCPU 쿼터):
    ASG 13개 × 베이스라인 용량 + anomaly 스파이크만큼 인스턴스가 동시에 존재한다.
    --vcpu-limit(기본 32, 계정 쿼터 L-1216C47A 값)로 예상 최대 vCPU를 사전 계산해서
    초과하면 실행을 거부한다. t3.micro=2vCPU 기준이므로 파라미터를 반드시 확인할 것.
@@ -280,7 +280,7 @@ def check_edos_quota(n_anomaly: int, n_normal: int, vcpu_limit: int) -> None:
 
 def setup_edos(n_anomaly: int, n_normal: int) -> list[str]:
     """ASG를 생성하고 group metrics collection을 켠다.
-    ⚠️ group metrics collection을 안 켜면 GroupDesiredCapacity/GroupInServiceInstances가
+    group metrics collection을 안 켜면 GroupDesiredCapacity/GroupInServiceInstances가
     CloudWatch에 아예 안 올라간다(S3의 Request Metrics와 같은 성격)."""
     asg = boto3.client("autoscaling", region_name=AWS_REGION)
     ec2 = boto3.client("ec2", region_name=AWS_REGION)

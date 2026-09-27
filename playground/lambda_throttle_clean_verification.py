@@ -8,7 +8,7 @@ CloudWatch 지표 이력이 오염됨(Z-score 자기참조 베이스라인이 �
 Lambda 함수 13개를 만들어 깨끗한 CloudWatch 이력으로 IForest 단독 탐지 정확도를
 재검증한다.
 
-⚠️ 이번 검증은 detection(탐지)만 본다 — classification 폴백
+이번 검증은 detection(탐지)만 본다 — classification 폴백
 (rule_engine._extract_spike_metrics)의 latest/mean 자기희석 문제는 별도
 이슈로 분리됨(사용자 확인: "IF만으로만 탐지할건데 저건 상관없지" — CLF-007
 매칭 실패 시 LLM 분류로 넘어가도 cost_spike는 정상 분류되므로 탐지 정확도엔

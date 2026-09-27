@@ -3,7 +3,7 @@ pipeline/orchestrator.py
 
 Phase E: 오케스트레이션 — 디스커버리(C) → 지표/비용 수집(A+B) → 순차 스캔(Phase 0).
 
-⚠️ 안전 설계: run_detection_cycle()은 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은
+안전 설계: run_detection_cycle()은 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은
    자동 실행하지 않는다 — anomaly_flag=True인 리소스 목록만 반환하고, 그걸 실제
    app.invoke()로 이어서 액션까지 실행할지는 호출부(사람)가 명시적으로 결정해야 한다.
 """

@@ -556,7 +556,7 @@ def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
     QA 실패 확정 시 pre_action_snapshot으로 즉시 롤백을 실행한다.
     (A안: 실행 실패/SLA 위반 구분 없이 항상 동일하게 롤백한다)
 
-    ⚠️ action_result에 "이 액션은 이후 롤백되었다"는 사실을 명확히 남긴다.
+    action_result에 "이 액션은 이후 롤백되었다"는 사실을 명확히 남긴다.
        action_result는 schema/state.py에서 Optional[dict]로만 선언돼 있어
        (필드 구조가 고정된 TypedDict가 아님) 스키마 필드명을 바꾸지 않고도
        아래 키들을 안전하게 추가할 수 있다:

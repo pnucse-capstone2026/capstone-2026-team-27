@@ -36,7 +36,7 @@ import pipeline.detection_agent as da
 
 def compute_all_signals(resource_type: str, metrics: dict, resource_age_seconds=None) -> dict:
     """4개 메커니즘 + OR게이트를 전부 독립적으로 계산.
-    ⚠️ z-score는 detection_node의 triggered_metrics를 그대로 읽으면 idle/error_surge
+    z-score는 detection_node의 triggered_metrics를 그대로 읽으면 idle/error_surge
     체크가 같은 리스트에 결과를 이어붙이는 것 때문에 오염된다 - z-score 루프를
     독립적으로 재현해서 별도 boolean으로 받는다."""
     z_triggered = False

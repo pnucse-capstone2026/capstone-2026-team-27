@@ -6,7 +6,7 @@ selected_action/action_result. rollback_action도 여기 둔다 — "방금 실�
 것을 되돌리는" 책임은 애초에 실행한 사람(C)이 가장 잘 알기 때문이다
 (QA는 "통과했는지"만 판단하지 "어떻게 되돌리는지"는 모른다).
 
-⚠️ 데모용 run_action은 성공/실패를 resource_id 문자열로 흉내낸다 — 재시도
+데모용 run_action은 성공/실패를 resource_id 문자열로 흉내낸다 — 재시도
    루프가 실제로 도는 걸 재현성 있게 보여주기 위한 장치일 뿐, 실제 SLA
    판단 로직이 아니다.
      - resource_id에 "FAIL"이 들어있으면 항상 실패 (재시도 소진 시나리오)

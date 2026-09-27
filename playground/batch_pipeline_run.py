@@ -9,13 +9,13 @@ measure_pipeline_timing.py는 리소스 1개 전용이라, 13개 시행을 재�
 실행해야 하고 결과도 합쳐지지 않는다. 이 스크립트는 그 measure()를 그대로 재사용해서
 (판정 로직 중복 구현 없이) 병렬로 돌리고 결과를 한 파일에 모은다.
 
-⚠️ 실제 AWS 액션이 실행된다.
+실제 AWS 액션이 실행된다.
    - EC2  cost_inefficiency -> DEC-001 -> Stop     (risk=LOW,  승인 불필요)
    - Lambda cost_spike      -> DEC-002 -> Throttle (risk=MED,  승인 필요)
    Lambda처럼 requires_approval=True인 경로는 measure()가 승인 게이트에서 멈추고
    stopped_at="approval_gate"로 반환한다 — 이게 실제 운영 동작이므로 그대로 기록한다.
 
-⚠️ Lambda는 "이상 상태"가 시간이 지나면 사라진다.
+Lambda는 "이상 상태"가 시간이 지나면 사라진다.
    에러 폭증 트래픽이 끝나고 시간이 지나면 탐지 창의 최근 구간이 무트래픽이 되어
    지속성 체크가 통과하지 않는다(실측: 트래픽 종료 24분 뒤 anomaly_flag=False).
    그래서 --lambda-traffic-minutes 로 파이프라인 직전에 트래픽을 다시 만들 수 있다.
