@@ -459,7 +459,7 @@ def _derived_features(
 
     # ec2_idle_flag: _low_utilization_check(판정 로직 원본)를 그대로 재사용해
     # 윈도우 단위 boolean을 얻고, n_points개 전부 같은 값으로 broadcast한다.
-    _, idle_triggered = _low_utilization_check(
+    _, idle_triggered, _ = _low_utilization_check(
         resource_type, metrics, resource_age_seconds
     )
     ec2_idle_flag = [1.0 if idle_triggered else 0.0] * n
@@ -1185,6 +1185,7 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "anomaly_score_iforest": None,
         "triggered_metrics": [],
         "shap_top_features": None,
+        "ec2_utilization_band": None,
         "anomaly_type": None,
         "classification_reasoning": None,
         "interim_action_taken": None,
@@ -1195,15 +1196,24 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "requires_approval": False,
         "decision_reasoning": None,
         "target_instance_type": None,
+        "decision_pseudo_code": "",
+        "matched_decision_rule_id": None,
         "pre_action_snapshot": None,
         "action_executed": None,
         "action_result": None,
+        "dry_run": False,
+        "apply_waf": False,
+        "waf_rate_limit": 2000,
+        "associated_alb_arn": None,
         "qa_passed": None,
         "sla_check_result": None,
         "rollback_count": 0,
         "qa_matched_rule_id": None,
         "whitelisted": False,
+        "pre_action_raw_metrics": None,
+        "step_timings": {},
         "log_entries": [],
+        "_demo_replay": None,
     }
 
 

@@ -13,14 +13,15 @@ import ToastStack from "./components/Toast.jsx";
 import { api, AuthError, getStoredToken, logout as apiLogout } from "./api.js";
 import { colors, applyTheme, getStoredTheme, font, gridBackground } from "./styles.js";
 
+// Vite HMR로 App 컴포넌트가 재마운트될 때 이전 폴링 인터벌이 남아 setInterval이 중복 실행되는 문제가 발생했다. 
+// 모듈 스코프 변수로 인터벌 ID를 유지하고, 새 인터벌을 시작하기 전에 기존 인터벌을 정리해 중복 폴링을 방지한다.
+let _activeNotifPollIntervalId = null;
+
 export default function App() {
   const [isAuthed, setIsAuthed] = useState(() => !!getStoredToken());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [theme, setTheme] = useState(getStoredTheme);
 
-  // applyTheme()는 colors 객체를 그 자리에서 바꿔치기(mutate)한다 — 렌더링 도중에
-  // 바로 호출해야 이 렌더 사이클에서 만들어지는 모든 인라인 스타일이 새 테마를
-  // 즉시 반영한다 (useEffect로 하면 한 프레임 늦게 반영돼서 깜빡임이 생김).
   applyTheme(theme);
 
   const [status, setStatus] = useState(null);
@@ -105,9 +106,19 @@ export default function App() {
         })
         .catch(() => {});
     };
+    // HMR 등으로 이전 인스턴스의 인터벌이 안 지워진 채 남아있으면 먼저 정리
+    if (_activeNotifPollIntervalId !== null) {
+      clearInterval(_activeNotifPollIntervalId);
+    }
     poll();
     const interval = setInterval(poll, 2000);
-    return () => clearInterval(interval);
+    _activeNotifPollIntervalId = interval;
+    return () => {
+      clearInterval(interval);
+      if (_activeNotifPollIntervalId === interval) {
+        _activeNotifPollIntervalId = null;
+      }
+    };
   }, [isAuthed]);
 
   useEffect(() => {

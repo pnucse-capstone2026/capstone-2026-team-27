@@ -44,7 +44,6 @@ SCRIPT_VERSION = "1"
 import argparse
 import json
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -62,14 +61,15 @@ from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
-# 좀비 실험 인스턴스와 동일한 AMI/보안그룹/서브넷 재사용 (SSM agent 설치 확인된 조합)
-AMI_ID = "ami-08d82cf148c92fcc3"
-SECURITY_GROUP_IDS = ["sg-01eb420b11ed6706e"]
-SUBNET_ID = "subnet-08c39c64faa7c9364"
+# [2026-09-27] 새 AWS 계정으로 전환하면서 재생성 — AL2023 + 새 계정 기본 VPC의 서브넷 +
+# 새로 만든 보안그룹. IAM 인스턴스 프로파일은 더 이상 안 씀(SCP로 차단된 계정이라
+# User Data 방식으로 전환 - _user_data_script 참고).
+AMI_ID = "ami-03137ee2d0c5af1fe"
+SECURITY_GROUP_IDS = ["sg-0efaaff8859d72eac"]
+SUBNET_ID = "subnet-047c2d08f2bd45ed7"
 INSTANCE_TYPE = (
     "t3.small"  # t3.micro는 최저 tier라 Resize 절감액이 항상 0 — 반드시 한 단계 위
 )
-IAM_INSTANCE_PROFILE = "detection-test-ec2-ssm-role"
 N_VCPU = 2  # t3.small
 
 N_ANOMALY = 5
@@ -95,36 +95,44 @@ def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> li
     stress-ng 등 별도 설치 없이 AL2023 기본 셸만으로 동작하도록 설계."""
     busy = round(DUTY_CYCLE_PERIOD_SEC * target_pct / 100, 3)
     idle = round(DUTY_CYCLE_PERIOD_SEC - busy, 3)
-    # [버그 수정, 2026-09-11] \$로 이스케이프해야 한다 — bash -c "..."로 한 겹 더
-    # 감싸므로, 안 하면 바깥 셸이 $(date +%s)를 dispatch 시점에 한 번만 계산해
-    # 고정값으로 박아버려서 반복문이 살아있는 시계를 못 본다(실측으로 확인).
+    # User Data 스크립트 안에서 직접 실행되므로(SSM RunCommand의 bash -c "..." 한 겹이
+    # 없음), $(date +%s)를 이스케이프할 필요가 없다 - 그냥 셸이 매 반복마다 재평가한다.
     loop = (
-        f"END=\\$(( \\$(date +%s) + {duration_sec} )); "
-        f"while [ \\$(date +%s) -lt \\$END ]; do "
+        f"END=$(( $(date +%s) + {duration_sec} )); "
+        f"while [ $(date +%s) -lt $END ]; do "
         f"timeout {busy} yes > /dev/null 2>&1; sleep {idle}; "
         f"done"
     )
-    # [버그 수정, 2026-09-11] nohup bash -c "..." & 만으로는 SSM RunCommand 세션이
-    # 종료될 때 프로세스 그룹째 정리돼서 백그라운드 루프가 죽어버린다(실측으로 확인 —
-    # 13대 전부 실제 CPU가 계속 ~0.2%로 남아있었음, 목표 12%/45%가 전혀 반영 안 됨).
-    # systemd-run으로 SSM 세션과 완전히 독립된 transient 서비스로 띄워야 살아남는다.
+    # systemd-run으로 띄워야 User Data 스크립트(cloud-init) 자체가 끝난 뒤에도
+    # 백그라운드 루프가 계속 살아남는다(SSM 세션 종료 시 죽던 것과 같은 이유).
     return [
-        f"sudo systemd-run --unit=cpuload-{i} --property=Type=simple "
-        f'-- bash -c "{loop}"'
+        f'systemd-run --unit=cpuload-{i} --property=Type=simple -- bash -c "{loop}"'
         for i in range(n_vcpu)
     ]
 
 
-def _launch_instances(label: str, n: int, name_prefix: str) -> list[str]:
+def _user_data_script(target_pct: float, duration_sec: int, n_vcpu: int) -> str:
+    """EC2 User Data(부팅 시 자동 실행, root 권한 - IAM 인스턴스 프로파일 불필요)로
+    duty-cycle CPU 부하를 건다. 이 계정은 SCP로 EC2에 IAM 역할을 붙이는 것 자체가
+    막혀있어(2026-09-27 실측 확인 - 인스턴스 프로파일 없이는 launch 성공, 붙이면
+    "Invalid IAM Instance Profile" 에러) SSM(RunCommand)을 쓸 수 없다 - User Data는
+    IAM과 무관한 별도 경로라 이 제약을 그대로 우회한다."""
+    commands = _duty_cycle_command(target_pct, duration_sec, n_vcpu)
+    body = "\n".join(commands)
+    return f"#!/bin/bash\n{body}\n"
+
+
+def _launch_instances(
+    label: str, n: int, name_prefix: str, user_data: str | None = None
+) -> list[str]:
     ec2 = boto3.client("ec2")
-    resp = ec2.run_instances(
+    kwargs = dict(
         ImageId=AMI_ID,
         InstanceType=INSTANCE_TYPE,
         MinCount=n,
         MaxCount=n,
         SecurityGroupIds=SECURITY_GROUP_IDS,
         SubnetId=SUBNET_ID,
-        IamInstanceProfile={"Name": IAM_INSTANCE_PROFILE},
         TagSpecifications=[
             {
                 "ResourceType": "instance",
@@ -136,41 +144,29 @@ def _launch_instances(label: str, n: int, name_prefix: str) -> list[str]:
             }
         ],
     )
+    if user_data:
+        kwargs["UserData"] = user_data
+    resp = ec2.run_instances(**kwargs)
     ids = [i["InstanceId"] for i in resp["Instances"]]
     print(f"[{label}] {n}대 launch 요청: {ids}")
     return ids
-
-
-def _wait_ssm_online(instance_ids: list[str], timeout_sec: int = 300) -> None:
-    ssm = boto3.client("ssm")
-    deadline = time.time() + timeout_sec
-    pending = set(instance_ids)
-    while pending and time.time() < deadline:
-        info = ssm.describe_instance_information(
-            Filters=[{"Key": "InstanceIds", "Values": list(pending)}]
-        )
-        online = {
-            i["InstanceId"]
-            for i in info["InstanceInformationList"]
-            if i["PingStatus"] == "Online"
-        }
-        pending -= online
-        if online:
-            print(f"  SSM 온라인 확인: {sorted(online)}")
-        if pending:
-            time.sleep(10)
-    if pending:
-        print(
-            f"⚠️ SSM 미등록 상태로 타임아웃됨(재부팅 필요할 수 있음): {sorted(pending)}"
-        )
 
 
 def setup() -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     name_prefix = f"detection-test-ec2-overprovision-{ts}"
 
-    anomaly_ids = _launch_instances("anomaly", N_ANOMALY, name_prefix)
-    normal_ids = _launch_instances("normal", N_NORMAL, name_prefix)
+    anomaly_user_data = _user_data_script(
+        ANOMALY_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU
+    )
+    normal_user_data = _user_data_script(NORMAL_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
+
+    anomaly_ids = _launch_instances(
+        "anomaly", N_ANOMALY, name_prefix, user_data=anomaly_user_data
+    )
+    normal_ids = _launch_instances(
+        "normal", N_NORMAL, name_prefix, user_data=normal_user_data
+    )
     all_ids = anomaly_ids + normal_ids
 
     print("running 상태 대기...")
@@ -182,32 +178,12 @@ def setup() -> None:
         for r in desc["Reservations"]
         for i in r["Instances"]
     }
-
-    print("SSM 등록 대기(최대 5분, 부팅+에이전트 기동 시간 필요)...")
-    time.sleep(60)  # 최소 부팅 시간 확보 후 폴링 시작
-    _wait_ssm_online(all_ids)
-
-    ssm = boto3.client("ssm")
-    for iid in anomaly_ids:
-        cmds = _duty_cycle_command(ANOMALY_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
-        ssm.send_command(
-            InstanceIds=[iid],
-            DocumentName="AWS-RunShellScript",
-            Parameters={"commands": cmds},
-        )
-        print(
-            f"[anomaly {iid}] 목표 CPU {ANOMALY_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)"
-        )
-    for iid in normal_ids:
-        cmds = _duty_cycle_command(NORMAL_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
-        ssm.send_command(
-            InstanceIds=[iid],
-            DocumentName="AWS-RunShellScript",
-            Parameters={"commands": cmds},
-        )
-        print(
-            f"[normal {iid}] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)"
-        )
+    print(
+        f"[anomaly] 목표 CPU {ANOMALY_TARGET_CPU_PCT}% 부하 - User Data로 부팅 시 자동 시작 ({WINDOW_SECONDS}초)"
+    )
+    print(
+        f"[normal] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 - User Data로 부팅 시 자동 시작 ({WINDOW_SECONDS}초)"
+    )
 
     check_earliest = datetime.now(timezone.utc) + timedelta(seconds=WINDOW_SECONDS)
     manifest = {

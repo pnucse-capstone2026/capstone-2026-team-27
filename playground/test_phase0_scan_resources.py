@@ -21,6 +21,8 @@ import sys
 import typing
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -43,15 +45,16 @@ from pipeline.detection_agent import scan_resources_sequential, _build_initial_s
 
 # ── 공통 더미 리소스 ─────────────────────────────────────────────────────────
 
+
 def _normal_ec2(resource_id: str) -> dict:
     return {
         "resource_id": resource_id,
         "resource_type": "EC2",
         "raw_metrics": {
             "cpu_utilization": [50.0] * 30,
-            "network_in":      [1000.0] * 30,
-            "network_out":     [800.0] * 30,
-            "cost":            [2.0] * 30,
+            "network_in": [1000.0] * 30,
+            "network_out": [800.0] * 30,
+            "cost": [2.0] * 30,
         },
     }
 
@@ -66,9 +69,9 @@ def _spike_ec2(resource_id: str) -> dict:
         "resource_type": "EC2",
         "raw_metrics": {
             "cpu_utilization": [50.0] * 27 + [95.0] * 3,
-            "network_in":      [1000.0] * 27 + [50000.0] * 3,
-            "network_out":     [800.0] * 30,
-            "cost":            [2.0] * 27 + [20.0] * 3,
+            "network_in": [1000.0] * 27 + [50000.0] * 3,
+            "network_out": [800.0] * 30,
+            "cost": [2.0] * 27 + [20.0] * 3,
         },
     }
 
@@ -80,24 +83,28 @@ def _spike_lambda(resource_id: str) -> dict:
         "resource_type": "Lambda",
         "raw_metrics": {
             "invocation_count": [100.0] * 27 + [50000.0] * 3,
-            "error_count":      [1.0] * 30,
-            "duration_avg":     [200.0] * 30,
-            "cost":             [0.1] * 27 + [20.0] * 3,
+            "error_count": [1.0] * 30,
+            "duration_avg": [200.0] * 30,
+            "cost": [0.1] * 27 + [20.0] * 3,
         },
     }
 
 
 # ── 1. 정상 리소스만 있으면 빈 결과 ────────────────────────────────────────────
 
+
 def test_all_normal_yields_nothing():
     _reset_model_cache()
     resources = [_normal_ec2("i-normal-1"), _normal_ec2("i-normal-2")]
     results = list(scan_resources_sequential(resources))
-    assert results == [], f"정상 리소스만 있는데 뭔가 나옴: {[r['resource_id'] for r in results]}"
+    assert results == [], (
+        f"정상 리소스만 있는데 뭔가 나옴: {[r['resource_id'] for r in results]}"
+    )
     print("✅ [1] 정상 리소스만 있으면 빈 결과")
 
 
 # ── 2. 이상 리소스만, 입력 순서 그대로 하나씩 ──────────────────────────────────
+
 
 def test_only_anomalies_in_order():
     _reset_model_cache()
@@ -111,12 +118,17 @@ def test_only_anomalies_in_order():
     results = list(scan_resources_sequential(resources))
     ids = [r["resource_id"] for r in results]
 
-    assert ids == ["i-spike-2", "func-spike-3", "i-spike-5"], f"순서/필터링 불일치: {ids}"
-    assert all(r["anomaly_flag"] for r in results), "yield된 결과는 전부 anomaly_flag=True여야 함"
+    assert ids == ["i-spike-2", "func-spike-3", "i-spike-5"], (
+        f"순서/필터링 불일치: {ids}"
+    )
+    assert all(r["anomaly_flag"] for r in results), (
+        "yield된 결과는 전부 anomaly_flag=True여야 함"
+    )
     print("✅ [2] 정상은 스킵, 이상 리소스만 입력 순서 그대로 방출:", ids)
 
 
 # ── 3. 제너레이터 = 스트리밍 (미리 다 처리하고 몰아주는 게 아님) ────────────────
+
 
 def test_lazy_streaming_not_batched():
     _reset_model_cache()
@@ -132,18 +144,22 @@ def test_lazy_streaming_not_batched():
     def tracking_resources():
         """제너레이터가 실제로 하나씩 당겨쓰는지 side-effect로 추적."""
         for rid, builder in resources_raw:
-            processed_order.append(rid)   # detection_node에 넘기기 직전에 기록
+            processed_order.append(rid)  # detection_node에 넘기기 직전에 기록
             yield builder(rid)
 
     gen = scan_resources_sequential(tracking_resources())
 
     # 아직 아무것도 consume 안 했으면, 내부에서 미리 처리된 것도 없어야 함
-    assert processed_order == [], f"아직 next() 호출 전인데 벌써 처리됨(배치 처리 의심): {processed_order}"
+    assert processed_order == [], (
+        f"아직 next() 호출 전인데 벌써 처리됨(배치 처리 의심): {processed_order}"
+    )
 
     first = next(gen)
     assert first["resource_id"] == "i-spike-1"
     # 첫 이상 리소스를 얻기 위해 딱 1개만 처리했어야 함 (뒤에 남은 3개를 미리 안 봄)
-    assert processed_order == ["i-spike-1"], f"스트리밍이 아니라 미리 여러 개 처리함: {processed_order}"
+    assert processed_order == ["i-spike-1"], (
+        f"스트리밍이 아니라 미리 여러 개 처리함: {processed_order}"
+    )
 
     second = next(gen)
     assert second["resource_id"] == "i-spike-3"
@@ -160,6 +176,7 @@ def test_lazy_streaming_not_batched():
 
 
 # ── 4. _build_initial_state가 PipelineState 필드를 빠짐없이 채움 ──────────────
+
 
 def test_build_initial_state_covers_all_fields():
     resource = {
@@ -182,10 +199,13 @@ def test_build_initial_state_covers_all_fields():
     assert state["rollback_count"] == 0
     assert state["whitelisted"] is False
     assert state["log_entries"] == []
-    print(f"✅ [4] PipelineState {len(expected_keys)}개 필드 전부 채워짐 (누락/여분 없음)")
+    print(
+        f"✅ [4] PipelineState {len(expected_keys)}개 필드 전부 채워짐 (누락/여분 없음)"
+    )
 
 
 # ── 5. timestamp 생략 시 자동으로 채워짐 ──────────────────────────────────────
+
 
 def test_timestamp_defaults_when_missing():
     resource = {

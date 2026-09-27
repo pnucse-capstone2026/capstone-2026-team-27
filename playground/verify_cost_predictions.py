@@ -42,6 +42,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import math
@@ -55,7 +56,9 @@ from pipeline.cloudwatch_client import METRIC_SPEC, _build_dimensions
 
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION")
 
-COST_PREDICTION_LOG_PATH = PROJECT_ROOT / "schema" / "logs" / "cost_prediction_log.jsonl"
+COST_PREDICTION_LOG_PATH = (
+    PROJECT_ROOT / "schema" / "logs" / "cost_prediction_log.jsonl"
+)
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
 COST_INCREASE_THRESHOLD = 1.1  # QA_agent._check_cost_sla와 동일한 기준(10% 증가 허용)
@@ -99,13 +102,18 @@ def _real_current_cost(resource_type: str, resource_id: str) -> float | None:
 
 
 def _fetch_usage_window(
-    resource_type: str, resource_id: str, start_time: datetime, end_time: datetime,
+    resource_type: str,
+    resource_id: str,
+    start_time: datetime,
+    end_time: datetime,
     period_seconds: int = 300,
 ) -> tuple[dict[str, list[float]], int]:
     """cloudwatch_client.fetch_metrics는 "지금부터 n_points개 이전"만 가능해서
     (end_time 고정 불가), 임의 구간(start_time~end_time)을 조회하려면 별도 구현이
     필요하다. 로직 자체는 fetch_metrics와 동일 — "활동 없음=0.0으로 채움"까지 그대로."""
-    n_points = max(1, math.ceil((end_time - start_time).total_seconds() / period_seconds))
+    n_points = max(
+        1, math.ceil((end_time - start_time).total_seconds() / period_seconds)
+    )
 
     cw = boto3.client("cloudwatch", region_name=AWS_REGION)
     metric_keys = list(METRIC_SPEC[resource_type].keys())
@@ -114,23 +122,33 @@ def _fetch_usage_window(
     queries = []
     for i, metric_key in enumerate(metric_keys):
         namespace, cw_metric_name, stat = METRIC_SPEC[resource_type][metric_key]
-        queries.append({
-            "Id": f"m{i}",
-            "MetricStat": {
-                "Metric": {"Namespace": namespace, "MetricName": cw_metric_name, "Dimensions": dimensions},
-                "Period": period_seconds,
-                "Stat": stat,
-            },
-            "ReturnData": True,
-        })
+        queries.append(
+            {
+                "Id": f"m{i}",
+                "MetricStat": {
+                    "Metric": {
+                        "Namespace": namespace,
+                        "MetricName": cw_metric_name,
+                        "Dimensions": dimensions,
+                    },
+                    "Period": period_seconds,
+                    "Stat": stat,
+                },
+                "ReturnData": True,
+            }
+        )
 
     response = cw.get_metric_data(
-        MetricDataQueries=queries, StartTime=start_time, EndTime=end_time,
+        MetricDataQueries=queries,
+        StartTime=start_time,
+        EndTime=end_time,
         ScanBy="TimestampAscending",
     )
     results_by_id = {r["Id"]: r for r in response["MetricDataResults"]}
 
-    expected_times = [start_time + timedelta(seconds=i * period_seconds) for i in range(n_points)]
+    expected_times = [
+        start_time + timedelta(seconds=i * period_seconds) for i in range(n_points)
+    ]
     half_period = period_seconds / 2
 
     usage: dict[str, list[float]] = {}
@@ -142,7 +160,14 @@ def _fetch_usage_window(
         observed = list(zip(row["Timestamps"], row["Values"]))
         filled = []
         for expected_ts in expected_times:
-            match = next((v for ts, v in observed if abs((ts - expected_ts).total_seconds()) < half_period), 0.0)
+            match = next(
+                (
+                    v
+                    for ts, v in observed
+                    if abs((ts - expected_ts).total_seconds()) < half_period
+                ),
+                0.0,
+            )
             filled.append(match)
         usage[metric_key] = filled
 
@@ -150,29 +175,47 @@ def _fetch_usage_window(
 
 
 def compute_period_totals(
-    resource_type: str, resource_id: str, action_start: datetime, window_end: datetime,
-    baseline_per_period_cost: float, period_seconds: int = 300,
+    resource_type: str,
+    resource_id: str,
+    action_start: datetime,
+    window_end: datetime,
+    baseline_hourly_cost: float,
+    period_seconds: int = 300,
 ) -> dict | None:
     """action_start(액션 결정 시점) ~ window_end(다음 액션 시점 또는 지금) 구간 전체의
-    실제 발생 비용 총합과, "이 액션을 안 쓰고 baseline_per_period_cost가 그대로 이어
-    졌다면"이라는 가정(반사실) 하의 총비용을 비교한다.
+    실제 발생 비용 총합과, "이 액션을 안 쓰고 baseline_hourly_cost(시간당 비용)가 그대로
+    이어졌다면"이라는 가정(반사실) 하의 총비용을 비교한다.
 
     ⚠️ 안 썼을 때 비용은 절대 실측이 아니라 추측이다 — baseline(액션 직전 평균)이
     구간 내내 변하지 않았다고 가정한 값일 뿐이다. 결과 필드명에도 이 점을 명시한다.
+
+    ⚠️ [버그 수정 2026-09-27] baseline_hourly_cost는 decision_agent.py가 이미 시간당
+    (USD/hr)으로 환산해 cost_prediction_log.jsonl에 남긴 current_cost_usd를 그대로
+    받는데, 예전 코드는 이걸 "5분당 비용"인 것처럼 n_periods(5분 구간 개수)를 바로
+    곱해서 반사실 총비용을 12배 부풀리고 있었다(실측 확인) - actual_total_usd는
+    cost_series(5분 단위 실측)의 합이라 단위가 맞는데, counterfactual만 시간당
+    단가에 구간 개수를 곱해 단위가 어긋났었다. duration_hours(경과 시간, 시간 단위)를
+    곱하도록 고쳐 두 값의 시간 기준을 통일한다.
     """
     try:
-        usage, n_periods = _fetch_usage_window(resource_type, resource_id, action_start, window_end, period_seconds)
+        usage, n_periods = _fetch_usage_window(
+            resource_type, resource_id, action_start, window_end, period_seconds
+        )
         cost_series = estimate_cost_series(
-            resource_type, resource_id, usage, period_seconds=period_seconds, end_time=window_end,
+            resource_type,
+            resource_id,
+            usage,
+            period_seconds=period_seconds,
+            end_time=window_end,
         )
     except Exception as exc:
         print(f"  [경고] {resource_type}:{resource_id} 기간 전체 실측 실패: {exc}")
         return None
 
     actual_total_usd = sum(cost_series)
-    counterfactual_total_usd = baseline_per_period_cost * n_periods  # 추측치 (반사실)
-    period_saving_usd = counterfactual_total_usd - actual_total_usd
     duration_hours = n_periods * period_seconds / 3600
+    counterfactual_total_usd = baseline_hourly_cost * duration_hours  # 추측치 (반사실)
+    period_saving_usd = counterfactual_total_usd - actual_total_usd
 
     return {
         "window_start": action_start.isoformat(),
@@ -189,7 +232,9 @@ def compute_period_totals(
     }
 
 
-def _find_next_action_time(entries: list[dict], resource_id: str, after: datetime) -> datetime | None:
+def _find_next_action_time(
+    entries: list[dict], resource_id: str, after: datetime
+) -> datetime | None:
     """같은 리소스에 대해 이 결정 이후에 기록된 다음 결정의 시각. 없으면 None(=지금까지)."""
     candidates = [
         datetime.fromisoformat(e["decided_at"].replace("Z", "+00:00"))
@@ -209,7 +254,11 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
 
     actual_now_cost = _real_current_cost(resource_type, resource_id)
     if actual_now_cost is None:
-        return {**entry, "verified": False, "verify_error": "실측 실패 (리소스 삭제됨/권한 없음 등)"}
+        return {
+            **entry,
+            "verified": False,
+            "verify_error": "실측 실패 (리소스 삭제됨/권한 없음 등)",
+        }
 
     actual_saving_usd = current_before - actual_now_cost
     prediction_error_usd = actual_saving_usd - estimated_saving
@@ -222,14 +271,22 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
     would_pass_cost_sla = actual_now_cost <= current_before * COST_INCREASE_THRESHOLD
     actual_qa_passed = entry.get("qa_passed")
     qa_result_available = actual_qa_passed is not None
-    qa_matched_prediction = (actual_qa_passed == would_pass_cost_sla) if qa_result_available else None
+    qa_matched_prediction = (
+        (actual_qa_passed == would_pass_cost_sla) if qa_result_available else None
+    )
 
     # 기간 전체 적분: 액션 시점 ~ (같은 리소스의 다음 결정 시점 또는 지금)까지
     # 실제 누적 비용 vs "안 썼으면 baseline이 그대로 이어졌을 것"이라는 가정치 비교.
     decided_at = datetime.fromisoformat(entry["decided_at"].replace("Z", "+00:00"))
-    window_end = _find_next_action_time(all_entries, resource_id, decided_at) or datetime.now(timezone.utc)
+    window_end = _find_next_action_time(
+        all_entries, resource_id, decided_at
+    ) or datetime.now(timezone.utc)
     period_totals = compute_period_totals(
-        resource_type, resource_id, decided_at, window_end, current_before,
+        resource_type,
+        resource_id,
+        decided_at,
+        window_end,
+        current_before,
     )
 
     return {
@@ -240,7 +297,9 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
         "actual_saving_usd": round(actual_saving_usd, 6),
         "prediction_error_usd": round(prediction_error_usd, 6),
         "prediction_error_ratio": (
-            round(prediction_error_ratio, 4) if prediction_error_ratio is not None else None
+            round(prediction_error_ratio, 4)
+            if prediction_error_ratio is not None
+            else None
         ),
         "would_pass_cost_sla": would_pass_cost_sla,
         "qa_result_available": qa_result_available,
@@ -252,15 +311,21 @@ def verify_one(entry: dict, all_entries: list[dict]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--min-age-minutes", type=int, default=60,
-                         help="결정 후 최소 이만큼 지난 항목만 검증 (기본 60분 — "
-                              "CloudWatch 반영 지연 + 액션 완료 시간 감안)")
+    parser.add_argument(
+        "--min-age-minutes",
+        type=int,
+        default=60,
+        help="결정 후 최소 이만큼 지난 항목만 검증 (기본 60분 — "
+        "CloudWatch 반영 지연 + 액션 완료 시간 감안)",
+    )
     args = parser.parse_args()
 
     entries = _load_jsonl(COST_PREDICTION_LOG_PATH)
     if not entries:
-        print(f"{COST_PREDICTION_LOG_PATH}에 항목이 없음 — decision_node가 아직 "
-              f"NoAction 아닌 결정을 안 남겼거나 로그 파일이 없음.")
+        print(
+            f"{COST_PREDICTION_LOG_PATH}에 항목이 없음 — decision_node가 아직 "
+            f"NoAction 아닌 결정을 안 남겼거나 로그 파일이 없음."
+        )
         return
 
     now = datetime.now(timezone.utc)
@@ -275,16 +340,20 @@ def main() -> None:
             continue  # 아직 min_age_minutes 안 지남
         to_verify.append(e)
 
-    print(f"전체 {len(entries)}건 중 검증 대상 {len(to_verify)}건 "
-          f"({args.min_age_minutes}분 이상 경과 + 미검증)")
+    print(
+        f"전체 {len(entries)}건 중 검증 대상 {len(to_verify)}건 "
+        f"({args.min_age_minutes}분 이상 경과 + 미검증)"
+    )
 
     if not to_verify:
         return
 
     verified_results = []
     for e in to_verify:
-        print(f"검증 중: {e['resource_type']}:{e['resource_id']} ({e['selected_action']}, "
-              f"trace_id={e.get('trace_id')})")
+        print(
+            f"검증 중: {e['resource_type']}:{e['resource_id']} ({e['selected_action']}, "
+            f"trace_id={e.get('trace_id')})"
+        )
         verified_results.append(verify_one(e, entries))
 
     # cost_prediction_log.jsonl 갱신 (verified 마커 추가, 나머지는 그대로 보존)
@@ -300,7 +369,9 @@ def main() -> None:
         f.write("\n".join(updated_lines) + "\n")
 
     # 요약 통계
-    successful = [r for r in verified_results if r.get("verified") and "actual_saving_usd" in r]
+    successful = [
+        r for r in verified_results if r.get("verified") and "actual_saving_usd" in r
+    ]
     qa_comparable = [r for r in successful if r.get("qa_result_available")]
     qa_correct = [r for r in qa_comparable if r.get("qa_matched_real_outcome")]
 
@@ -310,8 +381,11 @@ def main() -> None:
         "n_verified": len(successful),
         "n_failed": len(verified_results) - len(successful),
         "mean_prediction_error_usd": (
-            round(sum(r["prediction_error_usd"] for r in successful) / len(successful), 6)
-            if successful else None
+            round(
+                sum(r["prediction_error_usd"] for r in successful) / len(successful), 6
+            )
+            if successful
+            else None
         ),
         "qa_accuracy_n_comparable": len(qa_comparable),
         "qa_accuracy": (
@@ -325,14 +399,18 @@ def main() -> None:
     }
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULT_DIR / f"cost_prediction_verification_{now.strftime('%Y%m%d')}.json"
+    out_path = (
+        RESULT_DIR / f"cost_prediction_verification_{now.strftime('%Y%m%d')}.json"
+    )
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
     print(f"\n=== 결과 ===")
     print(f"검증 성공: {summary['n_verified']}건, 실패: {summary['n_failed']}건")
     print(f"평균 예측 오차: {summary['mean_prediction_error_usd']} USD")
-    print(f"QA 정확도: {summary['qa_accuracy']} (비교 가능 {summary['qa_accuracy_n_comparable']}건)")
+    print(
+        f"QA 정확도: {summary['qa_accuracy']} (비교 가능 {summary['qa_accuracy_n_comparable']}건)"
+    )
     print(f"저장: {out_path}")
 
 
