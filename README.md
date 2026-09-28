@@ -1,13 +1,29 @@
 # Detection
 ### Agentic AI 기반 클라우드 비용 이상 징후 탐지 및 자율 복구 시스템
 
+> 클라우드의 유연한 자원 확장은 비용 이상으로 이어질 수 있으며, 비용 낭비 및 비용 공격과 같은 비정상적인 비용 발생을 적시에 탐지하고 대응하는 것이 중요하다. 본 연구에서는 LangGraph 기반 멀티에이전트 파이프라인을 구축하여 비용 이상 탐지부터 분류·판단·조치·검증까지의 과정을 자동화하였다. 또한 실제 AWS 리소스와 트래픽을 활용하여 시스템의 동작과 성능을 검증하였다.
+>
+> 그 결과, 주요 시나리오에서 평균 탐지 정확도 86.7%, Recall 85.7%(95% CI [69.7%, 95.2%])를 확인하였고, 전 단계를 곱한 전체 파이프라인 정확도는 평균 79.7%로 나타났다. 또한 EC2 오버프로비저닝 시나리오만을 운영규모가 큰 조직의 운영 규모로 환산했을 때 30일 기준 약 $763의 비용 절감 효과를 확인하였다.
+
+---
+
+## 목차
+1. [프로젝트 배경](#1-프로젝트-배경)
+2. [개발 목표](#2-개발-목표)
+3. [시스템 설계](#3-시스템-설계)
+4. [개발 결과](#4-개발-결과)
+5. [설치 및 실행 방법](#5-설치-및-실행-방법)
+6. [소개 자료 및 시연 영상](#6-소개-자료-및-시연-영상)
+7. [팀 구성](#7-팀-구성)
+8. [참고 문헌 및 출처](#8-참고-문헌-및-출처)
+
 ---
 
 ## 1. 프로젝트 배경
 
 ### 1.1 시장현황
 
-클라우드 서비스 시장은 매년 급격히 성장하고 있으며, 기업들의 클라우드 지출 규모도 함께 증가하고 있습니다. Flexera의 2024 State of the Cloud Report에 따르면, 기업들은 평균적으로 클라우드 예산의 약 28%를 낭비하고 있으며, 이는 전년 대비 증가한 수치입니다.
+클라우드 서비스 시장은 매년 급격히 성장하고 있으며, 기업들의 클라우드 지출 규모도 함께 증가하고 있습니다. Flexera의 2026 State of the Cloud Report에 따르면, 기업들의 IaaS/PaaS 지출 중 약 29%가 실질적인 가치를 만들어내지 못하는 낭비성 지출로 조사되었습니다.[1]
 
 이러한 비용 낭비를 방지하기 위해 **FinOps(Cloud Financial Operations)** 방법론이 등장했습니다. FinOps는 클라우드 비용을 실시간으로 모니터링하고 최적화하는 운영 프레임워크로, FinOps Foundation을 중심으로 빠르게 확산되고 있습니다.
 
@@ -28,7 +44,7 @@
 
 #### 기대효과
 
-- **비용 절감**: EC2 좀비 인스턴스 100대 기준 월 약 $763 절감 가능
+- **비용 절감**: EC2 오버프로비저닝 사례 기준, 100대 규모 적용 시 30일 약 $763 절감 추정
 - **운영 효율화**: MTTD(평균 탐지 시간) 0.204초, MTTR(평균 복구 시간) 약 313.7초
 - **인력 부담 감소**: FinOps 전담 인력 없이도 비용 이상 징후 자동 대응 가능
 - **리스크 관리**: Human-in-the-Loop(HITL) 승인 게이트로 고위험 액션 통제
@@ -71,10 +87,10 @@
 
 **파이프라인 흐름**:
 1. **Detection Agent**: CloudWatch에서 메트릭 수집 → Isolation Forest/Z-score/절대 임계값으로 이상 탐지
-2. **Classification Agent**: LLM(Gemini)으로 이상 유형 분류 (예: idle_zombie, retry_spike 등)
+2. **Classification Agent**: Rule Book 우선 매칭, 안 걸리면 LLM(Gemini)으로 이상 유형(`cost_inefficiency`/`cost_spike`/`risk_security`) 분류
 3. **Decision Agent**: 룰북 조회 → 리스크 레벨에 따라 액션 선택 및 승인 게이트 결정
-4. **Action Agent**: boto3로 AWS API 호출하여 복구 액션 실행 (Stop, Throttle, WAF Rule 등)
-5. **QA Agent**: 액션 실행 후 상태 검증 (실제로 중지되었는지, 스로틀링이 적용되었는지 등)
+4. **Action Agent**: boto3로 AWS API 호출하여 복구 액션 실행 (Stop, Resize, Throttle, Block, ScaleDown+WAF 등)
+5. **QA Agent**: 액션 실행 300초 후 재조회하여 상태 검증 (실제로 중지되었는지, 스로틀링이 적용되었는지 등), 실패 시 롤백
 6. **Logging Agent**: 전체 흐름을 PostgreSQL에 기록, Grafana 대시보드로 시각화
 
 ### 3.2 사용 기술
@@ -86,10 +102,10 @@
 | **ML** | scikit-learn | 1.7.2 | Isolation Forest 이상 탐지 |
 | **Cloud SDK** | boto3 | 1.43.3 | AWS API 연동 |
 | **Backend** | FastAPI | 0.115.6 | REST API 서버 |
-| **Frontend** | React | 18.3.1 | 관리자 대시보드 |
+| **Frontend** | React (Vite) | 18.3.1 | 관리자 대시보드 |
 | **Database** | PostgreSQL | 16 | 로그 및 상태 저장 |
 | **Monitoring** | Grafana | 11.4.0 | 메트릭 시각화 |
-| **Language** | Python | 3.13 | 백엔드 개발 |
+| **Language** | Python | 3.10 | 백엔드 개발 |
 
 ---
 
@@ -110,10 +126,10 @@
             │ anomaly_flag = True
             ▼
     ┌───────────────┐
-    │Classification │  ← LLM(Gemini)으로 이상 유형 분류
+    │Classification │  ← Rule Book 우선 매칭, 안 걸리면 LLM(Gemini)
     │    Agent      │
     └───────┬───────┘
-            │ anomaly_type (예: idle_zombie)
+            │ anomaly_type (cost_inefficiency / cost_spike / risk_security)
             ▼
     ┌───────────────┐
     │ Decision Agent│  ← 룰북 조회, 리스크 평가
@@ -129,14 +145,15 @@
             ▼
     ┌───────────────┐
     │  Action Agent │  ← boto3로 AWS API 호출
-    │ - EC2 Stop
+    │ - EC2 Stop/Resize
     │ - Lambda Throttle
-    │ - WAF Rate Rule
+    │ - S3 Block
+    │ - AutoScaling ScaleDown + WAF Rate Rule
     └───────┬───────┘
             │
             ▼
     ┌───────────────┐
-    │    QA Agent   │  ← 액션 결과 검증
+    │    QA Agent   │  ← 300초 대기 후 재조회, 결과 검증
     └───────┬───────┘
             │
             ▼
@@ -149,13 +166,13 @@
 
 #### 지원 이상 유형 및 대응 액션
 
-| 이상 유형 | 리소스 | 탐지 조건 | 대응 액션 | 리스크 |
-|-----------|--------|-----------|-----------|--------|
-| **idle_zombie** | EC2 | CPU < 5%, Network ≈ 0, 비용 발생 | Stop Instance | LOW |
-| **overprovisioned** | EC2 | CPU 지속 저조, 고사양 인스턴스 | Resize 권고 | MEDIUM |
-| **retry_spike** | Lambda | Error Rate > 50%, Throttle 급증 | Reserved Concurrency 0 | MEDIUM |
-| **mass_download** | S3 | 요청/다운로드 급증, 외부 IP | WAF Rate-based Rule | HIGH |
-| **edos_attack** | AutoScaling | 비정상적 스케일아웃 패턴 | Max Capacity 제한 | HIGH |
+| 시나리오 | 리소스 | 탐지 조건 | anomaly_type | 대응 액션 | 리스크 |
+|-----------|--------|-----------|-----------|-----------|--------|
+| **EC2 좀비** | EC2 | 비용만 단독 이상 + peak CPU ≤ 5% | cost_inefficiency | Stop | LOW (자동) |
+| **EC2 오버프로비저닝** | EC2 | 비용만 단독 이상 + 5% < peak CPU ≤ 20% | cost_inefficiency | Resize (한 단계 낮은 타입으로) | MEDIUM (승인 필요) |
+| **Lambda 재시도/스로틀 폭증** | Lambda | throttle_count 단독 급증 또는 invocation_count+error_count 동시 급증 | cost_spike | Throttle (동시성 제한) | MEDIUM (승인 필요) |
+| **S3 대량 다운로드** | S3 | bytes_downloaded 단독 급증 | risk_security | Block (퍼블릭 접근 차단) | HIGH (승인 필요) |
+| **AutoScaling EDoS** | AutoScaling | request_count 평균 대비 2배↑ + 최근 구간 60%↑ 유지 | risk_security | ScaleDown + WAF Rate-based Rule 병행 | HIGH (승인 필요) |
 
 #### 탐지 모델 성능
 
@@ -172,36 +189,39 @@
 > \* Lambda 시나리오의 높은 FPR은 스로틀링 메트릭의 민감도로 인한 것으로, 임계값 조정을 통해 개선 가능합니다.
 
 **분석 요약**:
-- **EC2 좀비/오버프로비저닝**: 정확도 및 재현율 100%로 완벽한 탐지 성능
+- **EC2 좀비/오버프로비저닝**: 고정 임계값 기반 탐지로 정확도·재현율 100% (다만 표본이 임계값 경계에서 충분히 검증되지 않아 일반화에는 주의 필요)
 - **S3 대량 다운로드**: 92.3% 정확도, 재현율 100%로 높은 신뢰성
-- **Lambda 재시도 폭증**: 재현율 100%로 이상 징후를 놓치지 않으나, FPR 37.5%로 위양성 존재
-- **AutoScaling EDoS**: 복잡한 공격 패턴으로 인해 상대적으로 낮은 재현율(66.7%), 추가 피처 엔지니어링 필요
+- **Lambda 재시도 폭증**: 재현율 100%이나 FPR 37.5%로 위양성 존재
+- **AutoScaling EDoS**: 가장 많은 표본(n=23)으로 검증, 재현율 66.7%로 통계 기반 탐지의 실질적 성능을 보여줌
 
 ### 4.3 디렉토리
 
 ```
 langgraph_study/
 ├── api/                    # FastAPI 백엔드
-│   ├── main.py            # API 엔트리포인트
-│   ├── routers/           # API 라우터
-│   └── schemas.py         # Pydantic 스키마
-├── pipeline/              # 에이전트 파이프라인
-│   ├── detection_agent.py # Detection Agent
+│   ├── main.py             # API 엔트리포인트
+│   ├── routers/            # API 라우터 (approvals, status, logs 등)
+│   └── schemas.py          # Pydantic 스키마
+├── pipeline/                # 에이전트 파이프라인
+│   ├── detection_agent.py
 │   ├── classification_agent.py
 │   ├── decision_agent.py
 │   ├── action_agent.py
-│   ├── qa_agent.py
-│   └── logging_agent.py
-├── schema/                # 룰북 및 설정
-│   ├── rule_book.py       # 룰북 로더
-│   └── rules/             # JSON 룰 정의
-├── models/                # ML 모델 캐시
-├── frontend/              # React 프론트엔드
+│   ├── QA_agent.py
+│   ├── logging_agent.py
+│   ├── rule_engine.py       # Rule Book 매칭 엔진
+│   └── graph.py             # LangGraph 그래프 정의
+├── schema/                  # 룰북 및 상태 스키마
+│   ├── rule_book.py
+│   ├── rules/                # JSON 룰 정의 (classification/decision/qa)
+│   └── state.py              # PipelineState 정의
+├── models/                  # ML 모델 캐시
+├── frontend/                 # React 프론트엔드
 │   └── src/
-│       ├── components/    # React 컴포넌트
-│       └── api.js         # API 클라이언트
-├── playground/            # 실험 및 평가 스크립트
-└── config/                # 환경 설정
+│       ├── components/       # React 컴포넌트
+│       └── api.js            # API 클라이언트
+├── playground/                # 실험 및 평가 스크립트, real_demo/live_demo
+└── config/                    # 환경 설정
 ```
 
 ### 4.4 멘토링
@@ -217,52 +237,68 @@ langgraph_study/
 
 ### 사전 요구사항
 
-- Python 3.13+
+- Python 3.10+
 - Node.js 18+
-- PostgreSQL 16
+- Docker / Docker Compose (PostgreSQL, Grafana 실행용)
 - AWS 계정 및 자격 증명
 
-### 백엔드 설치
+### 설치
 
 ```bash
 # 저장소 클론
-git clone https://github.com/PNU-Detection/langgraph_study.git
-cd langgraph_study
+git clone https://github.com/PNU-Detection/finops-auto-recovery.git
+cd finops-auto-recovery
 
 # 가상환경 생성 및 활성화
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 의존성 설치
+# 백엔드 의존성 설치
 pip install -r requirements.txt
+
+# 프론트엔드 의존성 설치
+cd frontend && npm install && cd ..
 
 # 환경 변수 설정
 cp .env.example .env
 # .env 파일에 AWS 자격 증명, Gemini API 키, DB 연결 정보 입력
+# (SLACK_WEBHOOK_URL은 선택 — 없어도 파이프라인은 정상 동작하며 Slack 알림만 안 감)
 ```
 
-### 프론트엔드 설치
+### 실행 순서 (의존성 순서대로)
 
+**1) DB 먼저** — 나머지 전부가 이걸 기다립니다
+```bash
+docker compose up -d postgres
+```
+
+**2) Grafana** — Postgres에 붙는 대시보드, DB만 떠있으면 바로 켜짐
+```bash
+docker compose up -d grafana
+```
+→ 접속: http://localhost:3001 (admin / admin)
+
+**3) 백엔드** — Postgres 연결 필요
+```bash
+python -m api.main
+```
+→ http://localhost:8000
+
+**4) 프론트엔드**
 ```bash
 cd frontend
-npm install
+npm run dev
 ```
+→ 접속: http://localhost:3000 (admin1 / admin1)
 
-### 실행
+### 한 번에 실행 (Windows)
 
-```bash
-# 백엔드 실행 (프로젝트 루트에서)
-uvicorn api.main:app --reload --port 8000
-
-# 프론트엔드 실행 (frontend 디렉토리에서)
-npm start
+```powershell
+PowerShell -ExecutionPolicy Bypass -File start.ps1
 ```
+백엔드/프론트엔드를 각각 새 창으로 자동 실행합니다 (Postgres/Grafana는 미리 떠있어야 함).
 
-### Docker Compose (선택)
-
-```bash
-docker-compose up -d
-```
+**의존성 요약**: `Postgres` → (`Grafana`, `백엔드` 둘 다 여기 의존) → `프론트엔드`
 
 ---
 
@@ -287,9 +323,12 @@ docker-compose up -d
 
 ## 8. 참고 문헌 및 출처
 
-1. Flexera. (2024). *State of the Cloud Report*. https://www.flexera.com/blog/cloud/cloud-computing-trends-flexera-2024-state-of-the-cloud-report/
-2. FinOps Foundation. (2024). *What is FinOps?*. https://www.finops.org/introduction/what-is-finops/
-3. AWS. (2024). *AWS Cost Anomaly Detection*. https://aws.amazon.com/aws-cost-management/aws-cost-anomaly-detection/
+1. Flexera. (2026). *State of the Cloud Report*. https://info.flexera.com/CM-REPORT-State-of-the-Cloud
+2. Flexera. (2026). *New Flexera Report Finds that 84% of Organizations Struggle to Manage Cloud Spend*. https://www.flexera.com/about-us/press-center/new-flexera-report-finds-84-percent-of-organizations-struggle-to-manage-cloud-spend
+3. FinOps Foundation. *The FinOps Framework*. https://www.finops.org/framework/
 4. Liu, F. T., Ting, K. M., & Zhou, Z. H. (2008). *Isolation Forest*. IEEE International Conference on Data Mining.
-5. LangChain. (2024). *LangGraph Documentation*. https://langchain-ai.github.io/langgraph/
-6. Google. (2024). *Gemini API Documentation*. https://ai.google.dev/docs
+5. Lundberg, S. M., & Lee, S.-I. (2017). *A Unified Approach to Interpreting Model Predictions*. NeurIPS.
+6. Clopper, C. J., & Pearson, E. S. (1934). *The Use of Confidence or Fiducial Limits Illustrated in the Case of the Binomial*. Biometrika.
+7. LangChain, Inc. *LangGraph Documentation - Persistence*. https://langchain-ai.github.io/langgraph/concepts/persistence/
+8. LangChain, Inc. *LangGraph Documentation - Human-in-the-loop*. https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/
+9. Amazon Web Services. *Boto3 Documentation*. https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
