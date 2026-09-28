@@ -48,7 +48,6 @@
 - **운영 효율화**: MTTD(평균 탐지 시간) 0.204초, MTTR(평균 복구 시간) 약 313.7초
 - **인력 부담 감소**: FinOps 전담 인력 없이도 비용 이상 징후 자동 대응 가능
 - **리스크 관리**: Human-in-the-Loop(HITL) 승인 게이트로 고위험 액션 통제
-- **24/7 대응**: 야간·주말에도 사람 개입 없이 이상 상황에 즉각 대응
 - **AI 호출 비용 절감**: 반복되는 판단 패턴은 Rule Book 규칙으로 자동 승격하여 이후 LLM 호출 없이 처리
 - **확장성 확보**: 다양한 클라우드 자원과 운영 환경에 유연하게 적용 가능
 
@@ -89,13 +88,6 @@
 
 ![시스템 아키텍처](docs/images/system_architecture.png)
 
-**파이프라인 흐름**:
-1. **Detection Agent**: CloudWatch에서 메트릭 수집 → Isolation Forest/Z-score/절대 임계값으로 이상 탐지
-2. **Classification Agent**: Rule Book 우선 매칭, 안 걸리면 LLM(Gemini)으로 이상 유형(`cost_inefficiency`/`cost_spike`/`risk_security`) 분류
-3. **Decision Agent**: 룰북 조회 → 리스크 레벨에 따라 액션 선택 및 승인 게이트 결정
-4. **Action Agent**: boto3로 AWS API 호출하여 복구 액션 실행 (Stop, Resize, Throttle, Block, ScaleDown+WAF 등)
-5. **QA Agent**: 액션 실행 300초 후 재조회하여 상태 검증 (실제로 중지되었는지, 스로틀링이 적용되었는지 등), 실패 시 롤백
-6. **Logging Agent**: 전체 흐름을 PostgreSQL에 기록, Grafana 대시보드로 시각화
 
 세부 판단 로직과 각 단계의 근거는 [4.1 전체 시스템 흐름도](#41-전체-시스템-흐름도)에서 자세히 다룹니다.
 
@@ -191,15 +183,16 @@
 
 #### 파이프라인 각 에이전트
 
-1. **Detection**
+1. **Detection**: CloudWatch에서 메트릭 수집 → Isolation Forest/Z-score/절대 임계값으로 이상 탐지
    - **사용한 모델**: Z-score(지속성 체크) + IForest(다변량, SHAP 설명) 앙상블 + EC2 전용 절대임계값 게이트 (좀비/오버프로비저닝은 통계 탐지가 약해서 별도 유지)
    - **하이퍼파라미터**: 이상이다/아니다를 가르는 기준값 2개(IForest 민감도, Z-score 민감도)를 여러 조합으로 다 테스트해봐서 제일 나은 값을 찾음
    - **학습데이터**: z-score와 IForest 모델 판정 둘 다 정상 범위인 데이터만 골라서 학습시킴. 초기에는 미리 만들어둔 안정적인 학습 데이터로 모델을 고정해서 쓰고, 실제 운영 데이터가 쌓이면 이 고정을 풀고 자동으로 계속 학습하게 만들어둠
-2. **Classification**: Rule Book 우선 매칭(우선순위 낮은 숫자 먼저) → 못 걸리면 Gemini LLM 폴백
-3. **Decision**: Rule Book 우선 매칭(우선순위 낮은 숫자 먼저) → 못 걸리면 Gemini LLM 폴백
+2. **Classification**: Rule Book 우선 매칭 → 매칭 없는 경우 LLM으로 이상 유형(cost_inefficiency/cost_spike/risk_security) 분류
+3. **Decision**: Rule Book 우선 매칭 → 매칭 없는 경우 LLM으로 액션 결정
 4. **Approval Gate**: 위험도 LOW는 자동 진행, MED/HIGH는 사람 승인 필요
-5. **Action**: boto3로 실제 조치 (실행 전 스냅샷 저장)
-6. **QA**: 300초 대기 후 재조회 → 탐지 당시 이상 지표 재측정 → 지표 + 비용 증가 여부 + 액션 성공 여부(가용성) 3가지를 재검증 → 실패 시 스냅샷으로 롤백 (최대 2회 재시도)
+5. **Action**: boto3로 AWS API 호출하여 실제 조치 (실행 전 스냅샷 저장)
+6. **QA**: 300초 대기 후 탐지 당시 이상 지표 재측정 → 지표 + 비용 증가 여부 + 액션 성공 여부(가용성) 3가지를 검증 → 실패 시 스냅샷으로 롤백 (최대 2회 재시도)
+7. **Logging**: 전체 흐름을 PostgreSQL에 기록, Grafana 대시보드로 시각화
 
 ### 4.2 기능 설명 및 주요 기능 명세서
 
@@ -215,9 +208,9 @@
 
 #### 실연동 검증 방법
 
-각 시나리오는 실제 AWS 리소스를 새로 띄우고, 실제 트래픽·부하를 직접 발생시켜 진짜 CloudWatch 지표로 탐지~조치~검증까지 실측하였습니다.
+각 시나리오는 실제 AWS 리소스를 새로 띄우고, 실제 트래픽·부하를 직접 발생시켜 진짜 CloudWatch 지표로 탐지, 조치, 검증까지 실측하였습니다.
 
-- **EC2**: 부팅 시 자동 실행되는 User Data 스크립트로 CPU 부하 루프 실행 (systemd-run으로 백그라운드 유지)
+- **EC2**: 부팅 시 자동 실행되는 User Data 스크립트로 CPU 부하 루프 실행 
 - **Lambda**: `boto3`의 `lambda_client.invoke()`를 `ThreadPoolExecutor`로 동시에 대량 호출
 - **S3**: `boto3`의 `s3_client.get_object()`를 `ThreadPoolExecutor`로 동시에 대량 호출
 - **AutoScaling(EDoS)**: `requests` 라이브러리로 ALB에 실제 HTTP GET 요청을 `ThreadPoolExecutor`로 동시에 반복 전송
@@ -235,8 +228,6 @@
 | **Lambda 스로틀 재시도 폭증** | 8 / 5 | 76.9% [46.2%, 95.0%] | 100.0% [47.8%, 100%] | 37.5% [8.5%, 75.5%]* |
 | **S3 대량 다운로드** | 8 / 5 | 92.3% [64.0%, 99.8%] | 100.0% [47.8%, 100%] | 12.5% [0.3%, 52.7%] |
 | **AutoScaling EDoS** | 8 / 15 | 73.9% [51.6%, 89.8%] | 66.7% [38.4%, 88.2%] | 12.5% [0.3%, 52.7%] |
-
-> \* Lambda 시나리오의 높은 FPR은 스로틀링 메트릭의 민감도로 인한 것으로, 임계값 조정을 통해 개선 가능합니다.
 
 **분석 요약**:
 - **EC2 좀비/오버프로비저닝**: 고정 임계값 기반 탐지로 정확도·재현율 100% (다만 표본이 임계값 경계에서 충분히 검증되지 않아 일반화에는 주의 필요)
@@ -257,8 +248,7 @@
 
 #### 비용 절감액
 
-- EC2 Resize 사례 0.0106 USD/hr/인스턴스 → 30일 환산 $7.63
-- → 100대 규모 적용 시 월 약 $763 절감 추정
+- EC2 Resize 사례 0.0106 USD/hr/인스턴스 → 30일 환산 $7.63 → 100대 규모 적용 시 월 약 $763 절감 추정
 
 ### 4.4 디렉토리 구조
 
@@ -344,18 +334,21 @@ cp .env.example .env
 
 ### 실행 순서 (의존성 순서대로)
 
-**1) DB ** 
+**1) DB**
+
 ```bash
 docker compose up -d postgres
 ```
 
-**2) Grafana** 
+**2) Grafana**
+
 ```bash
 docker compose up -d grafana
 ```
 → 접속: http://localhost:3001 (admin / admin)
 
-**3) 백엔드** 
+**3) 백엔드**
+
 ```bash
 python -m api.main
 ```
