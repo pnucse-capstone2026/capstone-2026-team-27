@@ -48,6 +48,36 @@ DEFAULT_LAMBDA_THROTTLE_LIMIT = 0  # 동시성 0 = 완전 차단
 DEFAULT_ASG_SCALEDOWN_CAPACITY = 2  # 스케일다운 목표 용량
 MAX_WAF_RETRY = 2  # WAFOptimisticLockException 재시도 횟수
 
+# AssociateWebACL은 ALB가 막 생성된 직후(수 분 이내)에 호출하면 WAF 쪽 리소스
+# 캐시가 아직 그 ALB를 인식하지 못해 WAFUnavailableEntityException을 던진다
+# (2026-09-28 real_demo 실측에서 발견 — 15초 간격 5회 재시도로도 안 풀려서
+# propagation에 수 분이 걸리는 것으로 확인). 총 대기 한도를 넉넉히 잡고 재시도한다.
+WAF_ASSOCIATION_MAX_RETRY = 10
+WAF_ASSOCIATION_RETRY_DELAY_SEC = 20
+
+
+def _associate_web_acl_with_retry(waf, web_acl_arn: str, resource_arn: str) -> None:
+    """associate_web_acl을 WAFUnavailableEntityException에 대해 재시도하며 호출.
+
+    재시도를 모두 소진하면 예외를 그대로 올린다 (호출부에서 정리 책임을 짐).
+    """
+    for attempt in range(WAF_ASSOCIATION_MAX_RETRY + 1):
+        try:
+            waf.associate_web_acl(WebACLArn=web_acl_arn, ResourceArn=resource_arn)
+            return
+        except waf.exceptions.WAFUnavailableEntityException:
+            if attempt < WAF_ASSOCIATION_MAX_RETRY:
+                logger.warning(
+                    "AssociateWebACL: 리소스가 아직 WAF에 인식되지 않음(ALB 생성 "
+                    "직후 propagation 지연으로 추정) — 재시도 %d/%d (%d초 후)",
+                    attempt + 1,
+                    WAF_ASSOCIATION_MAX_RETRY,
+                    WAF_ASSOCIATION_RETRY_DELAY_SEC,
+                )
+                time.sleep(WAF_ASSOCIATION_RETRY_DELAY_SEC)
+                continue
+            raise
+
 
 def _get_wafv2_client(scope: Literal["REGIONAL", "CLOUDFRONT"] = "REGIONAL"):
     """
@@ -239,8 +269,24 @@ def _create_web_acl_with_rate_rule(
         web_acl_arn = create_resp["Summary"]["ARN"]
         web_acl_id = create_resp["Summary"]["Id"]
 
-        # 리소스에 연결
-        waf.associate_web_acl(WebACLArn=web_acl_arn, ResourceArn=resource_arn)
+        # 리소스에 연결 (ALB가 막 생성된 직후면 WAFUnavailableEntityException이
+        # 날 수 있어 재시도한다)
+        try:
+            _associate_web_acl_with_retry(waf, web_acl_arn, resource_arn)
+        except ClientError:
+            # 연결 실패 시 방금 만든 Web ACL을 고아로 남기지 않고 정리한다
+            try:
+                get_resp = waf.get_web_acl(Name=acl_name, Id=web_acl_id, Scope=scope)
+                waf.delete_web_acl(
+                    Name=acl_name,
+                    Id=web_acl_id,
+                    Scope=scope,
+                    LockToken=get_resp["LockToken"],
+                )
+                logger.info("연결 실패한 Web ACL '%s' 정리 완료", acl_name)
+            except ClientError as cleanup_exc:
+                logger.warning("Web ACL '%s' 정리 실패: %s", acl_name, cleanup_exc)
+            raise
 
         logger.info(
             "새 Web ACL '%s' 생성 및 리소스 연결 완료 (ARN: %s)", acl_name, web_acl_arn
@@ -303,7 +349,7 @@ def _ensure_web_acl_associated(
         associated = resp.get("ResourceArns", [])
 
         if resource_arn not in associated:
-            waf.associate_web_acl(WebACLArn=web_acl_arn, ResourceArn=resource_arn)
+            _associate_web_acl_with_retry(waf, web_acl_arn, resource_arn)
             logger.info("Web ACL을 리소스에 연결: %s", resource_arn)
 
     except ClientError as exc:
