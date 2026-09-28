@@ -64,6 +64,9 @@ export default function App() {
       setQueue(q);
       pruneResolvedApprovalToasts(q);
     }).catch(handleError);
+    // [2026-09-28] 원래 getLogs()는 최초 로드 시 한 번만 불러서 새 로그가 쌓여도
+    // 새로고침 전엔 안 보였다 — 다른 것들과 같은 5초 주기 폴링에 합류시킨다.
+    api.getLogs().then(setLogs).catch(handleError);
   }, [isAuthed, handleError]);
 
   const pruneResolvedApprovalToasts = useCallback((currentQueue) => {
@@ -127,7 +130,7 @@ export default function App() {
     api.getRules().then(setRules).catch(handleError);
     api.getWhitelist().then(setWhitelist).catch(handleError);
     api.getPromotions().then(setPromotions).catch(handleError);
-    api.getLogs().then(setLogs).catch(handleError);
+    // getLogs()는 refreshStatus()의 5초 폴링에 이미 포함됨(최초 마운트 때도 거기서 호출됨)
     api.getFailures().then(setFailures).catch(handleError);
     api.getSettings().then(setSettings).catch(handleError);
   }, [isAuthed, handleError]);
