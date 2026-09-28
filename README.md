@@ -262,27 +262,27 @@ cd frontend && npm install && cd ..
 # 환경 변수 설정
 cp .env.example .env
 # .env 파일에 AWS 자격 증명, Gemini API 키, DB 연결 정보 입력
-# (SLACK_WEBHOOK_URL은 선택 — 없어도 파이프라인은 정상 동작하며 Slack 알림만 안 감)
+# (SLACK_WEBHOOK_URL은 선택)
 ```
 
 ### 실행 순서 (의존성 순서대로)
 
-**1) DB 먼저** — 나머지 전부가 이걸 기다립니다
+**1) DB ** 
 ```bash
 docker compose up -d postgres
 ```
 
-**2) Grafana** — Postgres에 붙는 대시보드, DB만 떠있으면 바로 켜짐
+**2) Grafana** 
 ```bash
 docker compose up -d grafana
 ```
 → 접속: http://localhost:3001 (admin / admin)
 
-**3) 백엔드** — Postgres 연결 필요
+**3) 백엔드** 
 ```bash
 python -m api.main
 ```
-→ http://localhost:8000
+→ 접속: http://localhost:8000
 
 **4) 프론트엔드**
 ```bash
@@ -296,9 +296,9 @@ npm run dev
 ```powershell
 PowerShell -ExecutionPolicy Bypass -File start.ps1
 ```
-백엔드/프론트엔드를 각각 새 창으로 자동 실행합니다 (Postgres/Grafana는 미리 떠있어야 함).
+백엔드/프론트엔드를 각각 새 창으로 자동 실행합니다. (Postgres/Grafana는 미리 떠있어야 함)
 
-**의존성 요약**: `Postgres` → (`Grafana`, `백엔드` 둘 다 여기 의존) → `프론트엔드`
+**의존성 요약**: `Postgres` → `Grafana`, `백엔드` → `프론트엔드`
 
 ---
 
