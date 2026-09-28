@@ -19,7 +19,7 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("AWS_PROFILE", "default")
+# [2026-09-28] ~/.aws의 "default" 프로필 삭제 후 무효화됨 - .env 자격증명만 사용하므로 제거
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:

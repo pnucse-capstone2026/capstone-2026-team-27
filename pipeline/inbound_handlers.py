@@ -197,7 +197,11 @@ def apply_waf_rate_based_rule(
                 time.sleep(0.5)  # 짧은 대기 후 재시도
                 continue
             logger.error("WAF 업데이트 실패: LockToken 충돌 (최대 재시도 초과)")
-            return {"status": "failed", "error": "WAFOptimisticLockException", **result_info}
+            return {
+                "status": "failed",
+                "error": "WAFOptimisticLockException",
+                **result_info,
+            }
 
         except ClientError as exc:
             logger.error("WAF Rate-based Rule 적용 실패: %s", exc)
@@ -287,11 +291,15 @@ def _ensure_web_acl_associated(
     try:
         resource_type = _get_resource_type_from_arn(resource_arn)
         if not resource_type:
-            logger.warning("알 수 없는 리소스 타입, Web ACL 연결 확인 생략: %s", resource_arn)
+            logger.warning(
+                "알 수 없는 리소스 타입, Web ACL 연결 확인 생략: %s", resource_arn
+            )
             return
 
         # 현재 연결된 리소스 목록 조회
-        resp = waf.list_resources_for_web_acl(WebACLArn=web_acl_arn, ResourceType=resource_type)
+        resp = waf.list_resources_for_web_acl(
+            WebACLArn=web_acl_arn, ResourceType=resource_type
+        )
         associated = resp.get("ResourceArns", [])
 
         if resource_arn not in associated:
@@ -371,22 +379,51 @@ def throttle_lambda_concurrency(
             previous_concurrency = -1
 
         # 새 동시성 설정
-        resp = lambda_client.put_function_concurrency(
-            FunctionName=function_name,
-            ReservedConcurrentExecutions=reserved_concurrency,
-        )
+        try:
+            resp = lambda_client.put_function_concurrency(
+                FunctionName=function_name,
+                ReservedConcurrentExecutions=reserved_concurrency,
+            )
+            applied_concurrency = reserved_concurrency
+        except ClientError as exc:
+            # [2026-09-28] 계정 전체 동시실행 한도가 작으면(AWS는 예약 안 한 몫을
+            # 항상 최소 10 이상 남기게 강제) 부분 제한(예: 5)이 구조적으로 불가능한
+            # 경우가 있다(실측: 한도 10인 계정에서 5로도 실패) — 이때는 0(완전 차단)
+            # 이면 "예약 안 한 몫 = 전체 한도"가 돼서 그 최소치를 항상 만족하므로,
+            # 부분 제한이 막히면 완전 차단으로 자동 폴백한다.
+            if (
+                "UnreservedConcurrentExecution" in str(exc)
+                and reserved_concurrency != 0
+            ):
+                logger.warning(
+                    "Lambda Throttle: 계정 한도상 concurrency=%d 예약 불가 — "
+                    "완전 차단(0)으로 폴백 (%s): %s",
+                    reserved_concurrency,
+                    function_name,
+                    exc,
+                )
+                resp = lambda_client.put_function_concurrency(
+                    FunctionName=function_name, ReservedConcurrentExecutions=0
+                )
+                applied_concurrency = 0
+            else:
+                raise
 
         logger.info(
             "Lambda Throttle 완료: %s (이전=%d, 현재=%d)",
             function_name,
             previous_concurrency,
-            reserved_concurrency,
+            applied_concurrency,
         )
 
         return {
             "status": "success",
             "previous_concurrency": previous_concurrency,
-            "new_concurrency": resp.get("ReservedConcurrentExecutions", reserved_concurrency),
+            "new_concurrency": resp.get(
+                "ReservedConcurrentExecutions", applied_concurrency
+            ),
+            "requested_concurrency": reserved_concurrency,
+            "degraded_to_full_block": applied_concurrency != reserved_concurrency,
             **result_info,
         }
 
@@ -487,7 +524,9 @@ def _execute_autoscaling_scaledown_internal(
     """AutoScaling 그룹 스케일다운 내부 구현."""
     try:
         # 현재 상태 조회
-        resp = asg_client.describe_auto_scaling_groups(AutoScalingGroupNames=[group_name])
+        resp = asg_client.describe_auto_scaling_groups(
+            AutoScalingGroupNames=[group_name]
+        )
         if not resp["AutoScalingGroups"]:
             return {"status": "failed", "error": f"ASG not found: {group_name}"}
 
@@ -630,7 +669,9 @@ def remove_waf_rate_based_rule(
             existing_rules = web_acl.get("Rules", [])
 
             # 해당 규칙 찾기
-            rule_to_remove = next((r for r in existing_rules if r["Name"] == rule_name), None)
+            rule_to_remove = next(
+                (r for r in existing_rules if r["Name"] == rule_name), None
+            )
             if not rule_to_remove:
                 logger.info("WAF Rule '%s' 이미 없음 — 해제 생략", rule_name)
                 return {"status": "success", "detail": "rule_not_found", **result_info}
@@ -654,14 +695,26 @@ def remove_waf_rate_based_rule(
             )
 
             logger.info("WAF Rule '%s' 해제 완료", rule_name)
-            return {"status": "success", "rules_remaining": len(updated_rules), **result_info}
+            return {
+                "status": "success",
+                "rules_remaining": len(updated_rules),
+                **result_info,
+            }
 
         except waf.exceptions.WAFOptimisticLockException:
             if attempt < MAX_WAF_RETRY:
-                logger.warning("WAFOptimisticLockException — 재시도 %d/%d", attempt + 1, MAX_WAF_RETRY)
+                logger.warning(
+                    "WAFOptimisticLockException — 재시도 %d/%d",
+                    attempt + 1,
+                    MAX_WAF_RETRY,
+                )
                 time.sleep(0.5)
                 continue
-            return {"status": "failed", "error": "WAFOptimisticLockException", **result_info}
+            return {
+                "status": "failed",
+                "error": "WAFOptimisticLockException",
+                **result_info,
+            }
 
         except ClientError as exc:
             logger.error("WAF Rule 해제 실패: %s", exc)
@@ -670,14 +723,18 @@ def remove_waf_rate_based_rule(
     return {"status": "failed", "error": "unexpected_loop_exit", **result_info}
 
 
-def _delete_web_acl(waf, web_acl: dict, lock_token: str, scope: str, result_info: dict) -> dict:
+def _delete_web_acl(
+    waf, web_acl: dict, lock_token: str, scope: str, result_info: dict
+) -> dict:
     """Web ACL 삭제 (연결된 리소스가 없을 때만 가능)."""
     try:
         # 먼저 연결된 리소스 해제
         web_acl_arn = web_acl["ARN"]
         for resource_type in ["APPLICATION_LOAD_BALANCER", "API_GATEWAY", "APPSYNC"]:
             try:
-                resp = waf.list_resources_for_web_acl(WebACLArn=web_acl_arn, ResourceType=resource_type)
+                resp = waf.list_resources_for_web_acl(
+                    WebACLArn=web_acl_arn, ResourceType=resource_type
+                )
                 for resource_arn in resp.get("ResourceArns", []):
                     waf.disassociate_web_acl(ResourceArn=resource_arn)
                     logger.info("Web ACL 연결 해제: %s", resource_arn)
@@ -736,7 +793,11 @@ def release_lambda_throttle(
         # 동시성 제한 해제
         lambda_client.delete_function_concurrency(FunctionName=function_name)
 
-        logger.info("Lambda Throttle 해제 완료: %s (이전 제한=%d)", function_name, previous_concurrency)
+        logger.info(
+            "Lambda Throttle 해제 완료: %s (이전 제한=%d)",
+            function_name,
+            previous_concurrency,
+        )
 
         return {
             "status": "success",
@@ -777,7 +838,11 @@ def get_or_create_ip_set(
 
     if dry_run:
         logger.info("[DRY-RUN] IP Set 조회/생성 계획: %s", ip_set_name)
-        return {"status": "dry_run", "would_execute": "get_or_create_ip_set", **result_info}
+        return {
+            "status": "dry_run",
+            "would_execute": "get_or_create_ip_set",
+            **result_info,
+        }
 
     waf = _get_wafv2_client(scope)
 
@@ -787,7 +852,9 @@ def get_or_create_ip_set(
         for ip_set in list_resp.get("IPSets", []):
             if ip_set["Name"] == ip_set_name:
                 # 상세 조회
-                get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set["Id"], Scope=scope)
+                get_resp = waf.get_ip_set(
+                    Name=ip_set_name, Id=ip_set["Id"], Scope=scope
+                )
                 ip_set_detail = get_resp["IPSet"]
                 return {
                     "status": "success",
@@ -851,7 +918,11 @@ def add_ip_to_blacklist(
 
     if dry_run:
         logger.info("[DRY-RUN] IP 블랙리스트 추가 계획: %s", ip_address)
-        return {"status": "dry_run", "would_execute": "add_ip_to_blacklist", **result_info}
+        return {
+            "status": "dry_run",
+            "would_execute": "add_ip_to_blacklist",
+            **result_info,
+        }
 
     waf = _get_wafv2_client(scope)
 
@@ -884,7 +955,9 @@ def add_ip_to_blacklist(
             Addresses=new_addresses,
         )
 
-        logger.info("IP '%s' 블랙리스트 추가 완료 (총 %d개)", ip_address, len(new_addresses))
+        logger.info(
+            "IP '%s' 블랙리스트 추가 완료 (총 %d개)", ip_address, len(new_addresses)
+        )
 
         return {
             "status": "success",
@@ -922,7 +995,11 @@ def remove_ip_from_blacklist(
 
     if dry_run:
         logger.info("[DRY-RUN] IP 블랙리스트 제거 계획: %s", ip_address)
-        return {"status": "dry_run", "would_execute": "remove_ip_from_blacklist", **result_info}
+        return {
+            "status": "dry_run",
+            "would_execute": "remove_ip_from_blacklist",
+            **result_info,
+        }
 
     waf = _get_wafv2_client(scope)
 
@@ -954,7 +1031,9 @@ def remove_ip_from_blacklist(
             Addresses=new_addresses,
         )
 
-        logger.info("IP '%s' 블랙리스트 제거 완료 (남은 %d개)", ip_address, len(new_addresses))
+        logger.info(
+            "IP '%s' 블랙리스트 제거 완료 (남은 %d개)", ip_address, len(new_addresses)
+        )
 
         return {
             "status": "success",
@@ -989,7 +1068,9 @@ def get_ip_blacklist(
         list_resp = waf.list_ip_sets(Scope=scope, Limit=100)
         for ip_set in list_resp.get("IPSets", []):
             if ip_set["Name"] == ip_set_name:
-                get_resp = waf.get_ip_set(Name=ip_set_name, Id=ip_set["Id"], Scope=scope)
+                get_resp = waf.get_ip_set(
+                    Name=ip_set_name, Id=ip_set["Id"], Scope=scope
+                )
                 addresses = get_resp["IPSet"].get("Addresses", [])
                 return {
                     "status": "success",
@@ -1000,7 +1081,13 @@ def get_ip_blacklist(
                     **result_info,
                 }
 
-        return {"status": "success", "addresses": [], "count": 0, "detail": "ip_set_not_found", **result_info}
+        return {
+            "status": "success",
+            "addresses": [],
+            "count": 0,
+            "detail": "ip_set_not_found",
+            **result_info,
+        }
 
     except ClientError as exc:
         logger.error("IP 블랙리스트 조회 실패: %s", exc)
@@ -1037,8 +1124,16 @@ def apply_ip_blacklist_to_web_acl(
     }
 
     if dry_run:
-        logger.info("[DRY-RUN] IP 블랙리스트 Rule 적용 계획: %s -> %s", ip_set_name, web_acl_name)
-        return {"status": "dry_run", "would_execute": "apply_ip_blacklist_to_web_acl", **result_info}
+        logger.info(
+            "[DRY-RUN] IP 블랙리스트 Rule 적용 계획: %s -> %s",
+            ip_set_name,
+            web_acl_name,
+        )
+        return {
+            "status": "dry_run",
+            "would_execute": "apply_ip_blacklist_to_web_acl",
+            **result_info,
+        }
 
     waf = _get_wafv2_client(scope)
 

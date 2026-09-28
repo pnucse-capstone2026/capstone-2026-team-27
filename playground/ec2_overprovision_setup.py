@@ -43,6 +43,7 @@ SCRIPT_VERSION = "1"
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -61,12 +62,22 @@ from _runner_tag import runner_suffix
 
 RESULT_DIR = PROJECT_ROOT / "playground" / "eval_outputs"
 
-# [2026-09-27] 새 AWS 계정으로 전환하면서 재생성 — AL2023 + 새 계정 기본 VPC의 서브넷 +
-# 새로 만든 보안그룹. IAM 인스턴스 프로파일은 더 이상 안 씀(SCP로 차단된 계정이라
-# User Data 방식으로 전환 - _user_data_script 참고).
-AMI_ID = "ami-03137ee2d0c5af1fe"
-SECURITY_GROUP_IDS = ["sg-0efaaff8859d72eac"]
-SUBNET_ID = "subnet-047c2d08f2bd45ed7"
+
+def _require_env(key: str) -> str:
+    value = os.environ.get(key)
+    if not value:
+        raise RuntimeError(
+            f".env에 {key}가 없습니다 — 계정별 AWS 리소스 ID라 저장소에 커밋하지 않고 .env로만 관리한다."
+        )
+    return value
+
+
+# [2026-09-27] 계정마다 AMI/보안그룹/서브넷 ID가 다르므로(계정 이전 시마다 재생성 필요)
+# 스크립트에 하드코딩하지 않고 .env에서 읽는다. IAM 인스턴스 프로파일은 더 이상 안 씀
+# (SCP로 차단된 계정이라 User Data 방식으로 전환 - _user_data_script 참고).
+AMI_ID = _require_env("EC2_TEST_AMI_ID")
+SECURITY_GROUP_IDS = [_require_env("EC2_TEST_SECURITY_GROUP_ID")]
+SUBNET_ID = _require_env("EC2_TEST_SUBNET_ID")
 INSTANCE_TYPE = (
     "t3.small"  # t3.micro는 최저 tier라 Resize 절감액이 항상 0 — 반드시 한 단계 위
 )
@@ -83,9 +94,14 @@ WINDOW_SECONDS = (
     WINDOW_POINTS * PERIOD_SECONDS
 )  # 9000s = 2.5h — detection_agent의 나이가드와 동일
 
-DUTY_CYCLE_PERIOD_SEC = (
-    1.0  # busy+idle 합이 이 값이 되도록 (짧을수록 CPU% 변동이 매끈함)
-)
+# [2026-09-28 수정] 원래 1.0초였는데, 목표 CPU%가 낮을 때(예: 12%) busy 구간이
+# 0.12초로 너무 짧아져서 매초 새로 fork/exec하는 yes 프로세스의 시작 오버헤드
+# 자체가 그 시간의 상당 부분을 잡아먹어, 실측 CPU%가 목표보다 훨씬 낮게(거의 0%)
+# 나오는 문제를 real_demo 실측 중 발견했다(콘솔 로그로 systemd 유닛은 정상 기동
+# 확인됨 — 로직 자체가 아니라 주기가 너무 짧아서 생긴 문제). 주기를 늘려 busy
+# 구간을 길게(12%→1.2초) 만들면 프로세스 시작 오버헤드 비중이 작아져 목표치에
+# 더 가까워진다.
+DUTY_CYCLE_PERIOD_SEC = 10.0  # busy+idle 합이 이 값이 되도록
 
 
 def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> list[str]:
