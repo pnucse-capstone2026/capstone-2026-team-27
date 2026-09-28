@@ -31,6 +31,7 @@ import json
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +42,7 @@ if str(PLAYGROUND_ROOT) not in sys.path:
     sys.path.insert(0, str(PLAYGROUND_ROOT))
 
 import boto3
+import requests
 
 from autoscaling_edos_traffic_trial import (
     ALB_NAME,
@@ -53,12 +55,36 @@ from autoscaling_edos_traffic_trial import (
     _asg_name,
     _fetch_alb_request_count,
     _tg_dimension_value,
-    _traffic_loop,
     setup_all,
     teardown_all,
 )
 
 from common import run_real_scenario
+
+
+def _concurrent_traffic_loop(url: str, rps_getter, stop_event: threading.Event) -> None:
+    """autoscaling_edos_traffic_trial._traffic_loop()는 요청 하나를 보내고
+    응답이 올 때까지 기다린 뒤에야 다음 요청을 보내는 단일 스레드 구조라, 목표
+    rps가 높아지면(엣지 10배) 응답 지연 때문에 실제 달성 처리량이 목표에
+    한참 못 미치고 시간이 지날수록 흔들리는 문제가 있었다(2026-09-28 real_demo
+    실측에서 발견 — 스파이크 첫 구간만 반짝 튀고 이후 급격히 가라앉음).
+    스레드풀로 요청을 쏘고 응답을 기다리지 않고 바로 다음 요청을 쏴서, 응답
+    지연과 무관하게 목표 rps를 그대로 유지한다."""
+    session = requests.Session()
+
+    def _fire() -> None:
+        try:
+            session.get(url, timeout=3)
+        except Exception:
+            pass
+
+    with ThreadPoolExecutor(max_workers=64) as pool:
+        while not stop_event.is_set():
+            rps = max(0.1, rps_getter())
+            interval = 1.0 / rps
+            pool.submit(_fire)
+            stop_event.wait(interval)
+
 
 MANIFEST_PATH = RESULT_DIR / "autoscaling_edos_traffic_manifest.json"
 ASG_NAME = _asg_name("anomaly", 0)
@@ -93,8 +119,8 @@ def run(
     current_rps = [BASELINE_RPS]
     stop_event = threading.Event()
     traffic_thread = threading.Thread(
-        target=_traffic_loop,
-        args=(url, lambda: current_rps[0], stop_event, profile, 0),
+        target=_concurrent_traffic_loop,
+        args=(url, lambda: current_rps[0], stop_event),
         daemon=True,
     )
     traffic_thread.start()

@@ -142,12 +142,22 @@ def run(profile: str) -> None:
         MaximumEventAgeInSeconds=MAX_EVENT_AGE_SEC,
         MaximumRetryAttempts=2,
     )
-    lam.put_function_concurrency(
-        FunctionName=FUNCTION_NAME, ReservedConcurrentExecutions=concurrency
-    )
-    print(
-        f"[{FUNCTION_NAME}] profile={profile} concurrency={concurrency}로 제한, 버스트 시작"
-    )
+    try:
+        lam.put_function_concurrency(
+            FunctionName=FUNCTION_NAME, ReservedConcurrentExecutions=concurrency
+        )
+        print(
+            f"[{FUNCTION_NAME}] profile={profile} concurrency={concurrency}로 제한, 버스트 시작"
+        )
+    except lam.exceptions.InvalidParameterValueException as exc:
+        # [2026-09-28] 이 계정의 Lambda 계정 전체 동시실행 한도가 10개뿐이라(AWS가
+        # UnreservedConcurrentExecutions를 항상 최소 10개 남기게 강제) 1~2개조차 예약이
+        # 안 된다 — 대신 버스트(40개)가 계정 한도(10개) 자체를 넘겨서 예약 없이도
+        # 자연스럽게 스로틀이 걸린다(오히려 이 계정 환경에 더 맞는 방식).
+        print(
+            f"[{FUNCTION_NAME}] 동시성 예약 실패({exc}) — 예약 없이 버스트만으로 진행 "
+            f"(계정 전체 한도 10개 < 버스트 {BURST_SIZE}개라 자연 스로틀 예상)"
+        )
     time.sleep(3)
 
     with ThreadPoolExecutor(max_workers=INVOKE_POOL_SIZE) as invoke_pool:

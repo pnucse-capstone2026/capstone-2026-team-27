@@ -181,6 +181,13 @@ def run_live_scenario(
         "elapsed_seconds_total": round(elapsed_seconds_total, 2),
         "step_timings_ms": step_timings_ms,
         "estimated_cost_usd": estimated_cost_usd,
+        # [2026-09-28] real_demo.common.py와 동일한 이유로 추가 — 판정 점수 자체가
+        # 없으면 "왜 탐지가 안 됐는지" 나중에 재현/디버깅이 불가능하다.
+        "anomaly_flag": state.get("anomaly_flag"),
+        "anomaly_score_zscore": state.get("anomaly_score_zscore"),
+        "anomaly_score_iforest": state.get("anomaly_score_iforest"),
+        "triggered_metrics": state.get("triggered_metrics"),
+        "ec2_utilization_band": state.get("ec2_utilization_band"),
         "anomaly_type": state.get("anomaly_type"),
         "selected_action": state.get("selected_action"),
         "risk_level": state.get("risk_level"),
@@ -190,14 +197,26 @@ def run_live_scenario(
         "rollback_count": state.get("rollback_count"),
     }
 
+    # [2026-09-28] real_demo.common.py와 동일 — 파일명만 보고 실패 사례를 바로
+    # 골라낼 수 있게 "_fail" 접미사를 붙인다.
+    action_result = result.get("action_result")
+    action_failed = bool(action_result) and action_result.get("status") != "success"
+    is_fail = (
+        not result.get("anomaly_flag")
+        or result.get("selected_action") == "NoAction"
+        or result.get("qa_passed") is False
+        or action_failed
+    )
+    suffix = "_fail" if is_fail else ""
+
     log_dir = LOG_ROOT / scenario_key
     log_dir.mkdir(parents=True, exist_ok=True)
     ts = run_started_at.strftime("%Y%m%d_%H%M%S")
-    log_path = log_dir / f"{scenario_key}_{ts}.json"
+    log_path = log_dir / f"{scenario_key}_{ts}{suffix}.json"
     with open(log_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    print(f"\n=== {scenario_key} 완료 ===")
+    print(f"\n=== {scenario_key} {'실패' if is_fail else '완료'} ===")
     print(
         f"  action={result['selected_action']} risk={result['risk_level']} "
         f"qa_passed={result['qa_passed']} elapsed={result['elapsed_seconds_total']}s "

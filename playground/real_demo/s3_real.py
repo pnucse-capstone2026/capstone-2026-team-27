@@ -26,6 +26,7 @@ import os
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -98,6 +99,12 @@ def run(
         f"마지막 {spike_periods}개는 폭증 ~{round(spike_level)}건/구간"
     )
 
+    def _get_once() -> None:
+        try:
+            s3.get_object(Bucket=BUCKET_NAME, Key=key)["Body"].read()
+        except Exception:
+            pass
+
     for period_idx in range(n_points):
         period_start = time.time()
         is_spike = period_idx >= (n_points - spike_periods)
@@ -105,8 +112,12 @@ def run(
             n_requests = max(1, round(spike_level * random.uniform(0.98, 1.02)))
         else:
             n_requests = max(1, round(base * random.uniform(0.85, 1.15)))
-        for _ in range(n_requests):
-            s3.get_object(Bucket=BUCKET_NAME, Key=key)["Body"].read()
+        # [2026-09-28] 순차 for-loop로 한 건씩 쏘면 스파이크 구간(2000건+)이 300초
+        # 안에 다 안 끝나서 뒤 구간까지 밀리고, 특히 마지막 구간이 잘려나가 지속성
+        # 체크가 실패하는 문제가 실측으로 확인됨(edos_real.py와 동일한 원인) —
+        # 스레드풀로 동시에 쏴서 300초 안에 확실히 끝나게 한다.
+        with ThreadPoolExecutor(max_workers=64) as pool:
+            list(pool.map(lambda _: _get_once(), range(n_requests)))
         elapsed = time.time() - period_start
         remaining = period_seconds - elapsed
         print(
