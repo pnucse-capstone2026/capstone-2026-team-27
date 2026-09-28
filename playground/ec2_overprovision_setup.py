@@ -111,11 +111,19 @@ def _duty_cycle_command(target_pct: float, duration_sec: int, n_vcpu: int) -> li
     stress-ng 등 별도 설치 없이 AL2023 기본 셸만으로 동작하도록 설계."""
     busy = round(DUTY_CYCLE_PERIOD_SEC * target_pct / 100, 3)
     idle = round(DUTY_CYCLE_PERIOD_SEC - busy, 3)
-    # User Data 스크립트 안에서 직접 실행되므로(SSM RunCommand의 bash -c "..." 한 겹이
-    # 없음), $(date +%s)를 이스케이프할 필요가 없다 - 그냥 셸이 매 반복마다 재평가한다.
+    # [2026-09-28 수정] 이 loop 문자열은 아래에서 `bash -c "{loop}"`처럼 큰따옴표
+    # 안에 그대로 박혀서 User Data(부팅) 스크립트의 바깥쪽 셸이 실행한다. 이스케이프
+    # 없이 $(date +%s)/$END를 쓰면, "안쪽 bash -c가 매 반복마다 재평가"하는 게
+    # 아니라 *바깥쪽 셸이 이 줄을 실행하는 그 순간 딱 한 번만* 즉시 평가해버린다
+    # ($END는 바깥쪽 셸에 정의된 적이 없어 빈 문자열로 치환됨) — 그 결과 안쪽에
+    # 전달되는 실제 명령은 `while [ <고정타임스탬프> -lt  ]; do ...`처럼 우변이
+    # 빈 깨진 조건문이 되어 while 루프 자체가 단 한 번도 안 돈다. 즉 지금까지
+    # ec2_over 실측에서 CPU가 항상 0%대로 나온 진짜 원인이 이거였다(주기가 짧아서
+    # 오버헤드에 먹힌다는 이전 진단은 틀렸음 — 애초에 yes가 한 번도 실행된 적이
+    # 없었다). \$로 이스케이프해서 안쪽 bash -c 셸에 그대로 전달되게 고친다.
     loop = (
-        f"END=$(( $(date +%s) + {duration_sec} )); "
-        f"while [ $(date +%s) -lt $END ]; do "
+        f"END=\\$(( \\$(date +%s) + {duration_sec} )); "
+        f"while [ \\$(date +%s) -lt \\$END ]; do "
         f"timeout {busy} yes > /dev/null 2>&1; sleep {idle}; "
         f"done"
     )
