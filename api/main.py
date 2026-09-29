@@ -57,7 +57,11 @@ app = FastAPI(title="Cloud Anomaly Agent - Admin API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://detection.vercel.app",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
