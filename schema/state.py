@@ -225,6 +225,20 @@ class PipelineState(TypedDict):
     ]  # LLM이 액션 선택 근거를 if-else 한 줄로 표현한 것 (실패 시 "")
     matched_decision_rule_id: Optional[str]  # 매칭된 Decision 규칙 ID (예: "DEC-001")
 
+    # [ADDED] Grafana 비용 패널(현재/적용 후/절감액)이 실제 Postgres 값을 참조할 수
+    # 있도록 decision_node가 이미 계산해둔 금액을 state에도 남긴다 — 기존엔
+    # cost_prediction_log.jsonl(로컬 파일)에만 기록되어 Grafana(Postgres 데이터소스)가
+    # 못 읽었음. selected_action == "NoAction"이면 절감할 게 없으므로 None.
+    current_cost_usd: Optional[float]
+    after_cost_usd: Optional[float]
+    estimated_saving_usd: Optional[float]
+
+    # [ADDED] EDoS(AutoScaling risk_security ScaleDown) 전용 — 공격이 막히지 않았다면
+    # ASG가 MaxSize까지 늘어났을 때 발생했을 시간당 비용을 추정한 값. 다른 액션들의
+    # estimated_saving_usd(이미 발생한 비용 대비 실측 기반 절감액)와 달리, "일어나지
+    # 않은 미래를 가정한 추정치"라서 절대 합산하지 않고 별도 필드로 관리한다.
+    avoided_cost_usd: Optional[float]
+
     # ── Step 4: Action Agent ──────────────────────────────────────────────────
     pre_action_snapshot: Optional[
         EC2Snapshot | LambdaSnapshot | S3Snapshot | RDSSnapshot | AutoScalingSnapshot

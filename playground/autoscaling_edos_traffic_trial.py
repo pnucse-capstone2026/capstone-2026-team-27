@@ -56,7 +56,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(PROJECT_ROOT / "playground") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "playground"))
 
-os.environ.setdefault("AWS_PROFILE", "default")
+# [2026-09-28] ~/.aws의 "default" 프로필 삭제 후 무효화됨 - .env 자격증명만 사용하므로 제거
 
 from dotenv import load_dotenv
 
@@ -76,7 +76,7 @@ from pipeline.detection_agent import detection_node, _build_initial_state
 from pipeline.classification_agent import classification_node
 from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
-from pipeline.QA_agent import qa_node
+from pipeline.qa_agent import qa_node
 from pipeline.logging_agent import logging_node
 from pipeline.cost_estimator import estimate_cost_series
 

@@ -13,14 +13,15 @@ import ToastStack from "./components/Toast.jsx";
 import { api, AuthError, getStoredToken, logout as apiLogout } from "./api.js";
 import { colors, applyTheme, getStoredTheme, font, gridBackground } from "./styles.js";
 
+// Vite HMR로 App 컴포넌트가 재마운트될 때 이전 폴링 인터벌이 남아 setInterval이 중복 실행되는 문제가 발생했다. 
+// 모듈 스코프 변수로 인터벌 ID를 유지하고, 새 인터벌을 시작하기 전에 기존 인터벌을 정리해 중복 폴링을 방지한다.
+let _activeNotifPollIntervalId = null;
+
 export default function App() {
   const [isAuthed, setIsAuthed] = useState(() => !!getStoredToken());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [theme, setTheme] = useState(getStoredTheme);
 
-  // applyTheme()는 colors 객체를 그 자리에서 바꿔치기(mutate)한다 — 렌더링 도중에
-  // 바로 호출해야 이 렌더 사이클에서 만들어지는 모든 인라인 스타일이 새 테마를
-  // 즉시 반영한다 (useEffect로 하면 한 프레임 늦게 반영돼서 깜빡임이 생김).
   applyTheme(theme);
 
   const [status, setStatus] = useState(null);
@@ -40,6 +41,12 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const lastEventIdRef = useRef(0);
   const notifBaselineSetRef = useRef(false);
+  const notifPollInFlightRef = useRef(false);
+  // 승인/거부 클릭 직후에도 서버 체크포인트 반영이 살짝 늦을 수 있어서, 그 사이
+  // 5초 폴링이 같은 항목을 큐에 되살려 보여주는 문제가 있었다(백엔드에도 별도
+  // 가드를 추가했지만, 프론트에서도 한 번 누른 건 이 세션 동안 다시 안 뜨게
+  // 이중으로 막는다).
+  const locallyResolvedIdsRef = useRef(new Set());
 
   const dismissToast = useCallback((eventId) => {
     setToasts((prev) => prev.filter((t) => t.event_id !== eventId));
@@ -60,9 +67,13 @@ export default function App() {
     api.getRecentDetections().then(setRecentDetections).catch(handleError);
     api.getPipelineProcessStatus().then(setPipelineProcess).catch(handleError);
     api.getQueue().then((q) => {
-      setQueue(q);
-      pruneResolvedApprovalToasts(q);
+      const filtered = q.filter((item) => !locallyResolvedIdsRef.current.has(item.id));
+      setQueue(filtered);
+      pruneResolvedApprovalToasts(filtered);
     }).catch(handleError);
+    // [2026-09-28] 원래 getLogs()는 최초 로드 시 한 번만 불러서 새 로그가 쌓여도
+    // 새로고침 전엔 안 보였다 — 다른 것들과 같은 5초 주기 폴링에 합류시킨다.
+    api.getLogs().then(setLogs).catch(handleError);
   }, [isAuthed, handleError]);
 
   const pruneResolvedApprovalToasts = useCallback((currentQueue) => {
@@ -86,6 +97,13 @@ export default function App() {
     if (!isAuthed) return;
 
     const poll = () => {
+      // baseline 설정 전(첫 호출)은 서버가 전체 이력을 events로 돌려줄 수 있는데,
+      // 이 요청이 2초(폴링 주기) 안에 안 끝나면 다음 poll()이 겹쳐 실행돼서
+      // baseline이 아직 안 잡힌 상태로 같은 전체 이력이 또 한 번 응답으로 와
+      // 그대로 toast 처리돼버린다(과거 이력 전체가 한꺼번에 쏟아지는 원인이었음,
+      // 2026-09-28 실측 확인) — in-flight 가드로 겹침 자체를 막는다.
+      if (notifPollInFlightRef.current) return;
+      notifPollInFlightRef.current = true;
       api
         .getRecentNotifications(lastEventIdRef.current)
         .then(({ events, latest_id, db_latest_id }) => {
@@ -103,11 +121,24 @@ export default function App() {
             lastEventIdRef.current = latest_id;
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          notifPollInFlightRef.current = false;
+        });
     };
+    // HMR 등으로 이전 인스턴스의 인터벌이 안 지워진 채 남아있으면 먼저 정리
+    if (_activeNotifPollIntervalId !== null) {
+      clearInterval(_activeNotifPollIntervalId);
+    }
     poll();
     const interval = setInterval(poll, 2000);
-    return () => clearInterval(interval);
+    _activeNotifPollIntervalId = interval;
+    return () => {
+      clearInterval(interval);
+      if (_activeNotifPollIntervalId === interval) {
+        _activeNotifPollIntervalId = null;
+      }
+    };
   }, [isAuthed]);
 
   useEffect(() => {
@@ -116,13 +147,14 @@ export default function App() {
     api.getRules().then(setRules).catch(handleError);
     api.getWhitelist().then(setWhitelist).catch(handleError);
     api.getPromotions().then(setPromotions).catch(handleError);
-    api.getLogs().then(setLogs).catch(handleError);
+    // getLogs()는 refreshStatus()의 5초 폴링에 이미 포함됨(최초 마운트 때도 거기서 호출됨)
     api.getFailures().then(setFailures).catch(handleError);
     api.getSettings().then(setSettings).catch(handleError);
   }, [isAuthed, handleError]);
 
   // ── 승인 대기 ──
   function handleApprove(id) {
+    locallyResolvedIdsRef.current.add(id);
     setQueue((prev) => {
       const next = prev.filter((q) => q.id !== id);
       pruneResolvedApprovalToasts(next);
@@ -130,11 +162,14 @@ export default function App() {
     });
     api.approveQueueItem(id).catch((err) => {
       console.error(err);
+      // 실패했으면 다시 보여야 하니 로컬 제외 목록에서 빼고 원상복구
+      locallyResolvedIdsRef.current.delete(id);
       api.getQueue().then(setQueue);
     });
   }
 
   function handleReject(id) {
+    locallyResolvedIdsRef.current.add(id);
     setQueue((prev) => {
       const next = prev.filter((q) => q.id !== id);
       pruneResolvedApprovalToasts(next);
@@ -142,6 +177,7 @@ export default function App() {
     });
     api.rejectQueueItem(id).catch((err) => {
       console.error(err);
+      locallyResolvedIdsRef.current.delete(id);
       api.getQueue().then(setQueue);
     });
   }
@@ -265,6 +301,7 @@ export default function App() {
         pendingCount={queue.length}
         promotionsCount={(promotions.classification?.length || 0) + (promotions.decision?.length || 0)}
         lastNormalCheckAt={status?.last_normal_check_at ?? null}
+        nodesAsOf={status?.as_of ?? null}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         onLogout={() => {

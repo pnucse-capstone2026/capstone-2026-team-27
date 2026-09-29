@@ -40,6 +40,14 @@ _STATE_CHANGE_EVENTS: dict[str, dict[str, str]] = {
 
 EC2_HOURLY_RATE: dict[str, float] = {
     "t3.micro": 0.013,
+    # [2026-09-28] t3.small 이상이 빠져있어서 real_demo/ec2_over_real.py(t3.small 사용,
+    # t3.micro는 최저 tier라 Resize 절감액이 항상 0이라 못 씀)가 estimate_ec2_cost()에서
+    # ValueError로 죽는 실측 버그를 발견 — decision_agent.py의 EC2_HOURLY_PRICE_USD와
+    # 같은 값으로 채운다.
+    "t3.small": 0.0210,
+    "t3.medium": 0.0420,
+    "t3.large": 0.0830,
+    "t3.xlarge": 0.1660,
 }
 
 RDS_HOURLY_RATE: dict[str, float] = {
@@ -49,9 +57,9 @@ RDS_HOURLY_RATE: dict[str, float] = {
 LAMBDA_PRICE_PER_GB_SECOND = 0.0000166667
 LAMBDA_PRICE_PER_REQUEST = 0.0000002
 
-S3_STORAGE_PRICE_PER_GB_MONTH = 0.025   # 첫 50TB 구간
-S3_REQUEST_PRICE_WRITE = 0.0000045      # PUT/COPY/POST/LIST (1,000건당 $0.0045)
-S3_REQUEST_PRICE_READ = 0.00000035      # GET 등 (10,000건당 $0.0035)
+S3_STORAGE_PRICE_PER_GB_MONTH = 0.025  # 첫 50TB 구간
+S3_REQUEST_PRICE_WRITE = 0.0000045  # PUT/COPY/POST/LIST (1,000건당 $0.0045)
+S3_REQUEST_PRICE_READ = 0.00000035  # GET 등 (10,000건당 $0.0035)
 
 # 데이터 전송(Data Transfer OUT to internet) — AWS Pricing Calculator로 직접 확인
 # (ap-northeast-2/Seoul, 첫 10TB/월 구간 기준, 확인일 2026-09-09).
@@ -63,6 +71,7 @@ S3_DATA_TRANSFER_OUT_PRICE_PER_GB = 0.126
 
 
 # ── 순수 계산 함수 (AWS 호출 없음 — 테스트하기 쉽게 분리) ──────────────────────
+
 
 def estimate_ec2_cost(instance_type: str, hours: float) -> float:
     rate = EC2_HOURLY_RATE.get(instance_type)
@@ -78,10 +87,14 @@ def estimate_rds_cost(db_instance_class: str, hours: float) -> float:
     return rate * hours
 
 
-def estimate_lambda_cost(invocations: float, avg_duration_ms: float, memory_mb: int) -> float:
+def estimate_lambda_cost(
+    invocations: float, avg_duration_ms: float, memory_mb: int
+) -> float:
     memory_gb = memory_mb / 1024
     gb_seconds = invocations * (avg_duration_ms / 1000) * memory_gb
-    return invocations * LAMBDA_PRICE_PER_REQUEST + gb_seconds * LAMBDA_PRICE_PER_GB_SECOND
+    return (
+        invocations * LAMBDA_PRICE_PER_REQUEST + gb_seconds * LAMBDA_PRICE_PER_GB_SECOND
+    )
 
 
 def estimate_s3_cost(
@@ -92,21 +105,28 @@ def estimate_s3_cost(
     bytes_downloaded: float = 0.0,
 ) -> float:
     storage_cost = storage_gb * S3_STORAGE_PRICE_PER_GB_MONTH * period_fraction_of_month
-    request_cost = get_requests * S3_REQUEST_PRICE_READ + put_requests * S3_REQUEST_PRICE_WRITE
+    request_cost = (
+        get_requests * S3_REQUEST_PRICE_READ + put_requests * S3_REQUEST_PRICE_WRITE
+    )
 
-    downloaded_gb = bytes_downloaded / (1024 ** 3)
-    free_gb_this_period = S3_DATA_TRANSFER_OUT_FREE_GB_PER_MONTH * period_fraction_of_month
+    downloaded_gb = bytes_downloaded / (1024**3)
+    free_gb_this_period = (
+        S3_DATA_TRANSFER_OUT_FREE_GB_PER_MONTH * period_fraction_of_month
+    )
     billable_gb = max(0.0, downloaded_gb - free_gb_this_period)
     transfer_cost = billable_gb * S3_DATA_TRANSFER_OUT_PRICE_PER_GB
 
     return storage_cost + request_cost + transfer_cost
 
 
-def estimate_autoscaling_cost(instance_type: str, desired_capacity: float, hours: float) -> float:
+def estimate_autoscaling_cost(
+    instance_type: str, desired_capacity: float, hours: float
+) -> float:
     return estimate_ec2_cost(instance_type, hours) * desired_capacity
 
 
 # ── 리소스 설명 정보 조회 (인스턴스 타입 등 — CloudWatch엔 없는 정보) ───────────
+
 
 def _get_ec2_instance_type(instance_id: str, client=None) -> str:
     ec2 = client or boto3.client("ec2")
@@ -132,8 +152,13 @@ def _get_lambda_memory_mb(function_name: str, client=None) -> int:
 # StartInstances/StopInstances(RDS는 StartDBInstance/StopDBInstance) 호출 이력을
 # 조회해서, 구간(period)마다 실제로 몇 % 켜져 있었는지 계산한다.
 
+
 def _get_state_change_events(
-    resource_type: str, resource_id: str, start_time: datetime, end_time: datetime, client=None
+    resource_type: str,
+    resource_id: str,
+    start_time: datetime,
+    end_time: datetime,
+    client=None,
 ) -> list[tuple[datetime, bool]]:
     """[(발생 시각, 그 이후 running 여부), ...] 시간순 리스트. CloudTrail 조회 실패 시 빈 리스트."""
     event_names = _STATE_CHANGE_EVENTS.get(resource_type)
@@ -146,7 +171,9 @@ def _get_state_change_events(
         for action, event_name in event_names.items():
             paginator = ct.get_paginator("lookup_events")
             for page in paginator.paginate(
-                LookupAttributes=[{"AttributeKey": "ResourceName", "AttributeValue": resource_id}],
+                LookupAttributes=[
+                    {"AttributeKey": "ResourceName", "AttributeValue": resource_id}
+                ],
                 StartTime=start_time,
                 EndTime=end_time,
             ):
@@ -173,13 +200,17 @@ def _running_fraction_per_period(
     """각 period 구간마다 실제로 실행 중이었던 시간 비율(0.0~1.0)을 리스트로 반환.
     CloudTrail에 이벤트가 없으면(대부분의 정상 상황) 전 구간 1.0 — 기존 방식과 동일.
     """
-    events = _get_state_change_events(resource_type, resource_id, start_time, end_time, client)
+    events = _get_state_change_events(
+        resource_type, resource_id, start_time, end_time, client
+    )
     if not events:
         return [1.0 if currently_running else 0.0] * n_periods
 
     # 상태 타임라인: (시각, 그 시각부터 다음 이벤트까지의 running 여부)
     timeline: list[tuple[datetime, bool]] = [(start_time, currently_running)]
-    timeline += [(ts, running) for ts, running in events if start_time <= ts <= end_time]
+    timeline += [
+        (ts, running) for ts, running in events if start_time <= ts <= end_time
+    ]
     timeline.append((end_time, timeline[-1][1]))
 
     fractions = []
@@ -200,7 +231,12 @@ def _get_asg_instance_type(asg_name: str, asg_client=None, ec2_client=None) -> s
     asg = asg_client or boto3.client("autoscaling")
     resp = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
     group = resp["AutoScalingGroups"][0]
-    lt = group.get("LaunchTemplate") or group["MixedInstancesPolicy"]["LaunchTemplate"]["LaunchTemplateSpecification"]
+    lt = (
+        group.get("LaunchTemplate")
+        or group["MixedInstancesPolicy"]["LaunchTemplate"][
+            "LaunchTemplateSpecification"
+        ]
+    )
     ec2 = ec2_client or boto3.client("ec2")
     lt_data = ec2.describe_launch_template_versions(
         LaunchTemplateId=lt["LaunchTemplateId"], Versions=["$Latest"]
@@ -209,6 +245,7 @@ def _get_asg_instance_type(asg_name: str, asg_client=None, ec2_client=None) -> s
 
 
 # ── raw_metrics 윈도우와 같은 길이의 cost 시계열 생성 ──────────────────────────
+
 
 def estimate_cost_series(
     resource_type: str,
@@ -235,7 +272,13 @@ def estimate_cost_series(
         instance_type = _get_ec2_instance_type(resource_id)
         cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
         fractions = _running_fraction_per_period(
-            "EC2", resource_id, start_time, end_time, period_seconds, n, currently_running
+            "EC2",
+            resource_id,
+            start_time,
+            end_time,
+            period_seconds,
+            n,
+            currently_running,
         )
         return [cost_per_period * f for f in fractions]
 
@@ -243,14 +286,23 @@ def estimate_cost_series(
         db_class = _get_rds_instance_class(resource_id)
         cost_per_period = estimate_rds_cost(db_class, hours_per_period)
         fractions = _running_fraction_per_period(
-            "RDS", resource_id, start_time, end_time, period_seconds, n, currently_running
+            "RDS",
+            resource_id,
+            start_time,
+            end_time,
+            period_seconds,
+            n,
+            currently_running,
         )
         return [cost_per_period * f for f in fractions]
 
     if resource_type == "AutoScaling":
         instance_type = _get_asg_instance_type(resource_id)
         desired = usage_metrics.get("group_desired_capacity", [])
-        return [estimate_autoscaling_cost(instance_type, d, hours_per_period) for d in desired]
+        return [
+            estimate_autoscaling_cost(instance_type, d, hours_per_period)
+            for d in desired
+        ]
 
     if resource_type == "Lambda":
         memory_mb = _get_lambda_memory_mb(resource_id)
@@ -268,8 +320,13 @@ def estimate_cost_series(
         bytes_downloaded = usage_metrics.get("bytes_downloaded", [0.0] * len(requests))
         period_fraction = period_seconds / (30 * 24 * 3600)
         return [
-            estimate_s3_cost(storage_gb=0.0, get_requests=r, put_requests=0.0,
-                              period_fraction_of_month=period_fraction, bytes_downloaded=b)
+            estimate_s3_cost(
+                storage_gb=0.0,
+                get_requests=r,
+                put_requests=0.0,
+                period_fraction_of_month=period_fraction,
+                bytes_downloaded=b,
+            )
             for r, b in zip(requests, bytes_downloaded)
         ]
 

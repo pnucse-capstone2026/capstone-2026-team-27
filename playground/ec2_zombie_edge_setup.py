@@ -41,7 +41,6 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import argparse
 import json
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -49,8 +48,7 @@ from ec2_overprovision_setup import (
     WINDOW_SECONDS,
     N_VCPU,
     _launch_instances,
-    _wait_ssm_online,
-    _duty_cycle_command,
+    _user_data_script,
     teardown,
 )
 
@@ -75,7 +73,13 @@ def setup() -> None:
 
     group_ids: dict[str, list[str]] = {}
     for group, spec in GROUPS.items():
-        group_ids[group] = _launch_instances(group, spec["n"], name_prefix)
+        target = spec["target_cpu_pct"]
+        user_data = (
+            _user_data_script(target, WINDOW_SECONDS, N_VCPU) if target > 0.0 else None
+        )
+        group_ids[group] = _launch_instances(
+            group, spec["n"], name_prefix, user_data=user_data
+        )
     all_ids = [iid for ids in group_ids.values() for iid in ids]
 
     print("running 상태 대기...")
@@ -88,25 +92,16 @@ def setup() -> None:
         for i in r["Instances"]
     }
 
-    print("SSM 등록 대기(최대 5분, 부팅+에이전트 기동 시간 필요)...")
-    time.sleep(60)
-    _wait_ssm_online(all_ids)
-
-    ssm = boto3.client("ssm")
     load_started_at = datetime.now(timezone.utc)
     for group, spec in GROUPS.items():
         target = spec["target_cpu_pct"]
-        for iid in group_ids[group]:
-            if target <= 0.0:
-                print(f"[{group} {iid}] 부하 없음 - 방치(완전 유휴)")
-                continue
-            cmds = _duty_cycle_command(target, WINDOW_SECONDS, N_VCPU)
-            ssm.send_command(
-                InstanceIds=[iid],
-                DocumentName="AWS-RunShellScript",
-                Parameters={"commands": cmds},
+        if target <= 0.0:
+            print(f"[{group}] 부하 없음 - 방치(완전 유휴): {group_ids[group]}")
+        else:
+            print(
+                f"[{group}] 목표 CPU {target}% 부하 - User Data로 부팅 시 자동 시작 "
+                f"({WINDOW_SECONDS}초): {group_ids[group]}"
             )
-            print(f"[{group} {iid}] 목표 CPU {target}% 부하 시작 ({WINDOW_SECONDS}초)")
 
     check_earliest = datetime.now(timezone.utc) + timedelta(seconds=WINDOW_SECONDS)
     verify_earliest = load_started_at + timedelta(seconds=900)  # 15분 후 중간점검 가능
@@ -207,28 +202,76 @@ def verify(manifest_path: str) -> None:
 
 
 def resend_load(manifest_path: str, groups: list[str]) -> None:
-    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-    ssm = boto3.client("ssm")
+    """User Data는 부팅 시 딱 한 번만 실행되므로(SSM RunCommand처럼 이미 떠 있는
+    인스턴스에 나중에 명령을 재전송할 수 없음), 문제가 된 그룹은 기존 인스턴스를
+    종료하고 같은 목표치의 User Data로 새로 띄운 인스턴스로 교체한다. manifest의
+    해당 그룹 항목도 새 instance_id로 갱신한다."""
+    manifest_file = Path(manifest_path)
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
     remaining = manifest["check_earliest_utc"]
     remaining_sec = int(
         (datetime.fromisoformat(remaining) - datetime.now(timezone.utc)).total_seconds()
     )
     remaining_sec = max(remaining_sec, 300)
-    for inst in manifest["instances"]:
-        if inst["group"] not in groups:
-            continue
-        target = GROUPS[inst["group"]]["target_cpu_pct"]
-        if target <= 0.0:
-            continue
-        cmds = _duty_cycle_command(target, remaining_sec, N_VCPU)
-        ssm.send_command(
-            InstanceIds=[inst["instance_id"]],
-            DocumentName="AWS-RunShellScript",
-            Parameters={"commands": cmds},
+
+    ec2 = boto3.client("ec2")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
+    old_ids_to_terminate = []
+    new_instances = []
+
+    for group in groups:
+        target = GROUPS[group]["target_cpu_pct"]
+        old_group_instances = [
+            inst for inst in manifest["instances"] if inst["group"] == group
+        ]
+        old_ids_to_terminate.extend(inst["instance_id"] for inst in old_group_instances)
+
+        user_data = (
+            _user_data_script(target, remaining_sec, N_VCPU) if target > 0.0 else None
+        )
+        new_ids = _launch_instances(
+            f"{group}-resend",
+            len(old_group_instances),
+            f"detection-test-ec2-zombie-edge-resend-{ts}",
+            user_data=user_data,
         )
         print(
-            f"[재전송][{inst['group']} {inst['instance_id']}] 목표 {target}% ({remaining_sec}초 남음)"
+            f"[재전송][{group}] 목표 {target}% ({remaining_sec}초 남음) - 신규: {new_ids}"
         )
+        new_instances.append((group, new_ids))
+
+    if old_ids_to_terminate:
+        ec2.terminate_instances(InstanceIds=old_ids_to_terminate)
+        print(f"[재전송] 기존 인스턴스 종료 요청: {old_ids_to_terminate}")
+
+    all_new_ids = [iid for _, ids in new_instances for iid in ids]
+    ec2.get_waiter("instance_running").wait(InstanceIds=all_new_ids)
+    desc = ec2.describe_instances(InstanceIds=all_new_ids)
+    launch_times = {
+        i["InstanceId"]: i["LaunchTime"].astimezone(timezone.utc).isoformat()
+        for r in desc["Reservations"]
+        for i in r["Instances"]
+    }
+
+    manifest["instances"] = [
+        inst for inst in manifest["instances"] if inst["group"] not in groups
+    ]
+    for group, ids in new_instances:
+        spec = GROUPS[group]
+        for iid in ids:
+            manifest["instances"].append(
+                {
+                    "instance_id": iid,
+                    "true_label": spec["true_label"],
+                    "launch_time_utc": launch_times[iid],
+                    "profile": f"{group}_target_cpu_{spec['target_cpu_pct']}pct",
+                    "group": group,
+                }
+            )
+    manifest_file.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"[재전송] manifest 갱신 완료: {manifest_path}")
 
 
 def main() -> None:

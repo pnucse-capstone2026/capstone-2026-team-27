@@ -28,7 +28,6 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import argparse
 import json
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -41,8 +40,7 @@ from ec2_overprovision_setup import (
     WINDOW_SECONDS,
     N_VCPU,
     _launch_instances,
-    _wait_ssm_online,
-    _duty_cycle_command,
+    _user_data_script,
     teardown,
 )
 from _runner_tag import runner_suffix
@@ -55,8 +53,13 @@ def setup() -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S") + runner_suffix()
     name_prefix = f"detection-test-ec2-zombie-{ts}"
 
+    # anomaly=좀비는 그냥 방치(user_data 없음), normal 그룹만 User Data로 부하 부여
+    normal_user_data = _user_data_script(NORMAL_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
+
     anomaly_ids = _launch_instances("anomaly", N_ANOMALY, name_prefix)
-    normal_ids = _launch_instances("normal", N_NORMAL, name_prefix)
+    normal_ids = _launch_instances(
+        "normal", N_NORMAL, name_prefix, user_data=normal_user_data
+    )
     all_ids = anomaly_ids + normal_ids
 
     print("running 상태 대기...")
@@ -68,25 +71,10 @@ def setup() -> None:
         for r in desc["Reservations"]
         for i in r["Instances"]
     }
-
-    # normal 그룹만 SSM 부하 필요 (anomaly=좀비는 그냥 방치)
-    print("SSM 등록 대기(최대 5분, 부팅+에이전트 기동 시간 필요)...")
-    time.sleep(60)
-    _wait_ssm_online(normal_ids)
-
-    ssm = boto3.client("ssm")
-    for iid in normal_ids:
-        cmds = _duty_cycle_command(NORMAL_TARGET_CPU_PCT, WINDOW_SECONDS, N_VCPU)
-        ssm.send_command(
-            InstanceIds=[iid],
-            DocumentName="AWS-RunShellScript",
-            Parameters={"commands": cmds},
-        )
-        print(
-            f"[normal {iid}] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 시작 ({WINDOW_SECONDS}초)"
-        )
-    for iid in anomaly_ids:
-        print(f"[anomaly {iid}] 부하 없음 — 방치(좀비)")
+    print(
+        f"[normal] 목표 CPU {NORMAL_TARGET_CPU_PCT}% 부하 - User Data로 부팅 시 자동 시작 ({WINDOW_SECONDS}초)"
+    )
+    print("[anomaly] 부하 없음 — 방치(좀비)")
 
     check_earliest = datetime.now(timezone.utc) + timedelta(seconds=WINDOW_SECONDS)
     manifest = {

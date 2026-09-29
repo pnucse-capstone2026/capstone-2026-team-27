@@ -27,10 +27,18 @@ from pipeline.orchestrator import assemble_resource
 from pipeline.rule_engine import get_rule_engine
 from pipeline.inbound_handlers import remove_waf_rate_based_rule
 from utils.slack_notifier import send_slack_alert
+from config import pipeline_live_status
 
 logger = logging.getLogger(__name__)
 
 POST_ACTION_WAIT_SECONDS = 300
+
+# time.sleep(POST_ACTION_WAIT_SECONDS)를 한 번에 부르면 이 300초 동안 그래프
+# 노드 자체가 안 끝나서 app.stream()의 다음 청크가 안 오고, 호출부(common.py의
+# _track_stream)가 pipeline_live_status.write()를 못 부른다 — FRESHNESS_SECONDS
+# (30초)를 훌쩍 넘겨 웹 대시보드가 "지금 QA 대기 중"을 과거 실행 기록 폴백으로
+# 잘못 표시하게 된다. 대기를 짧은 구간으로 쪼개 그때마다 직접 write()한다.
+_LIVE_STATUS_REFRESH_INTERVAL_SECONDS = 15
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
 LLM_LOG_PATH = os.path.join(
@@ -602,6 +610,25 @@ def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
     )
 
 
+def _sleep_with_live_status_refresh(
+    total_seconds: int, resource_id: str, resource_type: str
+) -> None:
+    """total_seconds만큼 대기하되, _LIVE_STATUS_REFRESH_INTERVAL_SECONDS마다
+    pipeline_live_status를 "qa 진행 중"으로 다시 써서 웹 대시보드가 이 긴 대기
+    구간에서도 실시간 상태를 유지하게 한다(자세한 이유는 위 상수 정의부 주석 참고).
+    """
+    nodes = {name: "success" for name in pipeline_live_status.STEP_NAMES}
+    nodes["qa"] = "running"
+    nodes["logging"] = "idle"
+
+    remaining = total_seconds
+    while remaining > 0:
+        chunk = min(_LIVE_STATUS_REFRESH_INTERVAL_SECONDS, remaining)
+        time.sleep(chunk)
+        remaining -= chunk
+        pipeline_live_status.write(nodes, resource_id, resource_type)
+
+
 def _refresh_metrics_after_action(state: PipelineState) -> None:
     """액션 실행 후 POST_ACTION_WAIT_SECONDS만큼 대기했다가 CloudWatch를 실제로
     재조회해서 state["raw_metrics"]를 액션 *후* 데이터로 갱신한다.
@@ -637,7 +664,9 @@ def _refresh_metrics_after_action(state: PipelineState) -> None:
         resource_type,
         resource_id,
     )
-    time.sleep(POST_ACTION_WAIT_SECONDS)
+    _sleep_with_live_status_refresh(
+        POST_ACTION_WAIT_SECONDS, resource_id, resource_type
+    )
 
     try:
         assembled = assemble_resource(resource_id, resource_type)

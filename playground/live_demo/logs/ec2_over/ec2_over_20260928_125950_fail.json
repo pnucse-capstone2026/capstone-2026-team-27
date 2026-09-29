@@ -1,0 +1,24 @@
+{
+  "scenario_key": "ec2_over",
+  "resource_id": "i-0a4f5f84e801bf815",
+  "resource_type": "EC2",
+  "run_started_at": "2026-09-28T12:59:50.163318+00:00",
+  "run_ended_at": "2026-09-28T12:59:50.277610+00:00",
+  "elapsed_seconds_total": 0.11,
+  "step_timings_ms": {
+    "detection": 7
+  },
+  "estimated_cost_usd": 0.021,
+  "anomaly_flag": false,
+  "anomaly_score_zscore": 0.6836,
+  "anomaly_score_iforest": 0.7375,
+  "triggered_metrics": [],
+  "ec2_utilization_band": null,
+  "anomaly_type": null,
+  "selected_action": null,
+  "risk_level": null,
+  "requires_approval": false,
+  "action_result": null,
+  "qa_passed": null,
+  "rollback_count": 0
+}

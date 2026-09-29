@@ -47,7 +47,7 @@ from pipeline.detection_agent import detection_node
 from pipeline.classification_agent import classification_node
 from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
-from pipeline.QA_agent import qa_node
+from pipeline.qa_agent import qa_node
 from pipeline.logging_agent import logging_node
 
 

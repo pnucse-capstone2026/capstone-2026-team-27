@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import pickle
 import time
 from datetime import datetime, timezone
@@ -45,7 +46,17 @@ IFOREST_CONTAMINATION = (
     0.1  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
 )
 IFOREST_RANDOM_STATE = 42
-IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
+# [2026-09-28] 원래 상대경로("models")라서, 스크립트를 어느 cwd에서 실행하느냐에
+# 따라 완전히 다른 모델 파일을 썼다 — playground/real_demo/에서 cwd로 실행한
+# real_demo 스크립트들이 프로젝트 루트의 실제 학습된 모델 대신
+# playground/real_demo/models/ 밑에 콜드스타트로 새로 생긴 모델을 쓰고 있었음을
+# real_demo 실측 검증 중 발견(오늘 IForest 점수가 계속 이상하게 0에 붙던 원인 중
+# 하나로 추정). 이 파일(pipeline/detection_agent.py) 기준 프로젝트 루트에
+# 항상 고정되도록 절대경로로 변경.
+IFOREST_MODEL_DIR = os.environ.get(
+    "PIPELINE_MODEL_DIR",
+    str(pathlib.Path(__file__).resolve().parent.parent / "models"),
+)
 MIN_POINTS_FOR_IFOREST = 5
 
 # IForest가 트리거된 경우 SHAP 상위 몇 개 기여 지표를 state/DB에 남길지 (2026-09-14
@@ -153,6 +164,17 @@ RETRAIN_EVERY_N_NEW_WINDOWS = 5  # 새 윈도우가 이만큼 쌓일 때마다 �
 # 계속 유지된다.
 #
 MOCK_SEED_BUFFER_FROZEN = True
+
+# [2026-09-28] real_demo 실측 검증 중 발견: EDoS(AutoScaling)는 mock 시딩 모델이
+# request_count 실측 범위를 전혀 학습 못 해 IForest가 진짜 스파이크(292->2144)를
+# 완전히 놓쳤다(decision_function이 모든 시점에서 사실상 동일값). 이전에 CLF-001
+# 룰 매칭만으로 성공했던 검증과 달리 IForest 게이트 자체가 막고 있었던 것 —
+# AutoScaling만 동결 해제해서 실측 데이터로 버퍼가 실제로 쌓이게 한다(나머지
+# 타입은 아직 Stage 2 후보A 미확정이라 그대로 동결 유지).
+# [2026-09-28 추가] Lambda도 같은 증상으로 동결 해제 — IForest score가 실측
+# throttle_count(6~46)/async_event_age(급증) 값 범위에서 항상 0.0으로 나와
+# mock 시딩 모델이 이 실측 범위를 전혀 학습 못 한 것으로 판단됨.
+MOCK_SEED_BUFFER_UNFROZEN_TYPES = {"AutoScaling", "Lambda"}
 BUFFER_SCORE_MARGIN = 0.9  # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
 BUFFER_ZSCORE_MARGIN = 0.9  # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
 # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
@@ -171,6 +193,11 @@ Z_SCORE_TARGET_METRICS = {
     "number_of_requests",
     "bytes_downloaded",
     "async_event_age",  # Lambda 스로틀 재시도 폭증 신호
+    # [2026-09-28] 빠져있던 걸 real_demo 실측 검증 중 발견 — EDoS 탐지의 핵심(원인)
+    # 지표인데 z-score 체크 대상에서 누락돼 있어서 z-score가 EDoS를 절대 못 잡고
+    # 있었다(schema/state.py:51에 2026-09-12 request_count 필드 추가 당시 여기
+    # 갱신을 빠뜨린 것으로 보임).
+    "request_count",
 }
 
 # 버퍼 채택 판정 전용 (network_in 제외 - EC2 주기적 트래픽 패턴이 채택률 저하 유발)
@@ -413,7 +440,7 @@ def _derived_features(
 
     # ec2_idle_flag: _low_utilization_check(판정 로직 원본)를 그대로 재사용해
     # 윈도우 단위 boolean을 얻고, n_points개 전부 같은 값으로 broadcast한다.
-    _, idle_triggered = _low_utilization_check(
+    _, idle_triggered, _ = _low_utilization_check(
         resource_type, metrics, resource_age_seconds
     )
     ec2_idle_flag = [1.0 if idle_triggered else 0.0] * n
@@ -742,8 +769,13 @@ def _get_or_train_iforest(
         model, cached_keys = cached
 
         # MOCK_SEED_BUFFER_FROZEN=True인 동안은 버퍼 채택/재학습을 전부 건너뛰고
-        # mock으로 시딩해둔 모델을 그대로 반환한다 (정상 경로 전환 전 임시 동결).
-        if MOCK_SEED_BUFFER_FROZEN:
+        # mock으로 시딩해둔 모델을 그대로 반환한다 (정상 경로 전환 전 임시 동결) —
+        # 단 MOCK_SEED_BUFFER_UNFROZEN_TYPES에 있는 타입(AutoScaling)은 예외로
+        # 아래 정상 버퍼 채택/재학습 경로를 그대로 탄다.
+        if (
+            MOCK_SEED_BUFFER_FROZEN
+            and resource_type not in MOCK_SEED_BUFFER_UNFROZEN_TYPES
+        ):
             return model
 
         if cached_keys == ALL_METRICS:
@@ -1125,6 +1157,7 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "anomaly_score_iforest": None,
         "triggered_metrics": [],
         "shap_top_features": None,
+        "ec2_utilization_band": None,
         "anomaly_type": None,
         "classification_reasoning": None,
         "interim_action_taken": None,
@@ -1135,15 +1168,28 @@ def _build_initial_state(resource: dict) -> PipelineState:
         "requires_approval": False,
         "decision_reasoning": None,
         "target_instance_type": None,
+        "decision_pseudo_code": "",
+        "matched_decision_rule_id": None,
+        "current_cost_usd": None,
+        "after_cost_usd": None,
+        "estimated_saving_usd": None,
+        "avoided_cost_usd": None,
         "pre_action_snapshot": None,
         "action_executed": None,
         "action_result": None,
+        "dry_run": False,
+        "apply_waf": False,
+        "waf_rate_limit": 2000,
+        "associated_alb_arn": None,
         "qa_passed": None,
         "sla_check_result": None,
         "rollback_count": 0,
         "qa_matched_rule_id": None,
         "whitelisted": False,
+        "pre_action_raw_metrics": None,
+        "step_timings": {},
         "log_entries": [],
+        "_demo_replay": None,
     }
 
 

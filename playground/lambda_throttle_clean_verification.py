@@ -46,6 +46,7 @@ import argparse
 import io
 import json
 import logging
+import os
 import sys
 import time
 import zipfile
@@ -58,6 +59,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import boto3
@@ -68,7 +70,11 @@ from playground.measure_pipeline_timing import measure
 
 AWS_REGION = "ap-northeast-2"
 SETUP_PROFILE = "default"
-IAM_ROLE_ARN = "arn:aws:iam::268140507066:role/detection-test-lambda-role"
+# [2026-09-27] 계정마다 다른 값이라 .env로 이동(예전엔 여기 예전 계정 ARN이 하드코딩돼
+# 있었음 — 계정 이전으로 이미 무효). 이 스크립트 자체는 그 예전 계정 기준으로 짜여있어
+# 지금 계정에서 그대로 돌리려면 이 역할을 먼저 새로 만들어야 한다(lambda_retry_trial.py의
+# _get_or_create_lambda_role() 참고).
+IAM_ROLE_ARN = os.environ["LAMBDA_TEST_IAM_ROLE_ARN"]
 
 # (function_name, label, profile, concurrency|None, test_burst_size, test_n_bursts)
 TARGETS: list[tuple[str, str, str, "int | None", int, int]] = [
@@ -87,9 +93,9 @@ TARGETS: list[tuple[str, str, str, "int | None", int, int]] = [
     ("detection-test-lambda-normal-8-clean", "normal", "bursty", None, 40, 1),
 ]
 
-WARMUP_DURATION_SEC = 10800   # 3시간 (2.5시간 최소 + 여유)
-WARMUP_PERIOD_SEC = 300       # 5분마다 한 번씩 가벼운 트래픽
-WARMUP_CALLS_PER_TICK = 2     # 매 tick마다 함수당 호출 수 (가벼운 수준)
+WARMUP_DURATION_SEC = 10800  # 3시간 (2.5시간 최소 + 여유)
+WARMUP_PERIOD_SEC = 300  # 5분마다 한 번씩 가벼운 트래픽
+WARMUP_CALLS_PER_TICK = 2  # 매 tick마다 함수당 호출 수 (가벼운 수준)
 
 BURST_INTERVAL_SEC = 300
 MAX_EVENT_AGE_SEC = 60
@@ -97,7 +103,7 @@ POST_BURST_WAIT_SEC = 180
 SHARED_INVOKE_POOL_SIZE = 60
 
 LAMBDA_HANDLER_CODE = (
-    'def handler(event, context):\n'
+    "def handler(event, context):\n"
     '    if isinstance(event, dict) and event.get("force_error"):\n'
     '        raise Exception("detection-test-lambda: intentional error for retry-storm test")\n'
     '    return {"statusCode": 200, "body": "detection-test-lambda ok"}\n'
@@ -128,7 +134,9 @@ def _setup_logging() -> Path:
 
 
 def _setup_lambda_client():
-    return boto3.Session(profile_name=SETUP_PROFILE).client("lambda", region_name=AWS_REGION)
+    return boto3.Session(profile_name=SETUP_PROFILE).client(
+        "lambda", region_name=AWS_REGION
+    )
 
 
 def _build_zip() -> bytes:
@@ -178,8 +186,13 @@ def warmup_baseline() -> None:
     lam = _setup_lambda_client()
     fns = [t[0] for t in TARGETS]
     n_ticks = WARMUP_DURATION_SEC // WARMUP_PERIOD_SEC
-    logger.info("=== 베이스라인 워밍업 시작: %d개 함수, %d회 tick(%d초 간격, 총 %.1f시간) ===",
-                len(fns), n_ticks, WARMUP_PERIOD_SEC, WARMUP_DURATION_SEC / 3600)
+    logger.info(
+        "=== 베이스라인 워밍업 시작: %d개 함수, %d회 tick(%d초 간격, 총 %.1f시간) ===",
+        len(fns),
+        n_ticks,
+        WARMUP_PERIOD_SEC,
+        WARMUP_DURATION_SEC / 3600,
+    )
     with ThreadPoolExecutor(max_workers=SHARED_INVOKE_POOL_SIZE) as pool:
         for i in range(n_ticks):
             futures = []
@@ -195,7 +208,10 @@ def warmup_baseline() -> None:
 
 
 def _snapshot_path(function_name: str) -> Path:
-    return RESULT_DIR / f".lambda_throttle_clean_verification_snapshot__{function_name}.json"
+    return (
+        RESULT_DIR
+        / f".lambda_throttle_clean_verification_snapshot__{function_name}.json"
+    )
 
 
 def _snapshot(lam, function_name: str) -> dict:
@@ -247,13 +263,20 @@ def restore(function_name: str) -> None:
         path.unlink()
 
 
-def _burst_invoke(lam, function_name: str, burst_size: int, n_bursts: int,
-                   invoke_pool: ThreadPoolExecutor) -> list[str]:
+def _burst_invoke(
+    lam,
+    function_name: str,
+    burst_size: int,
+    n_bursts: int,
+    invoke_pool: ThreadPoolExecutor,
+) -> list[str]:
     burst_times = []
 
     def _invoke(i: int) -> bool:
         try:
-            lam.invoke(FunctionName=function_name, InvocationType="Event", Payload=b"{}")
+            lam.invoke(
+                FunctionName=function_name, InvocationType="Event", Payload=b"{}"
+            )
             return True
         except Exception as exc:
             logger.warning("  [%s] invoke #%d 실패: %s", function_name, i, exc)
@@ -263,31 +286,58 @@ def _burst_invoke(lam, function_name: str, burst_size: int, n_bursts: int,
         burst_times.append(datetime.now(timezone.utc).isoformat())
         futures = [invoke_pool.submit(_invoke, i) for i in range(burst_size)]
         results = [f.result() for f in futures]
-        logger.info("[%s] 버스트 %d/%d 완료: 성공 %d/%d",
-                    function_name, b + 1, n_bursts, sum(results), burst_size)
+        logger.info(
+            "[%s] 버스트 %d/%d 완료: 성공 %d/%d",
+            function_name,
+            b + 1,
+            n_bursts,
+            sum(results),
+            burst_size,
+        )
         if b < n_bursts - 1:
             time.sleep(BURST_INTERVAL_SEC)
     return burst_times
 
 
-def run_trial(function_name: str, label: str, profile: str, concurrency: "int | None",
-              burst_size: int, n_bursts: int, invoke_pool: ThreadPoolExecutor) -> dict:
+def run_trial(
+    function_name: str,
+    label: str,
+    profile: str,
+    concurrency: "int | None",
+    burst_size: int,
+    n_bursts: int,
+    invoke_pool: ThreadPoolExecutor,
+) -> dict:
     lam = _setup_lambda_client()
 
     if concurrency is not None:
         snap = _snapshot(lam, function_name)
         _save_snapshot(function_name, snap)
         lam.put_function_event_invoke_config(
-            FunctionName=function_name, MaximumEventAgeInSeconds=MAX_EVENT_AGE_SEC,
+            FunctionName=function_name,
+            MaximumEventAgeInSeconds=MAX_EVENT_AGE_SEC,
             MaximumRetryAttempts=2,
         )
-        lam.put_function_concurrency(FunctionName=function_name, ReservedConcurrentExecutions=concurrency)
-        logger.info("[%s] %s 셋업 완료 (concurrency=%d, burst=%dx%d)",
-                    function_name, profile, concurrency, burst_size, n_bursts)
+        lam.put_function_concurrency(
+            FunctionName=function_name, ReservedConcurrentExecutions=concurrency
+        )
+        logger.info(
+            "[%s] %s 셋업 완료 (concurrency=%d, burst=%dx%d)",
+            function_name,
+            profile,
+            concurrency,
+            burst_size,
+            n_bursts,
+        )
         time.sleep(3)
     else:
-        logger.info("[%s] %s — 동시성 제한 없이 진행 (burst=%dx%d)",
-                    function_name, profile, burst_size, n_bursts)
+        logger.info(
+            "[%s] %s — 동시성 제한 없이 진행 (burst=%dx%d)",
+            function_name,
+            profile,
+            burst_size,
+            n_bursts,
+        )
 
     burst_times = _burst_invoke(lam, function_name, burst_size, n_bursts, invoke_pool)
     time.sleep(POST_BURST_WAIT_SEC)
@@ -297,19 +347,39 @@ def run_trial(function_name: str, label: str, profile: str, concurrency: "int | 
         result = measure(function_name, "Lambda", bypass_approval_for_timing=True)
     except Exception as exc:
         logger.error("[%s] measure() 실패: %s", function_name, exc)
-        result = {"resource_id": function_name, "resource_type": "Lambda", "error": str(exc)}
+        result = {
+            "resource_id": function_name,
+            "resource_type": "Lambda",
+            "error": str(exc),
+        }
 
     if concurrency is not None:
         restore(function_name)
 
-    detected = bool(result.get("anomaly_flag")) and result.get("anomaly_type") == "cost_spike"
-    logger.info("[%s] 완료 — label=%s profile=%s anomaly_flag=%s anomaly_type=%s detected=%s",
-                function_name, label, profile, result.get("anomaly_flag"), result.get("anomaly_type"),
-                detected)
+    detected = (
+        bool(result.get("anomaly_flag")) and result.get("anomaly_type") == "cost_spike"
+    )
+    logger.info(
+        "[%s] 완료 — label=%s profile=%s anomaly_flag=%s anomaly_type=%s detected=%s",
+        function_name,
+        label,
+        profile,
+        result.get("anomaly_flag"),
+        result.get("anomaly_type"),
+        detected,
+    )
 
-    return {**result, "label": label, "profile": profile, "concurrency_setting": concurrency,
-            "burst_size": burst_size, "n_bursts": n_bursts, "burst_times_utc": burst_times,
-            "detected": detected, "measured_at": datetime.now(timezone.utc).isoformat()}
+    return {
+        **result,
+        "label": label,
+        "profile": profile,
+        "concurrency_setting": concurrency,
+        "burst_size": burst_size,
+        "n_bursts": n_bursts,
+        "burst_times_utc": burst_times,
+        "detected": detected,
+        "measured_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _clopper_pearson(k: int, n: int, alpha: float = 0.05) -> tuple[float, float]:
@@ -335,21 +405,31 @@ def compute_metrics(trials: list[dict]) -> dict:
         "accuracy": accuracy,
         "accuracy_ci_95_clopper_pearson": _clopper_pearson(tp + tn, n),
         "recall": recall,
-        "recall_ci_95_clopper_pearson": _clopper_pearson(tp, tp + fn) if (tp + fn) else None,
+        "recall_ci_95_clopper_pearson": _clopper_pearson(tp, tp + fn)
+        if (tp + fn)
+        else None,
         "precision": precision,
         "false_positive_rate": fpr,
-        "fpr_ci_95_clopper_pearson": _clopper_pearson(fp, fp + tn) if (fp + tn) else None,
+        "fpr_ci_95_clopper_pearson": _clopper_pearson(fp, fp + tn)
+        if (fp + tn)
+        else None,
     }
 
 
 def run_test() -> None:
-    logger.info("=== 다양화 시행 시작 (13개 신규 함수, anomaly=5 severity 3단계 / normal=8 volume 4단계) ===")
+    logger.info(
+        "=== 다양화 시행 시작 (13개 신규 함수, anomaly=5 severity 3단계 / normal=8 volume 4단계) ==="
+    )
     trials = []
     try:
-        with ThreadPoolExecutor(max_workers=SHARED_INVOKE_POOL_SIZE) as invoke_pool, \
-             ThreadPoolExecutor(max_workers=len(TARGETS)) as ex:
+        with (
+            ThreadPoolExecutor(max_workers=SHARED_INVOKE_POOL_SIZE) as invoke_pool,
+            ThreadPoolExecutor(max_workers=len(TARGETS)) as ex,
+        ):
             futures = {
-                ex.submit(run_trial, fn, label, profile, conc, bsize, nb, invoke_pool): fn
+                ex.submit(
+                    run_trial, fn, label, profile, conc, bsize, nb, invoke_pool
+                ): fn
                 for fn, label, profile, conc, bsize, nb in TARGETS
             }
             for fut in as_completed(futures):
@@ -369,34 +449,58 @@ def run_test() -> None:
         "scenario": "lambda_throttle_retry_storm_clean_verification",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "note": "오염된 기존 13개 함수(anomaly-2~5, normal-1~8) 대신 신규 생성한 -clean 함수 13개로 "
-                "IForest 단독 탐지 정확도를 재검증. detection_agent.py는 수정하지 않음(production 코드 그대로).",
+        "IForest 단독 탐지 정확도를 재검증. detection_agent.py는 수정하지 않음(production 코드 그대로).",
         "params": {
-            "n_anomaly": 5, "n_normal": 8,
+            "n_anomaly": 5,
+            "n_normal": 8,
             "warmup_duration_sec": WARMUP_DURATION_SEC,
-            "anomaly_profiles": {"severe": "concurrency=1", "moderate": "concurrency=2", "mild": "concurrency=3"},
-            "normal_profiles": {"light": "5x3", "moderate": "15x3", "heavy": "30x3", "bursty": "40x1"},
+            "anomaly_profiles": {
+                "severe": "concurrency=1",
+                "moderate": "concurrency=2",
+                "mild": "concurrency=3",
+            },
+            "normal_profiles": {
+                "light": "5x3",
+                "moderate": "15x3",
+                "heavy": "30x3",
+                "bursty": "40x1",
+            },
         },
         "metrics": metrics,
         "trials": trials,
     }
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULT_DIR / f"lambda_throttle_clean_verification_{datetime.now().strftime('%Y%m%d')}.json"
+    out_path = (
+        RESULT_DIR
+        / f"lambda_throttle_clean_verification_{datetime.now().strftime('%Y%m%d')}.json"
+    )
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
     TEAM_RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    team_out_path = TEAM_RESULT_DIR / f"clean_verification_{datetime.now().strftime('%Y%m%d')}.json"
+    team_out_path = (
+        TEAM_RESULT_DIR / f"clean_verification_{datetime.now().strftime('%Y%m%d')}.json"
+    )
     with open(team_out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
     logger.info("=== 결과 ===")
     logger.info(json.dumps(metrics, ensure_ascii=False, indent=2))
     for t in trials:
-        logger.info("  %s (label=%s profile=%s): anomaly_flag=%s detected=%s",
-                     t["resource_id"], t["label"], t["profile"], t.get("anomaly_flag"), t["detected"])
+        logger.info(
+            "  %s (label=%s profile=%s): anomaly_flag=%s detected=%s",
+            t["resource_id"],
+            t["label"],
+            t["profile"],
+            t.get("anomaly_flag"),
+            t["detected"],
+        )
     logger.info("결과 저장: %s", out_path)
-    logger.info("team_results 별도 파일 저장: %s (기존 repeated_trial.json 등은 건드리지 않음)", team_out_path)
+    logger.info(
+        "team_results 별도 파일 저장: %s (기존 repeated_trial.json 등은 건드리지 않음)",
+        team_out_path,
+    )
 
 
 def cleanup() -> None:
@@ -413,9 +517,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--create", action="store_true")
     parser.add_argument("--warmup-and-test", action="store_true")
-    parser.add_argument("--test-only", action="store_true",
-                         help="워밍업 생략하고 버스트+측정만 재실행 (베이스라인이 이미 있을 때, "
-                              "예: 모델을 재학습한 뒤 같은 -clean 함수로 재검증할 때)")
+    parser.add_argument(
+        "--test-only",
+        action="store_true",
+        help="워밍업 생략하고 버스트+측정만 재실행 (베이스라인이 이미 있을 때, "
+        "예: 모델을 재학습한 뒤 같은 -clean 함수로 재검증할 때)",
+    )
     parser.add_argument("--cleanup", action="store_true")
     args = parser.parse_args()
 
@@ -431,7 +538,9 @@ def main() -> None:
     elif args.cleanup:
         cleanup()
     else:
-        parser.error("--create, --warmup-and-test, --test-only, --cleanup 중 하나는 지정해야 함")
+        parser.error(
+            "--create, --warmup-and-test, --test-only, --cleanup 중 하나는 지정해야 함"
+        )
 
 
 if __name__ == "__main__":

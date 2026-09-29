@@ -1,0 +1,24 @@
+{
+  "scenario_key": "edos",
+  "resource_id": "detection-traffic-asg-anomaly-0",
+  "resource_type": "AutoScaling",
+  "run_started_at": "2026-09-28T12:53:46.633576+00:00",
+  "run_ended_at": "2026-09-28T12:53:46.786560+00:00",
+  "elapsed_seconds_total": 0.15,
+  "step_timings_ms": {
+    "detection": 17
+  },
+  "estimated_cost_usd": 0.0,
+  "anomaly_flag": false,
+  "anomaly_score_zscore": 1.6983,
+  "anomaly_score_iforest": 0.0,
+  "triggered_metrics": [],
+  "ec2_utilization_band": null,
+  "anomaly_type": null,
+  "selected_action": null,
+  "risk_level": null,
+  "requires_approval": false,
+  "action_result": null,
+  "qa_passed": null,
+  "rollback_count": 0
+}

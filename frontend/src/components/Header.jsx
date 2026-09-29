@@ -62,10 +62,12 @@ const NORMAL_BADGE_FRESHNESS_MS = 15 * 60 * 1000;
 
 function formatHHMM(isoString) {
   const d = new Date(isoString);
-  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const pad = (n) => String(n).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${yy}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, lastNormalCheckAt, theme, onToggleTheme, onLogout }) {
+export default function Header({ activeTab, onTabChange, pipelineRunning, pendingCount, promotionsCount, lastNormalCheckAt, nodesAsOf, theme, onToggleTheme, onLogout }) {
   const [expanded, setExpanded] = useState(() => {
     const g = findGroupLabelForTab(activeTab);
     return g ? { [g]: true } : {};
@@ -124,12 +126,12 @@ export default function Header({ activeTab, onTabChange, pipelineRunning, pendin
             {pipelineRunning ? "RUNNING" : "STOPPED"}
           </span>
         </div>
-        {lastNormalCheckAt &&
-          Date.now() - new Date(lastNormalCheckAt).getTime() < NORMAL_BADGE_FRESHNESS_MS && (
-            <div style={{ marginTop: 6, fontFamily: font.mono, fontSize: 11, color: colors.subtext }}>
-              정상 ({formatHHMM(lastNormalCheckAt)} 기준)
-            </div>
-          )}
+        {lastNormalCheckAt && (
+          <div style={{ marginTop: 4, fontFamily: font.mono, fontSize: 11, color: colors.subtext, lineHeight: 1.5 }}>
+            <div>비용 정상</div>
+            <div>({formatHHMM(lastNormalCheckAt)} 기준)</div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", padding: "10px 0", flex: 1, overflowY: "auto" }}>

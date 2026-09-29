@@ -53,11 +53,22 @@ def _read_state() -> dict:
 
 def _is_our_process(pid: int) -> bool:
     """PID 재사용(다른 프로그램이 같은 PID를 새로 받은 경우) 오판 방지 — cmdline에
-    run_full_pipeline.py가 있는 프로세스인지 확인."""
+    run_full_pipeline.py/mock_demo_pipeline.py, 또는 live_demo·real_demo 시나리오
+    스크립트(playground/live_demo/*_live.py, playground/real_demo/*_real.py)가
+    있는 프로세스인지 확인.
+
+    live_demo/real_demo의 common.py(run_live_scenario/run_real_scenario)도 이
+    상태 파일에 자기 PID를 쓰는데, 그 스크립트 파일명 패턴이 여기 빠져 있으면
+    "우리가 띄운 프로세스가 아님"으로 오판해서, 실제로는 시나리오가 돌고 있어도
+    웹 대시보드 사이드바가 계속 STOPPED로 표시된다 (2026-09-29 실측 확인).
+    """
     try:
         proc = psutil.Process(pid)
         return any(
-            "run_full_pipeline.py" in part or "mock_demo_pipeline.py" in part
+            "run_full_pipeline.py" in part
+            or "mock_demo_pipeline.py" in part
+            or part.endswith("_live.py")
+            or part.endswith("_real.py")
             for part in proc.cmdline()
         )
     except (psutil.NoSuchProcess, psutil.AccessDenied):

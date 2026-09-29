@@ -52,8 +52,7 @@
         "hide": 2,
         "refresh": 2,
         "datasource": { "type": "postgres", "uid": "postgresql" },
-        "query": "SELECT '227.05'::text AS \"value\";",
-        "_originalQuery_commentedOut": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n)\nSELECT COALESCE(ROUND(SUM(\n    hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n)::numeric, 2), 0)::text AS \"value\"\nFROM action_durations;",
+        "query": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n),\ntotal_saving AS (\n    SELECT COALESCE(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    ), 0) AS saving\n    FROM action_durations\n),\nedos_avoided AS (\n    SELECT COALESCE(SUM(avoided_cost_usd * 720), 0) AS avoided\n    FROM agent_runs\n    WHERE resource_type = 'AutoScaling'\n      AND avoided_cost_usd IS NOT NULL\n      AND $__timeFilter(finished_at)\n)\nSELECT ROUND((total_saving.saving + edos_avoided.avoided)::numeric, 6)::text AS \"value\"\nFROM total_saving, edos_avoided;",
         "current": {}
       }
     ]
@@ -63,21 +62,21 @@
       "id": 11,
       "type": "stat",
       "title": "시스템 미적용 시 예상 비용 (30일 기준 추정)",
-      "description": "[임시] 실측 경과시간이 아니라 FinOps 업계 기준(자동 탐지 없는 조직은 평균 30일 후 청구서로 발견) 30일(720시간)을 가정해, EC2+S3 2개 시나리오 시간당 절감률 × 720h로 정규화. 적용시 비용 $0.005415 + 절감액 $227.049 = $227.055로 고정. 원래 라이브 SQL은 _originalRawSql_commentedOut에 보존.",
+      "description": "[2026-09-28 라이브 복원] EC2+S3만 있던 통제실험 고정값에서, zombie/ec2_over/s3/lambda/edos 5개 시나리오 실연동 결과를 실시간 반영하는 원래 쿼리로 복원 (Lambda까지 합산되면 원복 예정이라던 계획대로).",
       "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT 227.055::numeric AS \"value\";",
-          "_originalRawSql_commentedOut": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n),\ntotal_saving AS (\n    SELECT COALESCE(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    ), 0) AS saving\n    FROM action_durations\n),\nactual_cost AS (\n    SELECT COALESCE(SUM((s.output->>'latest_cost')::float), 0) AS cost\n    FROM agent_steps s\n    JOIN agent_runs ar ON ar.run_id = s.run_id\n    WHERE s.step_name = 'detection'\n      AND s.output->>'latest_cost' IS NOT NULL\n      AND $__timeFilter(ar.finished_at)\n)\nSELECT ROUND((actual_cost.cost + total_saving.saving)::numeric, 2) AS \"value\"\nFROM actual_cost, total_saving;",
+          "rawSql": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n),\ntotal_saving AS (\n    SELECT COALESCE(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    ), 0) AS saving\n    FROM action_durations\n),\nactual_cost AS (\n    SELECT COALESCE(SUM((s.output->>'latest_cost')::float), 0) AS cost\n    FROM agent_steps s\n    JOIN agent_runs ar ON ar.run_id = s.run_id\n    WHERE s.step_name = 'detection'\n      AND s.output->>'latest_cost' IS NOT NULL\n      AND $__timeFilter(ar.finished_at)\n)\nSELECT ROUND((actual_cost.cost + total_saving.saving)::numeric, 6) AS \"value\"\nFROM actual_cost, total_saving;",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
+          "decimals": 4,
           "color": { "mode": "fixed", "fixedColor": "red" }
         },
         "overrides": []
@@ -92,21 +91,21 @@
       "id": 12,
       "type": "stat",
       "title": "시스템 적용 시 실측 비용",
-      "description": "[임시] EC2+S3 2개 시나리오 통제실험 실측값(verify_cost_predictions.py의 actual_now_cost_usd 합산)으로 고정. 원래 라이브 SQL은 _originalRawSql_commentedOut에 보존.",
+      "description": "[2026-09-28 라이브 복원] EC2+S3만 있던 통제실험 고정값에서, 5개 시나리오 실연동 결과를 실시간 반영하는 원래 쿼리로 복원.",
       "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT 0.005415::numeric AS \"value\";",
-          "_originalRawSql_commentedOut": "SELECT\n    COALESCE(ROUND(SUM((s.output->>'latest_cost')::float)::numeric, 2), 0) AS \"value\"\nFROM agent_steps s\nJOIN agent_runs ar ON ar.run_id = s.run_id\nWHERE s.step_name = 'detection'\n  AND s.output->>'latest_cost' IS NOT NULL\n  AND $__timeFilter(ar.finished_at);",
+          "rawSql": "SELECT\n    COALESCE(ROUND(SUM((s.output->>'latest_cost')::float)::numeric, 6), 0) AS \"value\"\nFROM agent_steps s\nJOIN agent_runs ar ON ar.run_id = s.run_id\nWHERE s.step_name = 'detection'\n  AND s.output->>'latest_cost' IS NOT NULL\n  AND $__timeFilter(ar.finished_at);",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
+          "decimals": 4,
           "color": { "mode": "fixed", "fixedColor": "blue" }
         },
         "overrides": []
@@ -121,21 +120,21 @@
       "id": 13,
       "type": "stat",
       "title": "비용 절감액 (30일 기준 추정)",
-      "description": "[임시] 실측 경과시간이 아니라 FinOps 업계 기준(자동 탐지 없는 조직은 평균 30일 후 청구서로 발견) 30일(720시간)을 가정해, EC2+S3 2개 시나리오 시간당 절감률(EC2 $0.064642/hr + S3 $0.250704/hr) × 720h = $227.049로 고정. 원래 라이브 SQL은 _originalRawSql_commentedOut에 보존.",
+      "description": "[2026-09-29] EDoS(AutoScaling ScaleDown+WAF)는 공격을 막는 시점에 desired_capacity가 이미 낮아 실측 절감액이 거의 0으로 나온다 — EDoS에 한해 \"공격을 막지 않았다면 MaxSize까지 늘어났을 때 발생했을 회피 예상 비용\"(avoided_cost_usd × 720h)을 이 합계에 같이 더한다. 다른 리소스(EC2/S3/Lambda)는 기존과 동일하게 실측 기반 절감액만 반영된다.",
       "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT 227.049::numeric AS \"value\";",
-          "_originalRawSql_commentedOut": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n)\nSELECT\n    COALESCE(ROUND(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    )::numeric, 2), 0) AS \"value\"\nFROM action_durations;",
+          "rawSql": "WITH action_durations AS (\n    SELECT\n        al.resource_id,\n        al.executed_at,\n        (elem->>'estimated_saving_usd')::float AS hourly_saving,\n        LEAD(al.executed_at) OVER (\n            PARTITION BY al.resource_id ORDER BY al.executed_at\n        ) AS next_action_at\n    FROM action_log al\n    JOIN agent_runs ar ON al.run_id = ar.run_id\n    JOIN agent_steps s ON s.run_id = ar.run_id AND s.step_name = 'decision'\n    CROSS JOIN LATERAL jsonb_array_elements(s.output->'candidate_actions') AS elem\n    WHERE elem->>'action' = ar.selected_action\n      AND al.success = true\n      AND $__timeFilter(al.executed_at)\n),\ntotal_saving AS (\n    SELECT COALESCE(SUM(\n        hourly_saving * EXTRACT(EPOCH FROM (COALESCE(next_action_at, now()) - executed_at)) / 3600\n    ), 0) AS saving\n    FROM action_durations\n),\nedos_avoided AS (\n    SELECT COALESCE(SUM(avoided_cost_usd * 720), 0) AS avoided\n    FROM agent_runs\n    WHERE resource_type = 'AutoScaling'\n      AND avoided_cost_usd IS NOT NULL\n      AND $__timeFilter(finished_at)\n)\nSELECT ROUND((total_saving.saving + edos_avoided.avoided)::numeric, 6) AS \"value\"\nFROM total_saving, edos_avoided;",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
+          "decimals": 4,
           "color": { "mode": "fixed", "fixedColor": "green" }
         },
         "overrides": []
@@ -161,14 +160,14 @@
       "id": 10,
       "type": "gauge",
       "title": "전체 시스템 정확도",
-      "description": "[임시] EC2+S3 2개 시나리오 통제실험 탐지 정확도(TP+TN)/n = 25/26 = 96.2%로 고정. 원래 QA 통과율 라이브 SQL은 _originalRawSql_commentedOut에 보존, Lambda까지 합산되면 원복 예정.",
+      "description": "[2026-09-28] 최종보고서 공식 수치(전체 파이프라인 정확도 평균 79.7%, 탐지 Recall 85.7%/95%CI[69.7%,95.2%] 기반)로 고정 (ground truth 라벨 기반 검증값이라 DB 라이브 집계보다 신뢰도가 높아 유지). 원래 QA 통과율 라이브 SQL은 _originalRawSql_commentedOut에 보존.",
       "gridPos": { "x": 0, "y": 6, "w": 6, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT 96.2::numeric AS \"value\";",
+          "rawSql": "SELECT 79.7::numeric AS \"value\";",
           "_originalRawSql_commentedOut": "SELECT\n    ROUND(\n        COUNT(*) FILTER (WHERE qa_passed = true)::numeric\n        / NULLIF(COUNT(*), 0) * 100, 1\n    ) AS \"value\"\nFROM agent_runs\nWHERE anomaly_flag = true\n  AND $__timeFilter(finished_at);",
           "refId": "A"
         }
@@ -290,14 +289,14 @@
       "id": 23,
       "type": "stat",
       "title": "전체 파이프라인 실행시간",
-      "description": "[임시] EC2+S3 2개 시나리오 통제실험 실측 파이프라인 실행시간(탐지~로깅 완주 기준) 평균 332.26±32.02초(n=8) = 약 5.54분. combine_team_results.py 결과를 수동 반영하는 정적 값 — 실시간 DB 쿼리가 아님.",
+      "description": "[2026-09-28 라이브 전환] agent_runs.total_duration_ms(그동안 항상 NULL이었던 agent_steps.duration_ms를 graph.py의 step_timings로 채운 뒤 합산한 값)를 실시간 평균낸 값으로 전환. 이전엔 EC2+S3 통제실험 실측 평균(332.26초)을 수동 고정.",
       "gridPos": { "x": 6, "y": 6, "w": 6, "h": 6 },
       "datasource": { "type": "postgres", "uid": "postgresql" },
       "targets": [
         {
           "datasource": { "type": "postgres", "uid": "postgresql" },
           "format": "table",
-          "rawSql": "SELECT 332.26::numeric AS \"value\";",
+          "rawSql": "SELECT ROUND(AVG(total_duration_ms) / 1000.0, 2) AS \"value\"\nFROM agent_runs\nWHERE total_duration_ms IS NOT NULL\n  AND $__timeFilter(finished_at);",
           "refId": "A"
         }
       ],

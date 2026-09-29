@@ -109,7 +109,7 @@ def run_test():
 
 def run_rollback_loop_test():
     """QA 실패 시 롤백 루프 테스트 (qa → action → qa 반복)"""
-    from pipeline.QA_agent import qa_node_force_fail
+    from pipeline.qa_agent import qa_node_force_fail
 
     print("\n" + "=" * 60)
     print("롤백 루프 테스트 시작 (QA 항상 실패)")

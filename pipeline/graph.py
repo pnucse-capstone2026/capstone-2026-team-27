@@ -24,7 +24,7 @@ from pipeline.decision_agent import decision_node
 from pipeline.action_agent import action_node
 from pipeline.approval_gate import approval_gate_node
 from pipeline.notify_gate import notify_gate_node
-from pipeline.QA_agent import qa_node
+from pipeline.qa_agent import qa_node
 from pipeline.logging_agent import logging_node
 from pipeline.live_events import emit_decision_event, emit_qa_event
 

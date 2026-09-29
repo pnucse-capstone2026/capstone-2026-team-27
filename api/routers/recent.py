@@ -20,6 +20,22 @@ from api.pg import connection_params
 router = APIRouter(prefix="/recent-detections", tags=["recent"])
 
 
+def _format_usd_per_hour(value: float) -> str:
+    """일반적인 값은 소수점 2자리로 충분하지만, S3처럼 트래픽이 미미한 테스트
+    리소스는 실제 절감액이 $0.0000003/hr처럼 2자리에서 그냥 0으로 뭉개진다.
+    0이 아닌 값은 유효숫자가 보일 때까지 소수점 자리수를 늘린다
+    (frontend/src/format.js의 formatUsdPerHour와 동일한 규칙)."""
+    if not value:
+        return "0.00"
+    if abs(value) >= 0.01:
+        return f"{value:.2f}"
+
+    decimals = 2
+    while decimals < 20 and round(value, decimals) == 0:
+        decimals += 1
+    return f"{value:.{min(decimals + 1, 20)}f}"
+
+
 def _pending_items() -> list[dict]:
     items = []
     for pending in graph_runtime.list_pending_approvals():
@@ -81,7 +97,7 @@ def _finished_items(limit: int) -> list[dict]:
         elif saving:
             display = {
                 "type": "status",
-                "value": f"조치 완료 (예상 절감 ${saving:.2f}/hr)",
+                "value": f"조치 완료 (예상 절감 ${_format_usd_per_hour(saving)}/hr)",
             }
         else:
             display = {"type": "status", "value": "조치 완료"}

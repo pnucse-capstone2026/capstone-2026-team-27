@@ -23,6 +23,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
+import boto3
+
 from config.decision_policy import get_priority_weight
 from pipeline.cost_estimator import _get_ec2_instance_type
 from pipeline.rule_engine import get_rule_engine, reload_rules
@@ -98,8 +100,7 @@ MAX_LLM_RETRIES = 2
 # EC2 Resize 시 기본 목표 인스턴스 타입 (cost 데이터가 없어 역추정이 불가능할 때만 사용)
 DEFAULT_TARGET_INSTANCE_TYPE = "t3.small"
 
-# EC2 온디맨드 시간당 단가(USD) — ap-northeast-2(서울) 리전, 2026-07 기준 근사치.
-# 가격 오름차순으로 정렬되어 있어야 "한 단계 다운사이즈" 로직이 성립한다.
+# EC2 온디맨드 시간당 단가(USD) — ap-northeast-2(서울) 리전, 2026-07 기준 근사치
 # 실제 운영에서는 AWS Pricing API로 대체해야 하는 캡스톤 스코프의 정적 참고 테이블이다.
 EC2_HOURLY_PRICE_USD: list[tuple[str, float]] = [
     ("t3.micro", 0.0104),
@@ -219,9 +220,7 @@ RESOURCE_IMPLEMENTED_ACTIONS: dict[str, set[str]] = {
     },  # RDS 액션 미구현 - action_agent.py 주석 "RDS는 추후 각자 확장" 참고
 }
 
-# Block처럼 액션 이름은 같아도 리소스마다 실제 동작(API)이 다른 경우의 리소스별
-# 오버라이드. 여기 없으면 BOTO3_SPEC[action](기본값, 처음 만들어질 때 기준이 된
-# 리소스 - Block은 S3)을 그대로 쓴다.
+# 같은 액션이라도 리소스별 AWS API가 다르면, 해당 리소스에 맞는 API 설명을 우선 사용하도록 한다.
 BOTO3_SPEC_BY_RESOURCE: dict[tuple[str, str], dict] = {
     ("Lambda", "Block"): {
         "api": "lambda.put_function_concurrency(FunctionName='string', ReservedConcurrentExecutions=0)",
@@ -403,6 +402,78 @@ def _trend_based_partial_saving(raw_metrics: dict) -> tuple[float, float, float]
     excess_per_hour = excess * (SECONDS_PER_HOUR / COST_METRIC_PERIOD_SECONDS)
     estimated_saving_usd = round(excess_per_hour, 6)
     return saving_rate, estimated_saving_usd, recent_avg
+
+
+def _edos_avoided_scaling_cost(
+    resource_id: str,
+) -> tuple[float, int, str] | None:
+    """
+    입력: resource_id (AutoScaling 그룹명)
+    출력: (avoided_cost_usd_per_hr, avoided_instances, instance_type), 조회 실패 시 None
+
+    EDoS는 ScaleDown을 실행하는 시점에 desired_capacity가 이미 낮아(공격이 Auto
+    Scaling을 실제로 유발하기 *전에* 막았으므로), _trend_based_partial_saving()의
+    "이미 발생한 비용 증가분" 기준으로는 절감액이 거의 0으로 나온다. 이 액션의 실제
+    가치는 "막지 않았다면 ASG가 MaxSize까지 늘어났을 때 발생했을 비용을 회피했다"는
+    것이므로, MaxSize와 현재 DesiredCapacity의 차이 × 인스턴스 단가로 그 가상의
+    비용을 추정한다. 실측 절감액이 아니라 가정 기반 추정치이므로 estimated_saving_usd
+    와는 절대 합산하지 않고 avoided_cost_usd로 별도 관리한다.
+    """
+    try:
+        asg = boto3.client("autoscaling")
+        resp = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[resource_id])
+        groups = resp.get("AutoScalingGroups", [])
+        if not groups:
+            return None
+        group = groups[0]
+        max_size = group.get("MaxSize", 0)
+        desired = group.get("DesiredCapacity", 0)
+        avoided_instances = max(0, max_size - desired)
+        if avoided_instances == 0:
+            return 0.0, 0, DEFAULT_TARGET_INSTANCE_TYPE
+
+        instance_type: str | None = None
+        instances = group.get("Instances", [])
+        if instances:
+            try:
+                instance_type = _get_ec2_instance_type(instances[0]["InstanceId"])
+            except Exception:
+                instance_type = None
+
+        if instance_type is None:
+            lt_spec = group.get("LaunchTemplate") or (
+                (group.get("MixedInstancesPolicy") or {})
+                .get("LaunchTemplate", {})
+                .get("LaunchTemplateSpecification")
+            )
+            if lt_spec:
+                try:
+                    ec2 = boto3.client("ec2")
+                    lt_resp = ec2.describe_launch_template_versions(
+                        LaunchTemplateId=lt_spec.get("LaunchTemplateId"),
+                        Versions=[lt_spec.get("Version", "$Default")],
+                    )
+                    instance_type = lt_resp["LaunchTemplateVersions"][0][
+                        "LaunchTemplateData"
+                    ].get("InstanceType")
+                except Exception:
+                    instance_type = None
+
+        idx = _get_ec2_price_index(instance_type) if instance_type else None
+        if idx is None:
+            instance_type = DEFAULT_TARGET_INSTANCE_TYPE
+            idx = _get_ec2_price_index(instance_type)
+
+        hourly_price = EC2_HOURLY_PRICE_USD[idx][1]
+        avoided_cost_usd = round(avoided_instances * hourly_price, 6)
+        return avoided_cost_usd, avoided_instances, instance_type
+    except Exception as exc:
+        logger.warning(
+            "[decision_agent] EDoS avoided_cost 계산 실패 (resource_id=%s): %s",
+            resource_id,
+            exc,
+        )
+        return None
 
 
 def _build_saving_rate_only_prompt(
@@ -932,26 +1003,54 @@ def decision_node(state: PipelineState) -> PipelineState:
         estimated_saving_usd,
     )
 
+    # Grafana에서 비용 예측·절감 데이터를 조회할 수 있도록 Postgres에 저장하고,
+    # 절감액이 없는 NoAction은 NULL로 처리한다.
+    if selected["action"] != "NoAction":
+        state["current_cost_usd"] = current_cost_usd
+        state["after_cost_usd"] = after_cost_usd
+        state["estimated_saving_usd"] = estimated_saving_usd
+    else:
+        state["current_cost_usd"] = None
+        state["after_cost_usd"] = None
+        state["estimated_saving_usd"] = None
+
     state["candidate_actions"] = candidates
     state["selected_action"] = selected["action"]
     state["risk_level"] = risk
     state["requires_approval"] = risk in ("MED", "HIGH")
     state["target_instance_type"] = target_instance_type
 
-    # AutoScaling EDoS 의심 시 ScaleDown만으로는 공격 트래픽 자체가 안 막힌다(인스턴스
-    # 수만 줄임) — action_agent.py에 이미 구현된 WAF Rate-based Rule을 병행 적용해야
-    # 하는데, apply_waf 기본값(False)을 아무도 True로 설정하지 않아 지금까지 한 번도
-    # 실제로 발동한 적이 없었다(2026-09-11 발견). ScaleDown+risk_security 조합에서만
-    # 켠다 — 다른 리소스/액션까지 WAF를 걸면 안 되므로 조건을 좁게 유지.
-    state["apply_waf"] = (
+    # EDoS 공격이 의심되는 AutoScaling ScaleDown 시
+    # 인스턴스 축소와 함께 WAF Rate-based 차단을 적용하도록 한다.
+    is_edos_scaledown = (
         resource_type == "AutoScaling"
         and selected["action"] == "ScaleDown"
         and anomaly_type == "risk_security"
     )
+    state["apply_waf"] = is_edos_scaledown
+
+    # [ADDED] EDoS는 ScaleDown 실행 시점에 desired_capacity가 이미 낮아 실측 기반
+    # estimated_saving_usd가 거의 0으로 나온다 — 이 액션의 실제 가치(공격을 막아서
+    # ASG가 MaxSize까지 늘어나는 걸 회피함)를 반영하기 위해 avoided_cost_usd를
+    # 별도로 계산한다. estimated_saving_usd와는 절대 합산하지 않는다.
+    avoided_cost_usd = None
+    avoided_note = ""
+    if is_edos_scaledown:
+        avoided_result = _edos_avoided_scaling_cost(state.get("resource_id"))
+        if avoided_result is not None:
+            avoided_cost_usd, avoided_instances, avoided_instance_type = avoided_result
+            if avoided_instances > 0:
+                avoided_note = (
+                    f", 공격 방치 시 MaxSize까지 늘었을 경우 회피 예상 비용="
+                    f"{avoided_cost_usd:.4f} USD/hr({avoided_instances}대 "
+                    f"{avoided_instance_type} 기준, 실측 절감액과 별개의 가정 기반 추정치)"
+                )
+    state["avoided_cost_usd"] = avoided_cost_usd
+
     state["decision_pseudo_code"] = pseudo_code
     state["decision_reasoning"] = (
         f"LLM boto3 스펙 기반 선택: '{selected_action}' - {llm_reason} "
         f"(risk={risk}, cost {current_cost_usd:.4f} -> {after_cost_usd:.4f} USD/hr, "
-        f"절감액={estimated_saving_usd:.4f}/hr)"
+        f"절감액={estimated_saving_usd:.4f}/hr{avoided_note})"
     )
     return state
