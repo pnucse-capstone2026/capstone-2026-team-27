@@ -53,7 +53,7 @@ from pipeline.checkpointer import get_postgres_checkpointer
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 FUNCTION_NAME = os.getenv("LAMBDA_FUNCTION_NAME", "detection-test-lambda")
 BASELINE_INVOKE_COUNT = 100       # 기준선 호출 횟수
-SPIKE_INVOKE_COUNT = 1000         # 스파이크 호출 횟수
+SPIKE_INVOKE_COUNT = 3000         # 스파이크 호출 횟수 (Z-score 임계값 2.75 통과 위해 증가)
 SPIKE_ROUNDS = 3                  # 스파이크 반복 횟수 (지속성 체크 통과용)
 METRIC_WAIT_SECONDS = 300         # CloudWatch 메트릭 반영 대기 (5분)
 INVOKE_CONCURRENCY = 10           # 동시 호출 스레드 수
