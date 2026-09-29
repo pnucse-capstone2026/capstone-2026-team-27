@@ -1,0 +1,739 @@
+{
+  "detection_accuracy": {
+    "scenarios": {
+      "S3 (bytes_downloaded 유출 탐지)": {
+        "file": "s3_repeated_trial__window2.5h_objsize50kb_n8-5_scriptv5_20260910.json",
+        "n_trials": 13,
+        "methods": {
+          "production": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 1,
+              "TN": 7
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.9230769230769231,
+            "accuracy_ci_95": [
+              0.6397025647321225,
+              0.9980543715026533
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 0.8333333333333334,
+            "f1_score": 0.9090909090909091,
+            "false_positive_rate": 0.125,
+            "fpr_ci_95": [
+              0.003159723531251909,
+              0.5265096708752065
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.03515625,
+              "significant_at_0.05": true
+            }
+          }
+        }
+      },
+      "EC2 좀비(사용 안 되는 유휴 인스턴스)": {
+        "file": "ec2_repeated_trial__n8-5_scriptv1_20260912.json",
+        "n_trials": 13,
+        "methods": {
+          "iforest_only": {
+            "confusion_matrix": {
+              "TP": 0,
+              "FN": 5,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.6153846153846154,
+            "accuracy_ci_95": [
+              0.31577760291406304,
+              0.8614206611098394
+            ],
+            "recall": 0.0,
+            "recall_ci_95": [
+              0.0,
+              0.5218237501049814
+            ],
+            "precision": null,
+            "f1_score": null,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 1.0,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          },
+          "production": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 1.0,
+            "accuracy_ci_95": [
+              0.752947361999529,
+              1.0
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 1.0,
+            "f1_score": 1.0,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          },
+          "teammate_compat": {
+            "confusion_matrix": {
+              "TP": 1,
+              "FN": 4,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.6923076923076923,
+            "accuracy_ci_95": [
+              0.38573833824929565,
+              0.9090796054279033
+            ],
+            "recall": 0.2,
+            "recall_ci_95": [
+              0.005050763379468061,
+              0.7164179361180895
+            ],
+            "precision": 1.0,
+            "f1_score": 0.33333333333333337,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.96875,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          }
+        },
+        "mcnemar": {
+          "iforest_only_vs_production": {
+            "n_compared": 13,
+            "b": 0,
+            "c": 5,
+            "p_value": 0.0625,
+            "significant_at_0.05": false
+          },
+          "iforest_only_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 0,
+            "c": 1,
+            "p_value": 1.0,
+            "significant_at_0.05": false
+          },
+          "production_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 4,
+            "c": 0,
+            "p_value": 0.125,
+            "significant_at_0.05": false
+          }
+        }
+      },
+      "EC2 오버프로비저닝": {
+        "file": "ec2_overprovision_repeated_trial__converted.json",
+        "n_trials": 13,
+        "methods": {
+          "iforest_only": {
+            "confusion_matrix": {
+              "TP": 0,
+              "FN": 5,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.6153846153846154,
+            "accuracy_ci_95": [
+              0.31577760291406304,
+              0.8614206611098394
+            ],
+            "recall": 0.0,
+            "recall_ci_95": [
+              0.0,
+              0.5218237501049814
+            ],
+            "precision": null,
+            "f1_score": null,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 1.0,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          },
+          "production": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 1.0,
+            "accuracy_ci_95": [
+              0.752947361999529,
+              1.0
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 1.0,
+            "f1_score": 1.0,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          },
+          "teammate_compat": {
+            "confusion_matrix": {
+              "TP": 1,
+              "FN": 4,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.6923076923076923,
+            "accuracy_ci_95": [
+              0.38573833824929565,
+              0.9090796054279033
+            ],
+            "recall": 0.2,
+            "recall_ci_95": [
+              0.005050763379468061,
+              0.7164179361180895
+            ],
+            "precision": 1.0,
+            "f1_score": 0.33333333333333337,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.96875,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          }
+        },
+        "mcnemar": {
+          "iforest_only_vs_production": {
+            "n_compared": 13,
+            "b": 0,
+            "c": 5,
+            "p_value": 0.0625,
+            "significant_at_0.05": false
+          },
+          "iforest_only_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 0,
+            "c": 1,
+            "p_value": 1.0,
+            "significant_at_0.05": false
+          },
+          "production_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 4,
+            "c": 0,
+            "p_value": 0.125,
+            "significant_at_0.05": false
+          }
+        }
+      },
+      "Lambda (호출/에러 급증)": {
+        "file": "lambda_repeated_trial__n8-5_scriptv1_20260909.json",
+        "n_trials": 13,
+        "methods": {
+          "iforest_only": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 1,
+              "TN": 7
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.9230769230769231,
+            "accuracy_ci_95": [
+              0.6397025647321225,
+              0.9980543715026533
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 0.8333333333333334,
+            "f1_score": 0.9090909090909091,
+            "false_positive_rate": 0.125,
+            "fpr_ci_95": [
+              0.003159723531251909,
+              0.5265096708752065
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.03515625,
+              "significant_at_0.05": true
+            }
+          },
+          "production": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 1,
+              "TN": 7
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.9230769230769231,
+            "accuracy_ci_95": [
+              0.6397025647321225,
+              0.9980543715026533
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 0.8333333333333334,
+            "f1_score": 0.9090909090909091,
+            "false_positive_rate": 0.125,
+            "fpr_ci_95": [
+              0.003159723531251909,
+              0.5265096708752065
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.03515625,
+              "significant_at_0.05": true
+            }
+          },
+          "teammate_compat": {
+            "confusion_matrix": {
+              "TP": 5,
+              "FN": 0,
+              "FP": 4,
+              "TN": 4
+            },
+            "n_anomaly": 5,
+            "n_normal": 8,
+            "accuracy": 0.6923076923076923,
+            "accuracy_ci_95": [
+              0.38573833824929565,
+              0.9090796054279033
+            ],
+            "recall": 1.0,
+            "recall_ci_95": [
+              0.47817624989501856,
+              1.0
+            ],
+            "precision": 0.5555555555555556,
+            "f1_score": 0.7142857142857143,
+            "false_positive_rate": 0.5,
+            "fpr_ci_95": [
+              0.15701277048705797,
+              0.842987229512942
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.03125,
+              "significant_at_0.05": true
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.63671875,
+              "significant_at_0.05": false
+            }
+          }
+        },
+        "mcnemar": {
+          "iforest_only_vs_production": {
+            "n_compared": 13,
+            "b": 0,
+            "c": 0,
+            "p_value": null
+          },
+          "iforest_only_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 3,
+            "c": 0,
+            "p_value": 0.25,
+            "significant_at_0.05": false
+          },
+          "production_vs_teammate_compat": {
+            "n_compared": 13,
+            "b": 3,
+            "c": 0,
+            "p_value": 0.25,
+            "significant_at_0.05": false
+          }
+        }
+      },
+      "AutoScaling EDoS (request_count 기반, v7)": {
+        "file": "autoscaling_edos_traffic_trial__n8-15_scriptv4_20260913.json",
+        "n_trials": 23,
+        "methods": {
+          "iforest_only": {
+            "confusion_matrix": {
+              "TP": 10,
+              "FN": 5,
+              "FP": 1,
+              "TN": 7
+            },
+            "n_anomaly": 15,
+            "n_normal": 8,
+            "accuracy": 0.7391304347826086,
+            "accuracy_ci_95": [
+              0.5159480295975618,
+              0.8977138660846415
+            ],
+            "recall": 0.6666666666666666,
+            "recall_ci_95": [
+              0.3838037325411542,
+              0.881758896633119
+            ],
+            "precision": 0.9090909090909091,
+            "f1_score": 0.7692307692307692,
+            "false_positive_rate": 0.125,
+            "fpr_ci_95": [
+              0.003159723531251909,
+              0.5265096708752065
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.15087890624999997,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.03515625,
+              "significant_at_0.05": true
+            }
+          },
+          "production": {
+            "confusion_matrix": {
+              "TP": 10,
+              "FN": 5,
+              "FP": 1,
+              "TN": 7
+            },
+            "n_anomaly": 15,
+            "n_normal": 8,
+            "accuracy": 0.7391304347826086,
+            "accuracy_ci_95": [
+              0.5159480295975618,
+              0.8977138660846415
+            ],
+            "recall": 0.6666666666666666,
+            "recall_ci_95": [
+              0.3838037325411542,
+              0.881758896633119
+            ],
+            "precision": 0.9090909090909091,
+            "f1_score": 0.7692307692307692,
+            "false_positive_rate": 0.125,
+            "fpr_ci_95": [
+              0.003159723531251909,
+              0.5265096708752065
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 0.15087890624999997,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.03515625,
+              "significant_at_0.05": true
+            }
+          },
+          "zscore_only": {
+            "confusion_matrix": {
+              "TP": 0,
+              "FN": 15,
+              "FP": 0,
+              "TN": 8
+            },
+            "n_anomaly": 15,
+            "n_normal": 8,
+            "accuracy": 0.34782608695652173,
+            "accuracy_ci_95": [
+              0.1637635983749499,
+              0.5726560369635056
+            ],
+            "recall": 0.0,
+            "recall_ci_95": [
+              0.0,
+              0.21801936091053403
+            ],
+            "precision": null,
+            "f1_score": null,
+            "false_positive_rate": 0.0,
+            "fpr_ci_95": [
+              0.0,
+              0.36941664755281917
+            ],
+            "recall_vs_chance_binomial_test": {
+              "p_value": 1.0,
+              "significant_at_0.05": false
+            },
+            "fpr_vs_chance_binomial_test": {
+              "p_value": 0.00390625,
+              "significant_at_0.05": true
+            }
+          }
+        },
+        "mcnemar": {
+          "iforest_only_vs_production": {
+            "n_compared": 23,
+            "b": 0,
+            "c": 0,
+            "p_value": null
+          },
+          "iforest_only_vs_zscore_only": {
+            "n_compared": 23,
+            "b": 10,
+            "c": 1,
+            "p_value": 0.01171875,
+            "significant_at_0.05": true
+          },
+          "production_vs_zscore_only": {
+            "n_compared": 23,
+            "b": 10,
+            "c": 1,
+            "p_value": 0.01171875,
+            "significant_at_0.05": true
+          }
+        }
+      }
+    },
+    "pipeline_overall_pooled": {
+      "scenarios_included": [
+        "S3 (bytes_downloaded 유출 탐지)",
+        "EC2 좀비(사용 안 되는 유휴 인스턴스)",
+        "EC2 오버프로비저닝",
+        "Lambda (호출/에러 급증)",
+        "AutoScaling EDoS (request_count 기반, v7)"
+      ],
+      "confusion_matrix": {
+        "TP": 30,
+        "FN": 5,
+        "FP": 3,
+        "TN": 37
+      },
+      "n_anomaly": 35,
+      "n_normal": 40,
+      "accuracy": 0.8933333333333333,
+      "accuracy_ci_95": [
+        0.8005982557973285,
+        0.9528100482599416
+      ],
+      "recall": 0.8571428571428571,
+      "recall_ci_95": [
+        0.6974286483090486,
+        0.9519392215963611
+      ],
+      "precision": 0.9090909090909091,
+      "f1_score": 0.8823529411764706
+    }
+  },
+  "classification_accuracy_by_agent": {
+    "ec2_overprovision_repeated_trial__converted__classification_accuracy": {
+      "source_result_file": "playground\\eval_outputs\\ec2_overprovision_repeated_trial__converted.json",
+      "expected_label": "cost_inefficiency",
+      "rulebook": {
+        "total": 0,
+        "correct": 0,
+        "accuracy": null
+      },
+      "llm": {
+        "total": 5,
+        "correct": 4,
+        "accuracy": 0.8
+      },
+      "p_rulebook": 0.0,
+      "p_llm": 1.0,
+      "combined_classification_accuracy": 0.8,
+      "false_positive_classification_notes": []
+    },
+    "ec2_zombie_replay_trial__n8-5_scriptv1_20260910__classification_accuracy": {
+      "source_result_file": "playground\\eval_outputs\\ec2_zombie_replay_trial__n8-5_scriptv1_20260910.json",
+      "expected_label": "cost_inefficiency",
+      "rulebook": {
+        "total": 0,
+        "correct": 0,
+        "accuracy": null
+      },
+      "llm": {
+        "total": 5,
+        "correct": 5,
+        "accuracy": 1.0
+      },
+      "p_rulebook": 0.0,
+      "p_llm": 1.0,
+      "combined_classification_accuracy": 1.0,
+      "false_positive_classification_notes": []
+    },
+    "s3_repeated_trial__window2.5h_objsize50kb_n8-5_scriptv5_20260910__classification_accuracy": {
+      "source_result_file": "playground\\eval_outputs\\s3_repeated_trial__window2.5h_objsize50kb_n8-5_scriptv5_20260910.json",
+      "expected_label": "risk_security",
+      "rulebook": {
+        "total": 5,
+        "correct": 5,
+        "accuracy": 1.0
+      },
+      "llm": {
+        "total": 0,
+        "correct": 0,
+        "accuracy": null
+      },
+      "p_rulebook": 1.0,
+      "p_llm": 0.0,
+      "combined_classification_accuracy": 1.0,
+      "false_positive_classification_notes": [
+        {
+          "rep": 5,
+          "matched_rule_id": null,
+          "anomaly_type": "cost_spike"
+        }
+      ]
+    }
+  },
+  "execution_timing": {
+    "n_samples": 111,
+    "stages": {
+      "detection": {
+        "n": 111,
+        "mean": 0.0789332867356034,
+        "std": 0.06355081452464972,
+        "min": 0.007,
+        "max": 0.277
+      },
+      "classification": {
+        "n": 48,
+        "mean": 16.372078104496,
+        "std": 17.60104089388795,
+        "min": 0.0,
+        "max": 81.654
+      },
+      "decision": {
+        "n": 48,
+        "mean": 26.664883894801136,
+        "std": 40.200117258441395,
+        "min": 0.002,
+        "max": 129.438
+      },
+      "action": {
+        "n": 34,
+        "mean": 3.189267662889817,
+        "std": 7.101033008168421,
+        "min": 0.0,
+        "max": 33.154
+      },
+      "qa": {
+        "n": 34,
+        "mean": 283.3543132576101,
+        "std": 70.84122518263699,
+        "min": 0.009225130081176758,
+        "max": 304.231
+      },
+      "logging": {
+        "n": 34,
+        "mean": 0.3605964645497939,
+        "std": 0.699788077100094,
+        "min": 0.0030393600463867188,
+        "max": 2.056
+      },
+      "total": {
+        "n": 111,
+        "mean": 107.83580934452367,
+        "std": 162.41633539185875,
+        "min": 0.008,
+        "max": 442.942
+      }
+    },
+    "mttd_seconds": 0.0789332867356034,
+    "mttr_seconds": {
+      "n": 34,
+      "mean": 54.427894423709205,
+      "median": 43.13550000000001
+    }
+  },
+  "qualitative_notes": {
+    "train_eval_independence": "detection_agent.py의 _get_or_train_iforest()는 온라인 학습 구조라, '정상으로 판단된' 윈도우가 즉시 훈련 버퍼에 편입되고 모델이 재학습된다. EDoS 실험 패턴상 같은 리소스의 베이스라인(before) 구간이 먼저 버퍼에 들어간 뒤 그 리소스의 공격 후(after) 구간을 채점하므로, 완전한 훈련/평가 데이터 독립은 아니다. 실제로 v6(2026-09-13)에서 이 구조로 인해 모델이 '1개 윈도우로만 학습된 좁은 모델' 상태에 갇혀 recall이 80%→0%로 급락하는 사례가 실측으로 확인되었다(warmup 스크립트로 완화).",
+    "overfitting_risk": "IsolationForest는 온라인 버퍼 크기가 작을 때(특히 1개 윈도우) 그 좁은 분산에 과적합되어, 이후 들어오는 정상 데이터조차 이상으로 오판하는 자기강화적 패턴이 실측으로 확인되었다 (detection_agent.py:392-397 주석의 'Phase 5, 창 1개 학습 = 정상 32.7% 오탐' 문제와 동일 메커니즘). MAX_WINDOWS_PER_TYPE(FIFO)로 완화하나 근본적으로 온라인 학습 특유의 리스크다.",
+    "sample_size_limitation": "EC2/Lambda/S3 시나리오는 recall 100%가 나왔으나 n_anomaly=5로 작아 개별 시나리오의 95% CI가 넓다(예: [47.8%, 100%]). 이항검정에서 recall이 우연(50%)보다 유의하려면 최소 n=5(recall 100% 가정) ~ n=11(recall 80% 가정)이 필요함을 확인하였고, 5개 시나리오를 풀링(n=62)하면 CI가 크게 좁아짐(86.5~99.0%)을 실측으로 확인하였다.",
+    "hyperparameter_tuning": "phase5_tuning_results.json에 IsolationForest contamination/tau/k 그리드서치 결과가 있음(mock 데이터 기반, 247개 조합). 실제 AWS 실험(v1~v7)에서는 이 값을 참고해 임계값을 실측 기반으로 수동 조정하였고, 정식 그리드서치를 실제 데이터로 재수행하지는 않았다.",
+    "detection_only_vs_full_pipeline_caveat": "S3/EC2좀비/EC2오버프로비저닝/Lambda의 confusion matrix는 탐지(Detection) 단계만의 정확도이며, 실제 액션 실행 및 QA 검증까지 포함한 전체 파이프라인 성공률이 아니다. 전체 파이프라인 종단 검증은 AutoScaling EDoS(v6/v7, run_full_pipeline_from_metrics)에서만 실측하였다."
+  }
+}

@@ -22,6 +22,10 @@ class WhitelistCreate(BaseModel):
     resource_type: str | None = None  # null이면 모든 타입
     reason: str = ""
     expires_at: str | None = None  # ISO 형식, null이면 무기한
+    category: str | None = None  # "event_period"/"recurring_hours"면 EDoS 탐지에서만 예외
+    effective_from: str | None = None  # ISO 형식, category="event_period"일 때 시작일
+    daily_start_hour: int | None = None  # category="recurring_hours"일 때 매일 시작 시(0~23, UTC)
+    daily_end_hour: int | None = None    # category="recurring_hours"일 때 매일 종료 시(0~23, UTC)
 
 
 class SettingsUpdate(BaseModel):

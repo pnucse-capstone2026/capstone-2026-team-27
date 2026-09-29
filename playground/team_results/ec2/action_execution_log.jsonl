@@ -1,0 +1,5 @@
+{"trace_id": null, "executed_at": "2026-09-09T20:01:08.966370+00:00", "resource_id": "i-00f27d6650869a74d", "resource_type": "EC2", "action": "Stop", "status": "success", "error": null}
+{"trace_id": null, "executed_at": "2026-09-09T20:01:08.966370+00:00", "resource_id": "i-013a9d143009d1376", "resource_type": "EC2", "action": "Stop", "status": "success", "error": null}
+{"trace_id": null, "executed_at": "2026-09-09T20:01:08.966370+00:00", "resource_id": "i-0238a05593fbcf2f2", "resource_type": "EC2", "action": "Stop", "status": "success", "error": null}
+{"trace_id": null, "executed_at": "2026-09-09T20:01:08.966370+00:00", "resource_id": "i-046cbf400dd6dc9d7", "resource_type": "EC2", "action": "Stop", "status": "success", "error": null}
+{"trace_id": null, "executed_at": "2026-09-09T20:01:08.966370+00:00", "resource_id": "i-094595e331b19be17", "resource_type": "EC2", "action": "Stop", "status": "success", "error": null}

@@ -9,7 +9,7 @@ Phase 5: 파라미터 튜닝 — eval_dataset.json(435개, 단변량 스파이�
   - IFOREST_CONTAMINATION: 기본 0.1
   - Z_SCORE_THRESHOLD (k): 기본 3.0
 
-⚠️ 이 튜닝은 "우리가 만든 합성 데이터" 기준이다. AWS 실데이터 연동 후에는
+이 튜닝은 "우리가 만든 합성 데이터" 기준이다. AWS 실데이터 연동 후에는
    재검증/재튜닝이 필요할 수 있음을 보고서에 명시해야 한다.
 
 최적화 방식: contamination이 바뀌면 모델을 다시 학습해야 하지만, τ/k는 학습된

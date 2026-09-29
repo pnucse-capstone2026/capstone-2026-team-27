@@ -1,7 +1,6 @@
 import { card, colors, font, labelStyle, badgeStyle, SEVERITY_STYLES } from "../styles.js";
+import { formatUsdPerHour } from "../format.js";
 
-// 실제 파이프라인 6단계 그대로 — 예전 mock 시절엔 "Recovery"라는, 실제 에이전트에
-// 없는 이름이 들어있었다 (실제 에이전트: Detection/Classification/Decision/Action/QA/Logging).
 const NODE_LABELS = [
   { key: "detection", label: "Detection" },
   { key: "classification", label: "Classification" },
@@ -17,6 +16,15 @@ const NODE_COLOR = {
   success: "#3b82f6",
   error: "#e0654f",
 };
+
+function formatAsOf(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${yy}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function StatCard({ label, value, accent, onClick, tooltip }) {
   return (
@@ -60,7 +68,7 @@ function RecentDetectionRow({ item }) {
       </div>
       {display.type === "saving" ? (
         <div style={{ fontFamily: font.mono, fontSize: 13, fontWeight: 700, color: "#3b82f6" }}>
-          ${display.value.toFixed(2)}/hr 절감 가능
+          ${formatUsdPerHour(display.value)}/hr 절감 가능
         </div>
       ) : (
         <div
@@ -68,7 +76,7 @@ function RecentDetectionRow({ item }) {
             fontFamily: font.mono,
             fontSize: 13,
             fontWeight: 700,
-            color: display.value === "처리 완료" ? colors.subtext : "#e0654f",
+            color: display.value.startsWith("조치 완료") ? colors.subtext : "#e0654f",
           }}
         >
           {display.value}
@@ -83,7 +91,8 @@ export default function Dashboard({ status, loading, recentDetections, onNavigat
     return <div style={{ color: colors.subtext }}>불러오는 중...</div>;
   }
 
-  const { stats, nodes } = status;
+  const { stats, nodes, pipeline_running, as_of } = status;
+  const asOfLabel = formatAsOf(as_of);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -109,14 +118,14 @@ export default function Dashboard({ status, loading, recentDetections, onNavigat
           tooltip="클릭하면 LLM 로그에서 관련 판단 근거를 볼 수 있습니다"
         />
         <StatCard
-          label="이상 처리 완료"
+          label="이상 조치 완료"
           value={stats.anomaly_completed}
           accent="#3b82f6"
           onClick={onNavigateToLogs}
           tooltip="클릭하면 LLM 로그에서 관련 판단 근거를 볼 수 있습니다"
         />
         <StatCard
-          label="처리 실패"
+          label="조치 실패"
           value={stats.anomaly_failed}
           accent={stats.anomaly_failed > 0 ? "#e0654f" : undefined}
           onClick={onNavigateToFailures}
@@ -125,8 +134,15 @@ export default function Dashboard({ status, loading, recentDetections, onNavigat
       </div>
 
       <div style={card()}>
-        <div style={{ ...labelStyle, marginBottom: 22, color: colors.subtext }}>
-          파이프라인 노드 상태
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 22 }}>
+          <div style={{ ...labelStyle, color: colors.subtext }}>
+            파이프라인 에이전트 상태
+          </div>
+          {asOfLabel && (
+            <div style={{ fontFamily: font.mono, fontSize: 11, color: colors.subtext }}>
+              {pipeline_running ? `${asOfLabel} 기준` : `${asOfLabel} 기준 (마지막 실행)`}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {NODE_LABELS.map((node, idx) => (

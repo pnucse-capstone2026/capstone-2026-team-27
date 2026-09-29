@@ -3,20 +3,36 @@ pipeline/orchestrator.py
 
 Phase E: 오케스트레이션 — 디스커버리(C) → 지표/비용 수집(A+B) → 순차 스캔(Phase 0).
 
-⚠️ 안전 설계: run_detection_cycle()은 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은
+안전 설계: run_detection_cycle()은 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은
    자동 실행하지 않는다 — anomaly_flag=True인 리소스 목록만 반환하고, 그걸 실제
    app.invoke()로 이어서 액션까지 실행할지는 호출부(사람)가 명시적으로 결정해야 한다.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Iterator, Optional
+
+import boto3
 
 from pipeline.cloudwatch_client import fetch_metrics
 from pipeline.cost_estimator import estimate_cost_series
 from pipeline.detection_agent import scan_resources_sequential
 from pipeline.resource_discovery import discover_all_resources
 from schema.state import PipelineState
+
+
+def _fetch_ec2_age_seconds(resource_id: str, client=None) -> Optional[float]:
+    """EC2 인스턴스의 LaunchTime(부팅 시각) 기준 경과 시간(초). 조회 실패 시 None
+    (detection_agent.py의 저사용률 체크가 나이를 모르면 가드를 건너뛰도록 설계돼 있어
+    안전 — 판단 보류가 아니라 기존처럼 그냥 평가함)."""
+    try:
+        ec2 = client or boto3.client("ec2")
+        resp = ec2.describe_instances(InstanceIds=[resource_id])
+        launch_time = resp["Reservations"][0]["Instances"][0]["LaunchTime"]
+        return (datetime.now(timezone.utc) - launch_time).total_seconds()
+    except Exception:
+        return None
 
 
 def assemble_resource(
@@ -33,11 +49,14 @@ def assemble_resource(
     raw_metrics = dict(usage_metrics)
     raw_metrics["cost"] = cost_series
 
-    return {
+    resource = {
         "resource_id": resource_id,
         "resource_type": resource_type,
         "raw_metrics": raw_metrics,
     }
+    if resource_type == "EC2":
+        resource["resource_age_seconds"] = _fetch_ec2_age_seconds(resource_id)
+    return resource
 
 
 def run_detection_cycle(

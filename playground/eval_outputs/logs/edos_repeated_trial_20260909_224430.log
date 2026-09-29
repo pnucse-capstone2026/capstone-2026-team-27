@@ -1,0 +1,2 @@
+2026-09-09 22:44:30,790 [INFO] 로그: C:\Detection\langgraph_study\playground\eval_outputs\logs\edos_repeated_trial_20260909_224430.log (SCRIPT_VERSION=1, scenario=edos)
+2026-09-09 22:44:31,797 [INFO] vCPU 예상: 현재 13대(26vCPU) + 이번 실험 최대 25대(50vCPU) = 76vCPU (한도 32)

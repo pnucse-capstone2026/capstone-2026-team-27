@@ -1,0 +1,170 @@
+{
+  "script_version": "1",
+  "scenario": "ec2",
+  "generated_at": "2026-09-11T11:59:58.886486+00:00",
+  "params": {
+    "phase_minutes": 15,
+    "wait_sec": 120,
+    "n_normal": 0,
+    "n_anomaly": 0
+  },
+  "metrics": {
+    "production(detection_node 실제 방식)": {
+      "confusion_matrix": {
+        "TP": 0,
+        "FN": 0,
+        "FP": 0,
+        "TN": 0
+      },
+      "n_normal": 0,
+      "n_anomaly": 0,
+      "accuracy": null,
+      "accuracy_ci_95_clopper_pearson": null,
+      "recall": null,
+      "recall_ci_95_clopper_pearson": null,
+      "precision": null,
+      "false_positive_rate": null,
+      "fpr_ci_95_clopper_pearson": null
+    },
+    "iforest_only(persistence 적용)": {
+      "confusion_matrix": {
+        "TP": 0,
+        "FN": 0,
+        "FP": 0,
+        "TN": 0
+      },
+      "n_normal": 0,
+      "n_anomaly": 0,
+      "accuracy": null,
+      "accuracy_ci_95_clopper_pearson": null,
+      "recall": null,
+      "recall_ci_95_clopper_pearson": null,
+      "precision": null,
+      "false_positive_rate": null,
+      "fpr_ci_95_clopper_pearson": null
+    },
+    "teammate_compat(낡은 헬퍼 방식)": {
+      "confusion_matrix": {
+        "TP": 0,
+        "FN": 0,
+        "FP": 0,
+        "TN": 0
+      },
+      "n_normal": 0,
+      "n_anomaly": 0,
+      "accuracy": null,
+      "accuracy_ci_95_clopper_pearson": null,
+      "recall": null,
+      "recall_ci_95_clopper_pearson": null,
+      "precision": null,
+      "false_positive_rate": null,
+      "fpr_ci_95_clopper_pearson": null
+    }
+  },
+  "trials": [
+    {
+      "resource": "i-018cb1f361adb89e8",
+      "label": "anomaly",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-043ad8f8ff784936e",
+      "label": "anomaly",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-052f85ca490476138",
+      "label": "anomaly",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0557e969014023641",
+      "label": "anomaly",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0e7bbc6f947db83d9",
+      "label": "anomaly",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-00bcf958a64f0113a",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-034e381688cfb1cc1",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-052aafedee6d81a0a",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-07136de010b09d0aa",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0b8b354431850c90b",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0cc774f725222d838",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0d2c602df9fe8e1a9",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    },
+    {
+      "resource": "i-0f32adb755ab150ff",
+      "label": "normal",
+      "error": "단가 미등록 EC2 인스턴스 타입: t3.small",
+      "detected_production": null,
+      "detected_teammate_compat": null,
+      "detected_iforest_only": null
+    }
+  ]
+}

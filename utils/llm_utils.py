@@ -108,12 +108,10 @@ def call_gemini(prompt: str, temperature: float = 0.1) -> str:
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage
 
-    # [DISABLED] 추정치 기반 한도라 아직 차단은 안 함 — 추적만 계속함 (위 docstring 참고)
+    # 비용 한도 차단 비활성화 (추정치 기반이라 오탐 가능성)
     # cost_limit = get_llm_cost_limit()
     # if is_over_limit(cost_limit):
-    #     raise RuntimeError(
-    #         f"오늘 LLM 비용 상한(${cost_limit:.2f})을 이미 넘겨서 호출을 스킵합니다."
-    #     )
+    #     raise RuntimeError(f"오늘 LLM 비용 상한 초과")
 
     keys = _load_gemini_keys()
     if not keys:

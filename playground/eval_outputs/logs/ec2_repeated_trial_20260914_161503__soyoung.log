@@ -1,0 +1,35 @@
+2026-09-14 16:15:03,824 [INFO] 로그: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260914_161503.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-14 16:15:03,828 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 (manifest scenario=ec2_zombie_edge) ===
+2026-09-14 16:15:03,833 [INFO] [anomaly i-0a7afd37ebe0af1c0] 측정 시작 (profile=true_zombie_target_cpu_0.0pct, age=19616s)
+2026-09-14 16:15:03,847 [INFO] [anomaly i-0b2ca8c6cdb544d24] 측정 시작 (profile=true_zombie_target_cpu_0.0pct, age=19616s)
+2026-09-14 16:15:03,861 [INFO] [anomaly i-024525a22b32c4853] 측정 시작 (profile=true_zombie_target_cpu_0.0pct, age=19616s)
+2026-09-14 16:15:03,873 [INFO] [anomaly i-0e862bad65f8c22dc] 측정 시작 (profile=edge_zombie_target_cpu_4.0pct, age=19612s)
+2026-09-14 16:15:03,882 [INFO] [anomaly i-0d232e62c68409e79] 측정 시작 (profile=edge_zombie_target_cpu_4.0pct, age=19612s)
+2026-09-14 16:15:03,893 [INFO] [normal i-0b71d76806b785fae] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,910 [INFO] [normal i-0327b75826c38ea3f] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,912 [INFO] [normal i-0ba8b30aad79e3e49] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,916 [INFO] [normal i-0a4c40c3cf264ddbb] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,918 [INFO] [normal i-0637f8c20fea28545] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,919 [INFO] [normal i-0f6f5c076f2adf094] 측정 시작 (profile=true_normal_target_cpu_45.0pct, age=19610s)
+2026-09-14 16:15:03,920 [INFO] [normal i-0d7cb18fa0b31df0e] 측정 시작 (profile=edge_normal_target_cpu_7.0pct, age=19609s)
+2026-09-14 16:15:03,921 [INFO] [normal i-0a8ccd05309094238] 측정 시작 (profile=edge_normal_target_cpu_7.0pct, age=19609s)
+2026-09-14 16:15:16,579 [INFO] [normal i-0637f8c20fea28545] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=True
+2026-09-14 16:15:16,619 [INFO] [anomaly i-0a7afd37ebe0af1c0] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=True
+2026-09-14 16:15:16,918 [INFO] [normal i-0327b75826c38ea3f] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:16,973 [INFO] [anomaly i-0b2ca8c6cdb544d24] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:17,000 [INFO] [normal i-0f6f5c076f2adf094] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:17,013 [INFO] [normal i-0ba8b30aad79e3e49] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=True
+2026-09-14 16:15:18,887 [INFO] [normal i-0d7cb18fa0b31df0e] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:21,732 [INFO] [anomaly i-0e862bad65f8c22dc] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:21,744 [INFO] [anomaly i-024525a22b32c4853] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:21,833 [INFO] [normal i-0a8ccd05309094238] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=True
+2026-09-14 16:15:22,281 [INFO] [anomaly i-0d232e62c68409e79] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:25,880 [INFO] [normal i-0a4c40c3cf264ddbb] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:26,694 [INFO] [normal i-0b71d76806b785fae] production.or_gate=True (IF=False, 절대=True) / teammate.anomaly_flag=False
+2026-09-14 16:15:26,717 [INFO] [production(detection_node 실제 방식)] TP=5 TN=0 FP=8 FN=0 / accuracy=38.5% recall=100.0%
+2026-09-14 16:15:26,718 [INFO]     recall 95% CI(Clopper-Pearson) = [47.8%, 100.0%]
+2026-09-14 16:15:26,718 [INFO] [iforest_only(persistence 적용)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-14 16:15:26,718 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-14 16:15:26,718 [INFO] [teammate_compat(낡은 헬퍼 방식)] TP=1 TN=5 FP=3 FN=4 / accuracy=46.2% recall=20.0%
+2026-09-14 16:15:26,718 [INFO]     recall 95% CI(Clopper-Pearson) = [0.5%, 71.6%]
+2026-09-14 16:15:26,727 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\ec2_zombie_edge_repeated_trial__n8-5_scriptv1_20260914.json

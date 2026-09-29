@@ -1,0 +1,138 @@
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+GEMINI_KEY_1 쿼터 소진(429) - 다음 키로 전환 (1/3)
+자격증명 고정 완료 (원래 프로필=None, Arn=arn:aws:iam::268140507066:user/test)
+원본: ec2_repeated_trial__n8-5_scriptv1_20260909.json (측정 2026-09-09T14:11:40.704652+00:00, 시행 13개)
+start 요청 5대: ['i-046cbf400dd6dc9d7', 'i-0238a05593fbcf2f2', 'i-094595e331b19be17', 'i-00f27d6650869a74d', 'i-013a9d143009d1376']
+running 대기...
+인스턴스 상태: {'i-046cbf400dd6dc9d7': 'running', 'i-0238a05593fbcf2f2': 'running', 'i-094595e331b19be17': 'running', 'i-00f27d6650869a74d': 'running', 'i-013a9d143009d1376': 'running', 'i-0e810265b88caeac5': 'running', 'i-0cd6cf73f56959d2e': 'running', 'i-0380a0b372a973a5c': 'running', 'i-053230c6e903132f8': 'running', 'i-01aed37041b8e6946': 'running', 'i-0973aa83fa2ba0dd9': 'running', 'i-07c77db4628d7e7ca': 'running', 'i-04cec80c3045da327': 'running'}
+=== EC2 13개 재생 파이프라인 병렬 실행 시작 ===
+[anomaly i-0238a05593fbcf2f2] detection 0.080s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-013a9d143009d1376] detection 0.096s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-01aed37041b8e6946] detection 0.101s -> flag=False triggered=[]
+[anomaly i-046cbf400dd6dc9d7] detection 0.122s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-00f27d6650869a74d] detection 0.142s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-053230c6e903132f8] detection 0.116s -> flag=False triggered=[]
+[normal i-0973aa83fa2ba0dd9] detection 0.125s -> flag=False triggered=[]
+[anomaly i-094595e331b19be17] detection 0.161s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-04cec80c3045da327] detection 0.161s -> flag=False triggered=[]
+[normal i-07c77db4628d7e7ca] detection 0.167s -> flag=False triggered=[]
+[normal i-0380a0b372a973a5c] detection 0.192s -> flag=False triggered=[]
+[normal i-0cd6cf73f56959d2e] detection 0.175s -> flag=False triggered=[]
+[normal i-0e810265b88caeac5] detection 0.176s -> flag=False triggered=[]
+[anomaly i-094595e331b19be17] decision -> Stop risk=LOW approval=False
+[anomaly i-094595e331b19be17] action 0.818s -> Stop success
+[anomaly i-046cbf400dd6dc9d7] decision -> Stop risk=LOW approval=False
+[anomaly i-046cbf400dd6dc9d7] action 1.003s -> Stop success
+[anomaly i-013a9d143009d1376] decision -> Stop risk=LOW approval=False
+[anomaly i-013a9d143009d1376] action 0.780s -> Stop success
+[anomaly i-00f27d6650869a74d] decision -> Stop risk=LOW approval=False
+[anomaly i-00f27d6650869a74d] action 0.783s -> Stop success
+[anomaly i-0238a05593fbcf2f2] decision -> Stop risk=LOW approval=False
+[anomaly i-0238a05593fbcf2f2] action 0.896s -> Stop success
+[anomaly i-094595e331b19be17] qa 301.304s -> passed=True
+[logging_node] DB 저장 성공 (run_id=f104e542-5d02-4528-a7af-b0e3b27078b7)
+[anomaly i-046cbf400dd6dc9d7] qa 300.832s -> passed=True
+[logging_node] DB 저장 성공 (run_id=7a237d9c-c701-4b61-8c28-9be838c5998e)
+[anomaly i-013a9d143009d1376] qa 302.057s -> passed=True
+[logging_node] DB 저장 성공 (run_id=724abbad-fd5d-48f1-ac5b-18610ccc399c)
+[anomaly i-00f27d6650869a74d] qa 301.085s -> passed=True
+[logging_node] DB 저장 성공 (run_id=ab2a4fe2-9d05-4789-aff3-12b1e30adcec)
+[anomaly i-0238a05593fbcf2f2] qa 300.789s -> passed=True
+[logging_node] DB 저장 성공 (run_id=41a3e299-0626-4027-a09a-4464875aa42c)
+
+=== 집계 ===
+{
+  "n_resources": 13,
+  "n_error": 0,
+  "detection": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0
+  },
+  "stopped_at": {
+    "detection": 8,
+    "approval_gate": 0,
+    "null": 5
+  },
+  "action": {
+    "n_executed": 5,
+    "n_success": 5,
+    "success_rate": 1.0,
+    "by_action": {
+      "Stop": 5
+    }
+  },
+  "qa": {
+    "n_judged": 5,
+    "n_passed": 5,
+    "pass_rate": 1.0
+  },
+  "timings": {
+    "detection": {
+      "n": 13,
+      "mean_sec": 0.14,
+      "stdev_sec": 0.035,
+      "min_sec": 0.08,
+      "max_sec": 0.192
+    },
+    "classification": {
+      "n": 5,
+      "mean_sec": 27.154,
+      "stdev_sec": 17.677,
+      "min_sec": 11.674,
+      "max_sec": 47.048
+    },
+    "decision": {
+      "n": 5,
+      "mean_sec": 97.283,
+      "stdev_sec": 20.065,
+      "min_sec": 76.393,
+      "max_sec": 129.438
+    },
+    "action": {
+      "n": 5,
+      "mean_sec": 0.856,
+      "stdev_sec": 0.095,
+      "min_sec": 0.78,
+      "max_sec": 1.003
+    },
+    "qa": {
+      "n": 5,
+      "mean_sec": 301.213,
+      "stdev_sec": 0.515,
+      "min_sec": 300.789,
+      "max_sec": 302.057
+    },
+    "logging": {
+      "n": 5,
+      "mean_sec": 0.072,
+      "stdev_sec": 0.023,
+      "min_sec": 0.05,
+      "max_sec": 0.109
+    },
+    "total": {
+      "n": 13,
+      "mean_sec": 164.208,
+      "stdev_sec": 216.291,
+      "min_sec": 0.101,
+      "max_sec": 442.942
+    }
+  }
+}
+
+결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\batch_pipeline_replay__EC2_20260910_044358.json

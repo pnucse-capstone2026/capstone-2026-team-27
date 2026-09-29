@@ -1,0 +1,376 @@
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 206, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 202, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 157, in run_loop
+    print("ÀüÃ¼ ÆÄÀÌÇÁ¶óÀÎ ½ÃÀÛ \u2014 °ü¸®ÀÚ ¼³Á¤ÀÇ Æú¸µ ÁÖ±â·Î ¹İº¹")
+UnicodeEncodeError: 'cp949' codec can't encode character '\u2014' in position 12: illegal multibyte sequence
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 206, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 202, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 157, in run_loop
+    print("ÀüÃ¼ ÆÄÀÌÇÁ¶óÀÎ ½ÃÀÛ \u2014 °ü¸®ÀÚ ¼³Á¤ÀÇ Æú¸µ ÁÖ±â·Î ¹İº¹")
+UnicodeEncodeError: 'cp949' codec can't encode character '\u2014' in position 12: illegal multibyte sequence
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:06:46.742684+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 208, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 204, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 165, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:34:28.034567+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:35:28.387497+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:47:06.406802+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:49:12.626095+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T09:50:12.835935+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T12:52:32.520921+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T12:52:54.172530+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T13:07:14.306858+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T13:14:00.201540+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T13:17:30.998774+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials
+ì „ì²´ íŒŒì´í”„ë¼ì¸ ì‹œì‘ â€” ê´€ë¦¬ì ì„¤ì •ì˜ í´ë§ ì£¼ê¸°ë¡œ ë°˜ë³µ
+ë¡œê·¸: C:\Users\soyoung\Desktop\work\4-ì¡¸ì—…ê³¼ì œ\detection\langgraph_study\playground\eval_outputs\full_pipeline.jsonl
+
+=== ì‚¬ì´í´ 1 (2026-09-20T13:37:46.503133+00:00) ===
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 209, in <module>
+    main()
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 205, in main
+    run_loop(app, args.max_cycles, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 166, in run_loop
+    _run_once(app, resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\playground\run_full_pipeline.py", line 79, in _run_once
+    discovered = discover_all_resources(resource_types=resource_types)
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 134, in discover_all_resources
+    for resource_id in discoverer(tag_key, tag_value):
+  File "C:\Users\soyoung\Desktop\work\4-Á¹¾÷°úÁ¦\detection\langgraph_study\pipeline\resource_discovery.py", line 33, in discover_ec2_instances
+    for page in paginator.paginate(Filters=[
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 272, in __iter__
+    response = self._make_request(current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\paginate.py", line 360, in _make_request
+    return self._method(**current_kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\soyoung\AppData\Local\Programs\Python\Python310\lib\site-packages\botocore\client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AuthFailure) when calling the DescribeInstances operation: AWS was not able to validate the provided access credentials

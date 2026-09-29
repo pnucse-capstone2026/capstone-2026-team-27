@@ -1,0 +1,68 @@
+2026-09-10 02:51:19,615 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\lambda_retry_repeated_trial_20260910_025119.log (SCRIPT_VERSION=1)
+2026-09-10 02:51:20,265 [INFO] 사전 점검 통과: 프로필 'default'로 invoke 가능
+2026-09-10 02:51:20,265 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 (시행당 약 15분 + 대기 120초) ===
+2026-09-10 02:51:21,716 [INFO] [anomaly detection-test-lambda-anomaly-3] 시작 (에러율=0.78(기준 0.85), 간격=13s(기준 12s), 호출 69회)
+2026-09-10 02:51:21,760 [INFO] [anomaly detection-test-lambda-anomaly-2] 시작 (에러율=0.73(기준 0.70), 간격=34s(기준 30s), 호출 26회)
+2026-09-10 02:51:21,773 [INFO] [anomaly detection-test-lambda-anomaly-4] 시작 (에러율=0.69(기준 0.60), 간격=11s(기준 12s), 호출 81회)
+2026-09-10 02:51:21,778 [INFO] [normal detection-test-lambda-normal-1] 시작 (에러율=0.00(기준 0.00), 간격=28s(기준 30s), 호출 32회)
+2026-09-10 02:51:21,788 [INFO] [anomaly detection-test-lambda] 시작 (에러율=0.48(기준 0.55), 간격=20s(기준 20s), 호출 45회)
+2026-09-10 02:51:21,802 [INFO] [anomaly detection-test-lambda-anomaly-5] 시작 (에러율=0.91(기준 0.90), 간격=23s(기준 25s), 호출 39회)
+2026-09-10 02:51:21,804 [INFO] [normal detection-test-lambda-normal-2] 시작 (에러율=0.02(기준 0.02), 간격=34s(기준 30s), 호출 26회)
+2026-09-10 02:51:21,823 [INFO] [normal detection-test-lambda-normal-6] 시작 (에러율=0.01(기준 0.01), 간격=8s(기준 8s), 호출 112회)
+2026-09-10 02:51:21,833 [INFO] [normal detection-test-lambda-normal-3] 시작 (에러율=0.00(기준 0.00), 간격=16s(기준 15s), 호출 56회)
+2026-09-10 02:51:21,836 [INFO] [normal detection-test-lambda-normal-7] 시작 (에러율=0.00(기준 0.00), 간격=54s(기준 60s), 호출 16회)
+2026-09-10 02:51:21,842 [INFO] [normal detection-test-lambda-normal-5] 시작 (에러율=0.00(기준 0.00), 간격=7s(기준 8s), 호출 128회)
+2026-09-10 02:51:21,872 [INFO] [normal detection-test-lambda-normal-4] 시작 (에러율=0.03(기준 0.03), 간격=15s(기준 15s), 호출 60회)
+2026-09-10 02:51:21,874 [INFO] [normal detection-test-lambda-normal-8] 시작 (에러율=0.02(기준 0.02), 간격=19s(기준 20s), 호출 47회)
+2026-09-10 03:06:07,360 [INFO] [detection-test-lambda-normal-7] 호출 완료 (에러 0/16), CloudWatch 반영 120초 대기...
+2026-09-10 03:06:37,009 [INFO] [detection-test-lambda-anomaly-2] 호출 완료 (에러 18/26), CloudWatch 반영 120초 대기...
+2026-09-10 03:06:37,083 [INFO] [detection-test-lambda-normal-2] 호출 완료 (에러 0/26), CloudWatch 반영 120초 대기...
+2026-09-10 03:06:50,399 [INFO] [detection-test-lambda-normal-1] 호출 완료 (에러 0/32), CloudWatch 반영 120초 대기...
+2026-09-10 03:06:56,464 [INFO] [detection-test-lambda-anomaly-5] 호출 완료 (에러 37/39), CloudWatch 반영 120초 대기...
+2026-09-10 03:06:57,002 [INFO] [detection-test-lambda-normal-8] 호출 완료 (에러 2/47), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:06,714 [INFO] [detection-test-lambda] 호출 완료 (에러 25/45), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:10,177 [INFO] [detection-test-lambda-normal-3] 호출 완료 (에러 0/56), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:15,708 [INFO] [detection-test-lambda-normal-4] 호출 완료 (에러 2/60), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:16,694 [INFO] [detection-test-lambda-anomaly-3] 호출 완료 (에러 47/69), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:17,378 [INFO] [detection-test-lambda-anomaly-4] 호출 완료 (에러 60/81), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:41,642 [INFO] [detection-test-lambda-normal-6] 호출 완료 (에러 0/112), CloudWatch 반영 120초 대기...
+2026-09-10 03:07:50,752 [INFO] [detection-test-lambda-normal-5] 호출 완료 (에러 0/128), CloudWatch 반영 120초 대기...
+2026-09-10 03:08:09,023 [INFO] [normal detection-test-lambda-normal-7] anomaly_flag=False (z=1.8585, IF=0.0, triggered=[]), 1008.6s
+2026-09-10 03:08:38,454 [INFO] [normal detection-test-lambda-normal-2] anomaly_flag=False (z=2.1727, IF=0.3907, triggered=[]), 1038.1s
+2026-09-10 03:08:38,465 [INFO] [anomaly detection-test-lambda-anomaly-2] anomaly_flag=True (z=2.4273, IF=1.0, triggered=['error_count', 'invocation_count']), 1038.2s
+2026-09-10 03:08:51,391 [INFO] [normal detection-test-lambda-normal-1] anomaly_flag=False (z=2.4094, IF=0.3907, triggered=[]), 1051.1s
+2026-09-10 03:08:57,688 [INFO] [anomaly detection-test-lambda-anomaly-5] anomaly_flag=True (z=2.7704, IF=0.954, triggered=['invocation_count', 'cost', 'error_count']), 1057.4s
+2026-09-10 03:08:58,255 [INFO] [normal detection-test-lambda-normal-8] anomaly_flag=True (z=2.9409, IF=1.0, triggered=['invocation_count', 'cost']), 1057.9s
+2026-09-10 03:09:07,829 [INFO] [anomaly detection-test-lambda] anomaly_flag=True (z=2.2346, IF=0.9971, triggered=['error_count', 'invocation_count']), 1067.6s
+2026-09-10 03:09:11,499 [INFO] [normal detection-test-lambda-normal-3] anomaly_flag=False (z=1.8322, IF=1.0, triggered=[]), 1071.2s
+2026-09-10 03:09:20,185 [INFO] [normal detection-test-lambda-normal-4] anomaly_flag=False (z=1.7249, IF=0.0135, triggered=[]), 1079.8s
+2026-09-10 03:09:21,724 [INFO] [anomaly detection-test-lambda-anomaly-3] anomaly_flag=True (z=2.0368, IF=0.8963, triggered=['error_count', 'invocation_count']), 1081.4s
+2026-09-10 03:09:21,918 [INFO] [anomaly detection-test-lambda-anomaly-4] anomaly_flag=True (z=2.6458, IF=1.0, triggered=['error_count', 'invocation_count']), 1081.6s
+2026-09-10 03:09:43,886 [INFO] [normal detection-test-lambda-normal-6] anomaly_flag=False (z=2.2663, IF=0.0, triggered=[]), 1103.5s
+2026-09-10 03:09:52,866 [INFO] [normal detection-test-lambda-normal-5] anomaly_flag=False (z=2.3099, IF=0.0, triggered=[]), 1112.5s
+2026-09-10 03:09:52,887 [INFO] === 결과 ===
+{
+  "confusion_matrix": {
+    "TP": 5,
+    "FN": 0,
+    "FP": 1,
+    "TN": 7
+  },
+  "accuracy": 0.9230769230769231,
+  "accuracy_ci_95_clopper_pearson": [
+    0.6397025647321225,
+    0.9980543715026533
+  ],
+  "recall": 1.0,
+  "recall_ci_95_clopper_pearson": [
+    0.47817624989501856,
+    1.0
+  ],
+  "precision": 0.8333333333333334,
+  "false_positive_rate": 0.125,
+  "fpr_ci_95_clopper_pearson": [
+    0.003159723531251909,
+    0.5265096708752065
+  ]
+}
+2026-09-10 03:09:52,908 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\lambda_retry_repeated_trial__phase15m_n8-5_scriptv1_20260910.json

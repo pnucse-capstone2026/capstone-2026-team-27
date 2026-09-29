@@ -1,0 +1,83 @@
+2026-09-10 18:13:19,504 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\lambda_retry_repeated_trial_20260910_181319.log (SCRIPT_VERSION=2)
+2026-09-10 18:13:20,676 [INFO] 탐지 자격증명 : arn:aws:iam::634236767974:user/capstone (account 634236767974)
+2026-09-10 18:13:20,677 [INFO] 유발 자격증명 : arn:aws:iam::634236767974:user/capstone (account 634236767974)
+2026-09-10 18:13:33,033 [INFO] 사전 점검 통과: 계정 634236767974, 함수 13개 전부 invoke 가능 + 에러 payload 동작 확인
+2026-09-10 18:13:33,034 [INFO] === anomaly 5개 + normal 8개, 총 13개 시행 동시 병렬 시작 (함수세트=teammate, 시행당 약 2.5시간 + 대기 120초, 마지막 3개 구간만 폭증) ===
+2026-09-10 18:13:33,042 [INFO] [anomaly detection-trial-lambda-anomaly-0] 시작 (구간 30개 x 300s = 2.5시간, 구간당 17회, 평상시 에러율 0.02, 마지막 3개 구간 에러율 0.59(기준 0.55), 간격 17s(기준 20s))
+2026-09-10 18:13:33,047 [INFO] [anomaly detection-trial-lambda-anomaly-1] 시작 (구간 30개 x 300s = 2.5시간, 구간당 12회, 평상시 에러율 0.02, 마지막 3개 구간 에러율 0.79(기준 0.70), 간격 25s(기준 30s))
+2026-09-10 18:13:33,048 [INFO] [anomaly detection-trial-lambda-anomaly-2] 시작 (구간 30개 x 300s = 2.5시간, 구간당 27회, 평상시 에러율 0.02, 마지막 3개 구간 에러율 0.86(기준 0.85), 간격 11s(기준 12s))
+2026-09-10 18:13:33,052 [INFO] [anomaly detection-trial-lambda-anomaly-3] 시작 (구간 30개 x 300s = 2.5시간, 구간당 25회, 평상시 에러율 0.02, 마지막 3개 구간 에러율 0.55(기준 0.60), 간격 12s(기준 12s))
+2026-09-10 18:13:33,056 [INFO] [anomaly detection-trial-lambda-anomaly-4] 시작 (구간 30개 x 300s = 2.5시간, 구간당 12회, 평상시 에러율 0.02, 마지막 3개 구간 에러율 0.97(기준 0.90), 간격 25s(기준 25s))
+2026-09-10 18:13:33,067 [INFO] [normal detection-trial-lambda-normal-0] 시작 (구간 30개 x 300s = 2.5시간, 구간당 10회, 평상시 에러율 0.00, 마지막 0개 구간 에러율 0.00(기준 0.00), 간격 30s(기준 30s))
+2026-09-10 18:13:33,074 [INFO] [normal detection-trial-lambda-normal-1] 시작 (구간 30개 x 300s = 2.5시간, 구간당 9회, 평상시 에러율 0.02, 마지막 0개 구간 에러율 0.02(기준 0.02), 간격 32s(기준 30s))
+2026-09-10 18:13:33,075 [INFO] [normal detection-trial-lambda-normal-2] 시작 (구간 30개 x 300s = 2.5시간, 구간당 17회, 평상시 에러율 0.00, 마지막 0개 구간 에러율 0.00(기준 0.00), 간격 17s(기준 15s))
+2026-09-10 18:13:33,079 [INFO] [normal detection-trial-lambda-normal-3] 시작 (구간 30개 x 300s = 2.5시간, 구간당 20회, 평상시 에러율 0.03, 마지막 0개 구간 에러율 0.03(기준 0.03), 간격 15s(기준 15s))
+2026-09-10 18:13:33,084 [INFO] [normal detection-trial-lambda-normal-4] 시작 (구간 30개 x 300s = 2.5시간, 구간당 33회, 평상시 에러율 0.00, 마지막 0개 구간 에러율 0.00(기준 0.00), 간격 9s(기준 8s))
+2026-09-10 18:13:33,085 [INFO] [normal detection-trial-lambda-normal-5] 시작 (구간 30개 x 300s = 2.5시간, 구간당 37회, 평상시 에러율 0.01, 마지막 0개 구간 에러율 0.01(기준 0.01), 간격 8s(기준 8s))
+2026-09-10 18:13:33,092 [INFO] [normal detection-trial-lambda-normal-6] 시작 (구간 30개 x 300s = 2.5시간, 구간당 4회, 평상시 에러율 0.00, 마지막 0개 구간 에러율 0.00(기준 0.00), 간격 63s(기준 60s))
+2026-09-10 18:13:33,094 [INFO] [normal detection-trial-lambda-normal-7] 시작 (구간 30개 x 300s = 2.5시간, 구간당 14회, 평상시 에러율 0.02, 마지막 0개 구간 에러율 0.02(기준 0.02), 간격 21s(기준 20s))
+2026-09-10 18:13:36,964 [INFO] [normal detection-trial-lambda-normal-1] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,032 [INFO] [normal detection-trial-lambda-normal-0] before anomaly_flag=False (z=0.1857, IF=0.0)
+2026-09-10 18:13:37,042 [INFO] [normal detection-trial-lambda-normal-4] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,050 [INFO] [anomaly detection-trial-lambda-anomaly-1] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,080 [INFO] [normal detection-trial-lambda-normal-5] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,084 [INFO] [anomaly detection-trial-lambda-anomaly-2] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,207 [INFO] [normal detection-trial-lambda-normal-2] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,246 [INFO] [anomaly detection-trial-lambda-anomaly-0] before anomaly_flag=False (z=0.1857, IF=0.0)
+2026-09-10 18:13:37,272 [INFO] [normal detection-trial-lambda-normal-6] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,307 [INFO] [anomaly detection-trial-lambda-anomaly-4] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,332 [INFO] [anomaly detection-trial-lambda-anomaly-3] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,386 [INFO] [normal detection-trial-lambda-normal-7] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 18:13:37,399 [INFO] [normal detection-trial-lambda-normal-3] before anomaly_flag=False (z=0.0, IF=0.0)
+2026-09-10 20:43:36,981 [INFO] [detection-trial-lambda-normal-1] 호출 완료 (강제 에러 6/270, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,056 [INFO] [detection-trial-lambda-normal-0] 호출 완료 (강제 에러 0/300, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,090 [INFO] [detection-trial-lambda-anomaly-1] 호출 완료 (강제 에러 34/360, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,219 [INFO] [detection-trial-lambda-normal-2] 호출 완료 (강제 에러 0/510, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,258 [INFO] [detection-trial-lambda-anomaly-0] 호출 완료 (강제 에러 38/510, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,285 [INFO] [detection-trial-lambda-normal-6] 호출 완료 (강제 에러 0/120, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,318 [INFO] [detection-trial-lambda-anomaly-4] 호출 완료 (강제 에러 44/360, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:37,401 [INFO] [detection-trial-lambda-normal-7] 호출 완료 (강제 에러 11/420, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:43:48,506 [INFO] [detection-trial-lambda-normal-3] 호출 완료 (강제 에러 19/600, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:45:16,718 [INFO] [detection-trial-lambda-anomaly-2] 호출 완료 (강제 에러 84/810, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:45:34,586 [INFO] [detection-trial-lambda-anomaly-3] 호출 완료 (강제 에러 54/750, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:45:39,487 [INFO] [normal detection-trial-lambda-normal-1] anomaly_flag=False (z=3.3977, IF=0.0152, triggered=[]), 152.1분
+2026-09-10 20:45:39,519 [INFO] [anomaly detection-trial-lambda-anomaly-1] anomaly_flag=True (z=1.2847, IF=1.0, triggered=['error_count', 'invocation_count']), 152.1분
+2026-09-10 20:45:39,536 [INFO] [normal detection-trial-lambda-normal-0] anomaly_flag=False (z=5.3852, IF=0.0, triggered=[]), 152.1분
+2026-09-10 20:45:39,733 [INFO] [normal detection-trial-lambda-normal-6] anomaly_flag=True (z=5.3852, IF=0.8626, triggered=[]), 152.1분
+2026-09-10 20:45:39,774 [INFO] [normal detection-trial-lambda-normal-2] anomaly_flag=False (z=5.3852, IF=1.0, triggered=[]), 152.1분
+2026-09-10 20:45:39,825 [INFO] [anomaly detection-trial-lambda-anomaly-0] anomaly_flag=True (z=2.4328, IF=0.9422, triggered=['error_count', 'invocation_count']), 152.1분
+2026-09-10 20:45:39,847 [INFO] [normal detection-trial-lambda-normal-7] anomaly_flag=False (z=1.4368, IF=0.4794, triggered=[]), 152.1분
+2026-09-10 20:45:39,872 [INFO] [anomaly detection-trial-lambda-anomaly-4] anomaly_flag=True (z=2.6373, IF=0.9593, triggered=['error_count', 'invocation_count']), 152.1분
+2026-09-10 20:45:49,973 [INFO] [normal detection-trial-lambda-normal-3] anomaly_flag=False (z=2.9281, IF=0.5559, triggered=[]), 152.3분
+2026-09-10 20:47:18,107 [INFO] [anomaly detection-trial-lambda-anomaly-2] anomaly_flag=True (z=2.3808, IF=1.0, triggered=['error_count', 'invocation_count']), 153.8분
+2026-09-10 20:47:36,111 [INFO] [anomaly detection-trial-lambda-anomaly-3] anomaly_flag=True (z=1.999, IF=0.9788, triggered=['error_count', 'invocation_count']), 154.1분
+2026-09-10 20:47:59,327 [INFO] [detection-trial-lambda-normal-4] 호출 완료 (강제 에러 0/990, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:49:11,092 [INFO] [detection-trial-lambda-normal-5] 호출 완료 (강제 에러 11/1110, invoke 실패 0), CloudWatch 반영 120초 대기...
+2026-09-10 20:50:00,772 [INFO] [normal detection-trial-lambda-normal-4] anomaly_flag=False (z=4.9613, IF=0.0, triggered=[]), 156.5분
+2026-09-10 20:51:12,529 [INFO] [normal detection-trial-lambda-normal-5] anomaly_flag=False (z=4.7364, IF=0.0, triggered=[]), 157.7분
+2026-09-10 20:51:12,548 [INFO] === 결과 ===
+{
+  "confusion_matrix": {
+    "TP": 5,
+    "FN": 0,
+    "FP": 1,
+    "TN": 7
+  },
+  "accuracy": 0.9230769230769231,
+  "accuracy_ci_95_clopper_pearson": [
+    0.6397025647321225,
+    0.9980543715026533
+  ],
+  "recall": 1.0,
+  "recall_ci_95_clopper_pearson": [
+    0.47817624989501856,
+    1.0
+  ],
+  "precision": 0.8333333333333334,
+  "false_positive_rate": 0.125,
+  "fpr_ci_95_clopper_pearson": [
+    0.003159723531251909,
+    0.5265096708752065
+  ]
+}
+2026-09-10 20:51:12,572 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\lambda_retry_repeated_trial__window2.5h_spike3p_teammate_n8-5_scriptv2_20260910.json

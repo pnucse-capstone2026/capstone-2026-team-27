@@ -1,0 +1,87 @@
+{
+  "script_version": "1",
+  "scenario": "ec2_zombie",
+  "generated_at": "2026-09-14T08:04:16.570041+00:00",
+  "check_earliest_utc": "2026-09-14T10:34:16.570041+00:00",
+  "normal_target_cpu_pct": 45.0,
+  "instances": [
+    {
+      "instance_id": "i-0235ed717f891d57f",
+      "true_label": "anomaly",
+      "launch_time_utc": "2026-09-14T08:02:58+00:00",
+      "profile": "idle_zombie"
+    },
+    {
+      "instance_id": "i-0b46188f0826d02e0",
+      "true_label": "anomaly",
+      "launch_time_utc": "2026-09-14T08:02:58+00:00",
+      "profile": "idle_zombie"
+    },
+    {
+      "instance_id": "i-0b72ef53db68ffc5c",
+      "true_label": "anomaly",
+      "launch_time_utc": "2026-09-14T08:02:58+00:00",
+      "profile": "idle_zombie"
+    },
+    {
+      "instance_id": "i-06c05ee2590c7cd99",
+      "true_label": "anomaly",
+      "launch_time_utc": "2026-09-14T08:02:58+00:00",
+      "profile": "idle_zombie"
+    },
+    {
+      "instance_id": "i-01352f48e6f59c28f",
+      "true_label": "anomaly",
+      "launch_time_utc": "2026-09-14T08:02:58+00:00",
+      "profile": "idle_zombie"
+    },
+    {
+      "instance_id": "i-0b0c24e9fc5067b21",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-06c8c47b5258182b7",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-0b927c4bc65ddeaa0",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-0a1a8de488307c4d3",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-01ad15e6c71c81dfb",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-0e13c3b6e9b0cb5cf",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-08e70038077d060c7",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    },
+    {
+      "instance_id": "i-0656dbb14338c5a3d",
+      "true_label": "normal",
+      "launch_time_utc": "2026-09-14T08:02:59+00:00",
+      "profile": "target_cpu_45.0pct"
+    }
+  ]
+}

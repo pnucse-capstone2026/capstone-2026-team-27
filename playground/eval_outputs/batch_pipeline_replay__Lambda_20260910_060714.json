@@ -1,0 +1,688 @@
+{
+  "script_version": "1",
+  "resource_type": "Lambda",
+  "generated_at": "2026-09-09T21:07:14.531387+00:00",
+  "replayed_from": "lambda_retry_repeated_trial__phase15m_n8-5_scriptv1_20260910.json",
+  "replay_note": "detection 입력만 저장된 실측 raw_metrics(재시도폭증이 살아있던 시점)이고, action은 실제 함수에 실행되며(Throttle) QA는 라이브 지표를 재조회하는 하이브리드. EC2와 달리 13개 시행이 같은 함수 하나를 공유하므로 순차 실행함.",
+  "bypass_approval_for_timing": true,
+  "bypass_approval_note": "cost_spike는 ANOMALY_TYPE_DEFAULT_RISK상 액션과 무관하게 항상 MED라 실제 운영에서는 항상 사람 승인이 필요하다. 승인 대기시간은 무한정이라 자동 측정이 불가능하므로, --bypass-approval을 켰을 때만 Action/QA/timing 측정을 위해 게이트를 우회했다 — 실제 승인 정책이 바뀐 게 아니다.",
+  "wall_clock_sec": 1805.5,
+  "summary": {
+    "n_resources": 13,
+    "n_error": 0,
+    "detection": {
+      "confusion_matrix": {
+        "TP": 5,
+        "FN": 0,
+        "FP": 1,
+        "TN": 7
+      },
+      "accuracy": 0.9230769230769231,
+      "recall": 1.0,
+      "false_positive_rate": 0.125
+    },
+    "stopped_at": {
+      "detection": 7,
+      "approval_gate": 0,
+      "null": 6
+    },
+    "action": {
+      "n_executed": 6,
+      "n_success": 0,
+      "success_rate": 0.0,
+      "by_action": {
+        "Throttle": 6
+      }
+    },
+    "qa": {
+      "n_judged": 6,
+      "n_passed": 6,
+      "pass_rate": 1.0
+    },
+    "timings": {
+      "detection": {
+        "n": 13,
+        "mean_sec": 0.012,
+        "stdev_sec": 0.005,
+        "min_sec": 0.008,
+        "max_sec": 0.024
+      },
+      "classification": {
+        "n": 6,
+        "mean_sec": 0.001,
+        "stdev_sec": 0.001,
+        "min_sec": 0.0,
+        "max_sec": 0.002
+      },
+      "decision": {
+        "n": 6,
+        "mean_sec": 0.002,
+        "stdev_sec": 0.001,
+        "min_sec": 0.002,
+        "max_sec": 0.003
+      },
+      "action": {
+        "n": 6,
+        "mean_sec": 0.411,
+        "stdev_sec": 0.485,
+        "min_sec": 0.202,
+        "max_sec": 1.4
+      },
+      "qa": {
+        "n": 6,
+        "mean_sec": 300.381,
+        "stdev_sec": 0.065,
+        "min_sec": 300.3,
+        "max_sec": 300.448
+      },
+      "logging": {
+        "n": 6,
+        "mean_sec": 0.087,
+        "stdev_sec": 0.024,
+        "min_sec": 0.059,
+        "max_sec": 0.124
+      },
+      "total": {
+        "n": 13,
+        "mean_sec": 138.881,
+        "stdev_sec": 156.123,
+        "min_sec": 0.008,
+        "max_sec": 301.931
+      }
+    }
+  },
+  "results": [
+    {
+      "resource_id": "detection-test-lambda#0",
+      "label": "anomaly",
+      "rep": 0,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.2346,
+      "anomaly_score_iforest": 0.9972,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.011,
+        "classification": 0.002,
+        "decision": 0.002,
+        "action": 1.4,
+        "qa": 300.446,
+        "logging": 0.07,
+        "total": 301.931
+      },
+      "elapsed_sec": 301.9
+    },
+    {
+      "resource_id": "detection-test-lambda#1",
+      "label": "anomaly",
+      "rep": 1,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.4273,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.016,
+        "classification": 0.0,
+        "decision": 0.002,
+        "action": 0.202,
+        "qa": 300.341,
+        "logging": 0.059,
+        "total": 300.619
+      },
+      "elapsed_sec": 300.6
+    },
+    {
+      "resource_id": "detection-test-lambda#2",
+      "label": "anomaly",
+      "rep": 2,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.0368,
+      "anomaly_score_iforest": 0.8941,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.015,
+        "classification": 0.0,
+        "decision": 0.002,
+        "action": 0.214,
+        "qa": 300.3,
+        "logging": 0.085,
+        "total": 300.616
+      },
+      "elapsed_sec": 300.6
+    },
+    {
+      "resource_id": "detection-test-lambda#3",
+      "label": "anomaly",
+      "rep": 3,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.6458,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.015,
+        "classification": 0.001,
+        "decision": 0.003,
+        "action": 0.228,
+        "qa": 300.448,
+        "logging": 0.124,
+        "total": 300.819
+      },
+      "elapsed_sec": 300.8
+    },
+    {
+      "resource_id": "detection-test-lambda#4",
+      "label": "anomaly",
+      "rep": 4,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.7704,
+      "anomaly_score_iforest": 0.9551,
+      "triggered_metrics": [
+        "invocation_count",
+        "cost",
+        "error_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.024,
+        "classification": 0.0,
+        "decision": 0.003,
+        "action": 0.205,
+        "qa": 300.419,
+        "logging": 0.105,
+        "total": 300.756
+      },
+      "elapsed_sec": 300.8
+    },
+    {
+      "resource_id": "detection-test-lambda#0",
+      "label": "normal",
+      "rep": 0,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.4094,
+      "anomaly_score_iforest": 0.3907,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.017,
+        "total": 0.017
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#1",
+      "label": "normal",
+      "rep": 1,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.1727,
+      "anomaly_score_iforest": 0.1966,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.011,
+        "total": 0.011
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#2",
+      "label": "normal",
+      "rep": 2,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.8322,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.008,
+        "total": 0.008
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#3",
+      "label": "normal",
+      "rep": 3,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.7249,
+      "anomaly_score_iforest": 0.0135,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.008,
+        "total": 0.008
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#4",
+      "label": "normal",
+      "rep": 4,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.3099,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.01,
+        "total": 0.01
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#5",
+      "label": "normal",
+      "rep": 5,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.2663,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.008,
+        "total": 0.008
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#6",
+      "label": "normal",
+      "rep": 6,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.8585,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.008,
+        "total": 0.008
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#7",
+      "label": "normal",
+      "rep": 7,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.9409,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "invocation_count",
+        "cost"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-006",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        }
+      ],
+      "approval_bypassed_for_timing": true,
+      "action_executed": "Throttle",
+      "action_result": {
+        "status": "failed",
+        "error": "An error occurred (InvalidParameterValueException) when calling the PutFunctionConcurrency operation: Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10].",
+        "function_name": "detection-test-lambda",
+        "reserved_concurrency": 5
+      },
+      "action_success": false,
+      "qa_passed": true,
+      "sla_check_result": {
+        "cpu_ok": true,
+        "cost_ok": true,
+        "availability_ok": true,
+        "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+      },
+      "rollback_count": 0,
+      "qa_matched_rule_id": "QA-002",
+      "stopped_at": null,
+      "timings": {
+        "detection": 0.009,
+        "classification": 0.0,
+        "decision": 0.002,
+        "action": 0.217,
+        "qa": 300.33,
+        "logging": 0.078,
+        "total": 300.636
+      },
+      "elapsed_sec": 300.6
+    }
+  ]
+}
