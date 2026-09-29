@@ -16,7 +16,7 @@ load_dotenv(project_root / ".env")
 
 import boto3
 from pipeline.inbound_handlers import scale_down_with_rate_limit
-from pipeline.QA_agent import qa_node
+from pipeline.qa_agent import qa_node
 
 TEST_ASG_NAME = "integration-test-asg"
 

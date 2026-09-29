@@ -21,7 +21,7 @@ load_dotenv(project_root / ".env")
 
 import boto3
 from pipeline.inbound_handlers import throttle_lambda_concurrency
-from pipeline.QA_agent import qa_node
+from pipeline.qa_agent import qa_node
 
 # 테스트 대상 Lambda 함수 (capstone 계정의 기존 함수 사용)
 TEST_LAMBDA_NAME = "detection-test-lambda"

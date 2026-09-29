@@ -87,7 +87,7 @@ def test_qa_after_action():
     print("테스트 3: 액션 실행 후 QA 검증")
     print("=" * 60)
 
-    from pipeline.QA_agent import qa_node
+    from pipeline.qa_agent import qa_node
 
     # Lambda Throttle 액션에 대한 QA 검증 (액션 성공 상태)
     # NOTE: cost 메트릭은 액션 후 비용이 감소한 것처럼 설정 (SLA 통과를 위해)
