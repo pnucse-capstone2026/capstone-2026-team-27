@@ -1,0 +1,48 @@
+2026-09-13 20:00:28,792 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_200028.log (SCRIPT_VERSION=4)
+2026-09-13 20:00:29,715 [INFO] ASG 삭제: detection-traffic-asg-anomaly-0
+2026-09-13 20:00:30,025 [INFO] ASG 삭제: detection-traffic-asg-anomaly-1
+2026-09-13 20:00:30,395 [INFO] ASG 삭제: detection-traffic-asg-anomaly-2
+2026-09-13 20:00:30,612 [INFO] ASG 삭제: detection-traffic-asg-anomaly-3
+2026-09-13 20:00:30,886 [INFO] ASG 삭제: detection-traffic-asg-anomaly-4
+2026-09-13 20:00:31,111 [INFO] ASG 삭제: detection-traffic-asg-anomaly-5
+2026-09-13 20:00:31,447 [INFO] ASG 삭제: detection-traffic-asg-anomaly-6
+2026-09-13 20:00:31,816 [INFO] ASG 삭제: detection-traffic-asg-anomaly-7
+2026-09-13 20:00:32,007 [INFO] ASG 삭제: detection-traffic-asg-anomaly-8
+2026-09-13 20:00:32,334 [INFO] ASG 삭제: detection-traffic-asg-anomaly-9
+2026-09-13 20:00:32,686 [INFO] ASG 삭제: detection-traffic-asg-anomaly-10
+2026-09-13 20:00:32,920 [INFO] ASG 삭제: detection-traffic-asg-anomaly-11
+2026-09-13 20:00:33,223 [INFO] ASG 삭제: detection-traffic-asg-anomaly-12
+2026-09-13 20:00:33,518 [INFO] ASG 삭제: detection-traffic-asg-anomaly-13
+2026-09-13 20:00:33,780 [INFO] ASG 삭제: detection-traffic-asg-anomaly-14
+2026-09-13 20:00:34,018 [INFO] ASG 삭제: detection-traffic-asg-normal-0
+2026-09-13 20:00:34,256 [INFO] ASG 삭제: detection-traffic-asg-normal-1
+2026-09-13 20:00:34,498 [INFO] ASG 삭제: detection-traffic-asg-normal-2
+2026-09-13 20:00:34,802 [INFO] ASG 삭제: detection-traffic-asg-normal-3
+2026-09-13 20:00:35,123 [INFO] ASG 삭제: detection-traffic-asg-normal-4
+2026-09-13 20:00:35,403 [INFO] ASG 삭제: detection-traffic-asg-normal-5
+2026-09-13 20:00:35,625 [INFO] ASG 삭제: detection-traffic-asg-normal-6
+2026-09-13 20:00:35,991 [INFO] ASG 삭제: detection-traffic-asg-normal-7
+2026-09-13 20:00:37,750 [INFO] ALB 삭제: detection-traffic-alb
+2026-09-13 20:00:52,860 [INFO] Target Group 삭제: tg-anomaly-0
+2026-09-13 20:00:52,977 [INFO] Target Group 삭제: tg-anomaly-1
+2026-09-13 20:00:53,083 [INFO] Target Group 삭제: tg-anomaly-2
+2026-09-13 20:00:53,181 [INFO] Target Group 삭제: tg-anomaly-3
+2026-09-13 20:00:53,288 [INFO] Target Group 삭제: tg-anomaly-4
+2026-09-13 20:00:53,400 [INFO] Target Group 삭제: tg-anomaly-5
+2026-09-13 20:00:53,514 [INFO] Target Group 삭제: tg-anomaly-6
+2026-09-13 20:00:53,627 [INFO] Target Group 삭제: tg-anomaly-7
+2026-09-13 20:00:53,743 [INFO] Target Group 삭제: tg-anomaly-8
+2026-09-13 20:00:53,860 [INFO] Target Group 삭제: tg-anomaly-9
+2026-09-13 20:00:53,973 [INFO] Target Group 삭제: tg-anomaly-10
+2026-09-13 20:00:54,081 [INFO] Target Group 삭제: tg-anomaly-11
+2026-09-13 20:00:54,180 [INFO] Target Group 삭제: tg-anomaly-12
+2026-09-13 20:00:54,298 [INFO] Target Group 삭제: tg-anomaly-13
+2026-09-13 20:00:54,400 [INFO] Target Group 삭제: tg-anomaly-14
+2026-09-13 20:00:54,513 [INFO] Target Group 삭제: tg-normal-0
+2026-09-13 20:00:54,624 [INFO] Target Group 삭제: tg-normal-1
+2026-09-13 20:00:54,729 [INFO] Target Group 삭제: tg-normal-2
+2026-09-13 20:00:54,832 [INFO] Target Group 삭제: tg-normal-3
+2026-09-13 20:00:54,946 [INFO] Target Group 삭제: tg-normal-4
+2026-09-13 20:00:55,052 [INFO] Target Group 삭제: tg-normal-5
+2026-09-13 20:00:55,148 [INFO] Target Group 삭제: tg-normal-6
+2026-09-13 20:00:55,258 [INFO] Target Group 삭제: tg-normal-7

@@ -21,7 +21,6 @@ export function clearStoredToken() {
   try {
     localStorage.removeItem(TOKEN_STORAGE);
   } catch {
-    // no-op
   }
 }
 
@@ -92,11 +91,12 @@ export const api = {
   getStatus: () => request("/status"),
   getRecentDetections: () => request("/recent-detections"),
 
+  getRecentNotifications: (afterId) => request(`/notifications/recent?after_id=${afterId}`),
+
   getQueue: () => request("/queue"),
   approveQueueItem: (id) => request(`/queue/${id}/approve`, { method: "POST" }),
   rejectQueueItem: (id) => request(`/queue/${id}/reject`, { method: "POST" }),
 
-  // Rules - 새 API 형식
   getRules: async () => {
     const data = await request("/rules");
     // classification + decision을 합쳐서 flat array로 반환
@@ -129,7 +129,6 @@ export const api = {
   deleteRule: (id) => request(`/rules/${id}`, { method: "DELETE" }),
   toggleRule: (id) => request(`/rules/${id}/toggle`, { method: "PATCH" }),
 
-  // Whitelist - 새 API 형식
   getWhitelist: async () => {
     const data = await request("/whitelist");
     return data.map(e => ({
@@ -144,6 +143,10 @@ export const api = {
       resource_type: entry.resource_type,
       reason: entry.reason,
       expires_at: entry.expires_at,
+      category: entry.category,
+      effective_from: entry.effective_from,
+      daily_start_hour: entry.daily_start_hour,
+      daily_end_hour: entry.daily_end_hour,
     })});
     return { ...data, id: data.entry_id, pattern: data.resource_id };
   },
@@ -160,6 +163,13 @@ export const api = {
   getSettings: () => request("/settings"),
   updateSettings: (patch) =>
     request("/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  exportSettingsYaml: () => request("/settings/export", { method: "POST" }),
+
+  // 파이프라인 실행/종료 - PID 기반 실측 상태(로그 최신성 기반 추정인 getStatus()의
+  // pipeline_running과는 다른 값)
+  getPipelineProcessStatus: () => request("/pipeline/status"),
+  startPipeline: () => request("/pipeline/start", { method: "POST" }),
+  stopPipeline: () => request("/pipeline/stop", { method: "POST" }),
 };
 
 export { AuthError };

@@ -1,0 +1,151 @@
+{
+  "n_scenarios": 2,
+  "scenario_names": [
+    "ec2",
+    "s3"
+  ],
+  "detection": {
+    "TP": 10,
+    "FN": 0,
+    "FP": 1,
+    "TN": 15,
+    "n": 26,
+    "accuracy": 0.9615384615384616,
+    "accuracy_ci_95": [
+      0.8036303532374611,
+      0.9990267121066649
+    ],
+    "recall": 1.0,
+    "recall_ci_95": [
+      0.6915028921812392,
+      1.0
+    ]
+  },
+  "classification": {
+    "p_rulebook": 0.5,
+    "p_llm": 0.5,
+    "rulebook_accuracy": 1.0,
+    "llm_accuracy": 1.0,
+    "combined_accuracy": 1.0,
+    "n": 10
+  },
+  "action": {
+    "success": 8,
+    "total": 8,
+    "success_rate": 1.0
+  },
+  "qa": {
+    "correct": 5,
+    "comparable": 5,
+    "accuracy": 1.0
+  },
+  "overall_pipeline_success_rate": 1.0,
+  "total_saving_usd": 0.362587,
+  "saving_per_case_usd": [
+    0.23723499999999997,
+    0.125352
+  ],
+  "pipeline_timing_sec": {
+    "mean": 332.2600976948738,
+    "sd": 32.02287032281834,
+    "n": 8,
+    "values": [
+      350.649,
+      386.159,
+      349.81,
+      352.297,
+      317.264,
+      300.5972800254822,
+      300.63354659080505,
+      300.67095494270325
+    ]
+  },
+  "per_scenario_raw": [
+    {
+      "scenario": "ec2",
+      "sources_found": [
+        "repeated_trial.json",
+        "classification_accuracy.json",
+        "action_execution_log.jsonl",
+        "cost_prediction_verification.json",
+        "pipeline_timing.json"
+      ],
+      "detection": {
+        "TP": 5,
+        "FN": 0,
+        "FP": 0,
+        "TN": 8
+      },
+      "classification": {
+        "rulebook_total": 0,
+        "rulebook_correct": 0,
+        "llm_total": 5,
+        "llm_correct": 5
+      },
+      "action": {
+        "total": 5,
+        "success": 5
+      },
+      "qa": {
+        "comparable": 5,
+        "correct": 5
+      },
+      "actual_saving_usd_total": 0.23723499999999997,
+      "actual_saving_usd_per_case": [
+        0.047555,
+        0.047452,
+        0.047444,
+        0.047334,
+        0.04745
+      ],
+      "pipeline_timing_sec": [
+        350.649,
+        386.159,
+        349.81,
+        352.297,
+        317.264
+      ]
+    },
+    {
+      "scenario": "s3",
+      "sources_found": [
+        "repeated_trial.json",
+        "classification_accuracy.json",
+        "action_execution_log.jsonl",
+        "cost_prediction_verification.json",
+        "pipeline_timing.json"
+      ],
+      "detection": {
+        "TP": 5,
+        "FN": 0,
+        "FP": 1,
+        "TN": 7
+      },
+      "classification": {
+        "rulebook_total": 5,
+        "rulebook_correct": 5,
+        "llm_total": 0,
+        "llm_correct": 0
+      },
+      "action": {
+        "total": 3,
+        "success": 3
+      },
+      "qa": {
+        "comparable": 0,
+        "correct": 0
+      },
+      "actual_saving_usd_total": 0.125352,
+      "actual_saving_usd_per_case": [
+        0.041436,
+        0.041724,
+        0.042192
+      ],
+      "pipeline_timing_sec": [
+        300.5972800254822,
+        300.63354659080505,
+        300.67095494270325
+      ]
+    }
+  ]
+}

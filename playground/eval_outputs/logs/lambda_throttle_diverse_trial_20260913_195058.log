@@ -1,0 +1,120 @@
+2026-09-13 19:50:58,468 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\lambda_throttle_diverse_trial_20260913_195058.log
+2026-09-13 19:50:58,468 [INFO] === 다양화 시행 시작 (13개 함수, anomaly=5 severity 3단계 / normal=8 volume 4단계) ===
+2026-09-13 19:50:59,701 [INFO] [detection-test-lambda-normal-3] moderate — 동시성 제한 없이 진행 (burst=15x3)
+2026-09-13 19:50:59,741 [INFO] [detection-test-lambda-normal-2] light — 동시성 제한 없이 진행 (burst=5x3)
+2026-09-13 19:50:59,750 [INFO] [detection-test-lambda-normal-6] heavy — 동시성 제한 없이 진행 (burst=30x3)
+2026-09-13 19:50:59,767 [INFO] [detection-test-lambda-normal-7] bursty — 동시성 제한 없이 진행 (burst=40x1)
+2026-09-13 19:50:59,774 [INFO] [detection-test-lambda-normal-4] moderate — 동시성 제한 없이 진행 (burst=15x3)
+2026-09-13 19:50:59,823 [INFO] [detection-test-lambda-normal-1] light — 동시성 제한 없이 진행 (burst=5x3)
+2026-09-13 19:50:59,830 [INFO] [detection-test-lambda-normal-5] heavy — 동시성 제한 없이 진행 (burst=30x3)
+2026-09-13 19:50:59,832 [INFO] [detection-test-lambda-normal-8] bursty — 동시성 제한 없이 진행 (burst=40x1)
+2026-09-13 19:51:01,558 [INFO] [detection-retry-storm-test] mild 셋업 완료 (concurrency=3, burst=40x3)
+2026-09-13 19:51:01,596 [INFO] [detection-test-lambda-anomaly-2] severe 셋업 완료 (concurrency=1, burst=40x3)
+2026-09-13 19:51:01,604 [INFO] [detection-test-lambda-anomaly-3] severe 셋업 완료 (concurrency=1, burst=40x3)
+2026-09-13 19:51:01,791 [INFO] [detection-test-lambda-anomaly-4] moderate 셋업 완료 (concurrency=2, burst=40x3)
+2026-09-13 19:51:01,883 [INFO] [detection-test-lambda-anomaly-5] moderate 셋업 완료 (concurrency=2, burst=40x3)
+2026-09-13 19:51:05,635 [INFO] [detection-test-lambda-normal-1] 버스트 1/3 완료: 성공 5/5
+2026-09-13 19:51:06,004 [INFO] [detection-test-lambda-normal-2] 버스트 1/3 완료: 성공 5/5
+2026-09-13 19:51:18,127 [INFO] [detection-test-lambda-normal-4] 버스트 1/3 완료: 성공 15/15
+2026-09-13 19:51:18,397 [INFO] [detection-test-lambda-normal-3] 버스트 1/3 완료: 성공 15/15
+2026-09-13 19:51:32,564 [INFO] [detection-test-lambda-normal-5] 버스트 1/3 완료: 성공 30/30
+2026-09-13 19:51:37,819 [INFO] [detection-test-lambda-normal-6] 버스트 1/3 완료: 성공 30/30
+2026-09-13 19:51:42,189 [INFO] [detection-test-lambda-normal-8] 버스트 1/1 완료: 성공 40/40
+2026-09-13 19:51:56,704 [INFO] [detection-test-lambda-normal-7] 버스트 1/1 완료: 성공 40/40
+2026-09-13 19:52:07,631 [INFO] [detection-retry-storm-test] 버스트 1/3 완료: 성공 40/40
+2026-09-13 19:52:28,720 [INFO] [detection-test-lambda-anomaly-2] 버스트 1/3 완료: 성공 40/40
+2026-09-13 19:52:37,471 [INFO] [detection-test-lambda-anomaly-3] 버스트 1/3 완료: 성공 40/40
+2026-09-13 19:52:55,091 [INFO] [detection-test-lambda-anomaly-4] 버스트 1/3 완료: 성공 40/40
+2026-09-13 19:52:57,720 [INFO] [detection-test-lambda-anomaly-5] 버스트 1/3 완료: 성공 40/40
+2026-09-13 19:54:42,190 [INFO] [detection-test-lambda-normal-8] measure() 시작
+2026-09-13 19:54:43,629 [INFO] [detection-test-lambda-normal-8] 완료 — label=normal profile=bursty anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 19:54:56,705 [INFO] [detection-test-lambda-normal-7] measure() 시작
+2026-09-13 19:54:57,610 [INFO] [detection-test-lambda-normal-7] 완료 — label=normal profile=bursty anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 19:56:08,036 [INFO] [detection-test-lambda-normal-1] 버스트 2/3 완료: 성공 5/5
+2026-09-13 19:56:08,449 [INFO] [detection-test-lambda-normal-2] 버스트 2/3 완료: 성공 5/5
+2026-09-13 19:56:25,708 [INFO] [detection-test-lambda-normal-4] 버스트 2/3 완료: 성공 15/15
+2026-09-13 19:56:25,948 [INFO] [detection-test-lambda-normal-3] 버스트 2/3 완료: 성공 15/15
+2026-09-13 19:56:45,602 [INFO] [detection-test-lambda-normal-5] 버스트 2/3 완료: 성공 30/30
+2026-09-13 19:56:50,749 [INFO] [detection-test-lambda-normal-6] 버스트 2/3 완료: 성공 30/30
+2026-09-13 19:57:20,945 [INFO] [detection-retry-storm-test] 버스트 2/3 완료: 성공 40/40
+2026-09-13 19:57:45,456 [INFO] [detection-test-lambda-anomaly-2] 버스트 2/3 완료: 성공 40/40
+2026-09-13 19:57:55,200 [INFO] [detection-test-lambda-anomaly-3] 버스트 2/3 완료: 성공 40/40
+2026-09-13 19:58:18,437 [INFO] [detection-test-lambda-anomaly-4] 버스트 2/3 완료: 성공 40/40
+2026-09-13 19:58:21,037 [INFO] [detection-test-lambda-anomaly-5] 버스트 2/3 완료: 성공 40/40
+2026-09-13 20:01:10,496 [INFO] [detection-test-lambda-normal-1] 버스트 3/3 완료: 성공 5/5
+2026-09-13 20:01:10,849 [INFO] [detection-test-lambda-normal-2] 버스트 3/3 완료: 성공 5/5
+2026-09-13 20:01:33,146 [INFO] [detection-test-lambda-normal-4] 버스트 3/3 완료: 성공 15/15
+2026-09-13 20:01:33,408 [INFO] [detection-test-lambda-normal-3] 버스트 3/3 완료: 성공 15/15
+2026-09-13 20:01:57,973 [INFO] [detection-test-lambda-normal-5] 버스트 3/3 완료: 성공 30/30
+2026-09-13 20:02:03,397 [INFO] [detection-test-lambda-normal-6] 버스트 3/3 완료: 성공 30/30
+2026-09-13 20:02:34,602 [INFO] [detection-retry-storm-test] 버스트 3/3 완료: 성공 40/40
+2026-09-13 20:03:02,588 [INFO] [detection-test-lambda-anomaly-2] 버스트 3/3 완료: 성공 40/40
+2026-09-13 20:03:13,027 [INFO] [detection-test-lambda-anomaly-3] 버스트 3/3 완료: 성공 40/40
+2026-09-13 20:03:42,069 [INFO] [detection-test-lambda-anomaly-4] 버스트 3/3 완료: 성공 40/40
+2026-09-13 20:03:44,963 [INFO] [detection-test-lambda-anomaly-5] 버스트 3/3 완료: 성공 40/40
+2026-09-13 20:04:10,496 [INFO] [detection-test-lambda-normal-1] measure() 시작
+2026-09-13 20:04:10,850 [INFO] [detection-test-lambda-normal-2] measure() 시작
+2026-09-13 20:04:11,558 [INFO] [detection-test-lambda-normal-1] 완료 — label=normal profile=light anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:04:11,929 [INFO] [detection-test-lambda-normal-2] 완료 — label=normal profile=light anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:04:33,147 [INFO] [detection-test-lambda-normal-4] measure() 시작
+2026-09-13 20:04:33,409 [INFO] [detection-test-lambda-normal-3] measure() 시작
+2026-09-13 20:04:34,272 [INFO] [detection-test-lambda-normal-4] 완료 — label=normal profile=moderate anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:04:34,516 [INFO] [detection-test-lambda-normal-3] 완료 — label=normal profile=moderate anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:04:57,973 [INFO] [detection-test-lambda-normal-5] measure() 시작
+2026-09-13 20:04:58,925 [INFO] [detection-test-lambda-normal-5] 완료 — label=normal profile=heavy anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:05:03,398 [INFO] [detection-test-lambda-normal-6] measure() 시작
+2026-09-13 20:05:04,291 [INFO] [detection-test-lambda-normal-6] 완료 — label=normal profile=heavy anomaly_flag=False anomaly_type=None action=None detected=False
+2026-09-13 20:05:34,603 [INFO] [detection-retry-storm-test] measure() 시작
+2026-09-13 20:06:02,588 [INFO] [detection-test-lambda-anomaly-2] measure() 시작
+2026-09-13 20:06:13,028 [INFO] [detection-test-lambda-anomaly-3] measure() 시작
+2026-09-13 20:06:42,070 [INFO] [detection-test-lambda-anomaly-4] measure() 시작
+2026-09-13 20:06:44,964 [INFO] [detection-test-lambda-anomaly-5] measure() 시작
+2026-09-13 20:10:38,153 [INFO] [원복 detection-retry-storm-test] 완료
+2026-09-13 20:10:38,157 [INFO] [detection-retry-storm-test] 완료 — label=anomaly profile=mild anomaly_flag=True anomaly_type=cost_spike action=Throttle detected=True
+2026-09-13 20:11:06,075 [INFO] [원복 detection-test-lambda-anomaly-2] 완료
+2026-09-13 20:11:06,080 [INFO] [detection-test-lambda-anomaly-2] 완료 — label=anomaly profile=severe anomaly_flag=True anomaly_type=cost_spike action=Throttle detected=True
+2026-09-13 20:11:16,469 [INFO] [원복 detection-test-lambda-anomaly-3] 완료
+2026-09-13 20:11:16,472 [INFO] [detection-test-lambda-anomaly-3] 완료 — label=anomaly profile=severe anomaly_flag=True anomaly_type=cost_spike action=Throttle detected=True
+2026-09-13 20:11:45,680 [INFO] [원복 detection-test-lambda-anomaly-4] 완료
+2026-09-13 20:11:45,685 [INFO] [detection-test-lambda-anomaly-4] 완료 — label=anomaly profile=moderate anomaly_flag=True anomaly_type=cost_spike action=Throttle detected=True
+2026-09-13 20:11:48,706 [INFO] [원복 detection-test-lambda-anomaly-5] 완료
+2026-09-13 20:11:48,711 [INFO] [detection-test-lambda-anomaly-5] 완료 — label=anomaly profile=moderate anomaly_flag=True anomaly_type=cost_spike action=Throttle detected=True
+2026-09-13 20:11:48,733 [INFO] === 결과 ===
+2026-09-13 20:11:48,733 [INFO] {
+  "confusion_matrix": {
+    "TP": 5,
+    "FN": 0,
+    "FP": 0,
+    "TN": 8
+  },
+  "accuracy": 1.0,
+  "accuracy_ci_95_clopper_pearson": [
+    0.752947361999529,
+    1.0
+  ],
+  "recall": 1.0,
+  "recall_ci_95_clopper_pearson": [
+    0.4781762498950185,
+    1.0
+  ],
+  "precision": 1.0,
+  "false_positive_rate": 0.0,
+  "fpr_ci_95_clopper_pearson": [
+    0.0,
+    0.36941664755281917
+  ]
+}
+2026-09-13 20:11:48,733 [INFO]   detection-test-lambda-anomaly-2 (label=anomaly profile=severe): anomaly_flag=True detected=True
+2026-09-13 20:11:48,733 [INFO]   detection-test-lambda-anomaly-3 (label=anomaly profile=severe): anomaly_flag=True detected=True
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-anomaly-4 (label=anomaly profile=moderate): anomaly_flag=True detected=True
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-anomaly-5 (label=anomaly profile=moderate): anomaly_flag=True detected=True
+2026-09-13 20:11:48,734 [INFO]   detection-retry-storm-test (label=anomaly profile=mild): anomaly_flag=True detected=True
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-1 (label=normal profile=light): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-2 (label=normal profile=light): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-3 (label=normal profile=moderate): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-4 (label=normal profile=moderate): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-5 (label=normal profile=heavy): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-6 (label=normal profile=heavy): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-7 (label=normal profile=bursty): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO]   detection-test-lambda-normal-8 (label=normal profile=bursty): anomaly_flag=False detected=False
+2026-09-13 20:11:48,734 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\lambda_throttle_diverse_trial_20260913.json

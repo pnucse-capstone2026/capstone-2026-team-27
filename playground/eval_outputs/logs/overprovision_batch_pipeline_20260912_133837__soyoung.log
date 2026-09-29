@@ -1,0 +1,131 @@
+EC2 액션 미구현: ScaleDown
+자격증명 고정 완료 (원래 프로필=None, Arn=arn:aws:iam::268140507066:user/test)
+원본: ec2_repeated_trial__n8-5_scriptv1_20260912.json (측정 2026-09-12T04:34:58.090143+00:00, 시행 13개)
+=== EC2 13개 재생 파이프라인 병렬 실행 시작 ===
+[normal i-052aafedee6d81a0a] detection 0.089s -> flag=False triggered=[]
+[normal i-0cc774f725222d838] detection 0.121s -> flag=False triggered=[]
+[normal i-0b8b354431850c90b] detection 0.111s -> flag=False triggered=[]
+[normal i-00bcf958a64f0113a] detection 0.044s -> flag=False triggered=[]
+[normal i-0f32adb755ab150ff] detection 0.087s -> flag=False triggered=[]
+[anomaly i-0557e969014023641] detection 0.106s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[normal i-034e381688cfb1cc1] detection 0.139s -> flag=False triggered=[]
+[normal i-0d2c602df9fe8e1a9] detection 0.133s -> flag=False triggered=[]
+[normal i-07136de010b09d0aa] detection 0.164s -> flag=False triggered=[]
+[anomaly i-052f85ca490476138] detection 0.126s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-018cb1f361adb89e8] detection 0.065s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-043ad8f8ff784936e] detection 0.079s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-0e7bbc6f947db83d9] detection 0.116s -> flag=True triggered=['cpu_utilization', 'network_in', 'network_out']
+[anomaly i-052f85ca490476138] decision -> Resize risk=MED approval=True
+[anomaly i-052f85ca490476138] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly i-043ad8f8ff784936e] decision -> Resize risk=MED approval=True
+[anomaly i-043ad8f8ff784936e] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly i-0557e969014023641] decision -> Resize risk=MED approval=True
+[anomaly i-0557e969014023641] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly i-0e7bbc6f947db83d9] decision -> Resize risk=MED approval=True
+[anomaly i-0e7bbc6f947db83d9] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly i-043ad8f8ff784936e] action 17.597s -> Resize success
+[anomaly i-0557e969014023641] action 17.662s -> Resize success
+[anomaly i-0e7bbc6f947db83d9] action 17.701s -> Resize success
+[anomaly i-018cb1f361adb89e8] decision -> ScaleDown risk=MED approval=True
+[anomaly i-018cb1f361adb89e8] requires_approval=True - 타이밍 측정 목적으로만 승인 게이트 우회함
+[anomaly i-018cb1f361adb89e8] action 0.247s -> ScaleDown not_implemented
+[anomaly i-052f85ca490476138] action 33.154s -> Resize success
+[anomaly i-043ad8f8ff784936e] qa 301.375s -> passed=True
+[anomaly i-0557e969014023641] qa 300.725s -> passed=True
+[i-043ad8f8ff784936e] logging 실패(타이밍엔 영향 없음): 'cp949' codec can't encode character '\u2014' in position 146: illegal multibyte sequence
+[i-0557e969014023641] logging 실패(타이밍엔 영향 없음): 'cp949' codec can't encode character '\u2014' in position 146: illegal multibyte sequence
+[anomaly i-0e7bbc6f947db83d9] qa 300.978s -> passed=True
+[i-0e7bbc6f947db83d9] logging 실패(타이밍엔 영향 없음): 'cp949' codec can't encode character '\u2014' in position 146: illegal multibyte sequence
+[anomaly i-018cb1f361adb89e8] qa 301.756s -> passed=True
+[anomaly i-052f85ca490476138] qa 300.821s -> passed=True
+[i-018cb1f361adb89e8] logging 실패(타이밍엔 영향 없음): 'cp949' codec can't encode character '\u2014' in position 146: illegal multibyte sequence
+[i-052f85ca490476138] logging 실패(타이밍엔 영향 없음): 'cp949' codec can't encode character '\u2014' in position 146: illegal multibyte sequence
+
+=== 집계 ===
+{
+  "n_resources": 13,
+  "n_error": 0,
+  "detection": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0
+  },
+  "stopped_at": {
+    "detection": 8,
+    "approval_gate": 0,
+    "null": 5
+  },
+  "action": {
+    "n_executed": 5,
+    "n_success": 4,
+    "success_rate": 0.8,
+    "by_action": {
+      "Resize": 4,
+      "ScaleDown": 1
+    }
+  },
+  "qa": {
+    "n_judged": 5,
+    "n_passed": 5,
+    "pass_rate": 1.0
+  },
+  "timings": {
+    "detection": {
+      "n": 13,
+      "mean_sec": 0.106,
+      "stdev_sec": 0.033,
+      "min_sec": 0.044,
+      "max_sec": 0.164
+    },
+    "classification": {
+      "n": 5,
+      "mean_sec": 16.942,
+      "stdev_sec": 4.067,
+      "min_sec": 10.503,
+      "max_sec": 20.809
+    },
+    "decision": {
+      "n": 5,
+      "mean_sec": 4.463,
+      "stdev_sec": 9.272,
+      "min_sec": 0.301,
+      "max_sec": 21.05
+    },
+    "action": {
+      "n": 5,
+      "mean_sec": 17.272,
+      "stdev_sec": 11.646,
+      "min_sec": 0.247,
+      "max_sec": 33.154
+    },
+    "qa": {
+      "n": 5,
+      "mean_sec": 301.131,
+      "stdev_sec": 0.429,
+      "min_sec": 300.725,
+      "max_sec": 301.756
+    },
+    "logging": {
+      "n": 5,
+      "mean_sec": 2.042,
+      "stdev_sec": 0.01,
+      "min_sec": 2.033,
+      "max_sec": 2.056
+    },
+    "total": {
+      "n": 13,
+      "mean_sec": 134.937,
+      "stdev_sec": 173.166,
+      "min_sec": 3.356,
+      "max_sec": 350.333
+    }
+  }
+}
+
+결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\batch_pipeline_replay__EC2_20260912_134432.json

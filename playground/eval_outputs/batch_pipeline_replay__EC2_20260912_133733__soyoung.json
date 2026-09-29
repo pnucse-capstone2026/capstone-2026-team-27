@@ -1,0 +1,501 @@
+{
+  "script_version": "1",
+  "resource_type": "EC2",
+  "generated_at": "2026-09-12T04:37:33.220847+00:00",
+  "replayed_from": "ec2_repeated_trial__n8-5_scriptv1_20260912.json",
+  "caller_arn": "arn:aws:iam::268140507066:user/test",
+  "replay_note": "detection 입력만 저장된 실측 raw_metrics(부하 생성기가 살아있던 2026-09-09 14:11 UTC 시점)이고, action은 실제 현재 인스턴스에 실행되며 QA는 라이브 지표를 재조회하는 하이브리드.",
+  "instance_states_before": {},
+  "wall_clock_sec": 34.3,
+  "summary": {
+    "n_resources": 13,
+    "n_error": 0,
+    "detection": {
+      "confusion_matrix": {
+        "TP": 5,
+        "FN": 0,
+        "FP": 0,
+        "TN": 8
+      },
+      "accuracy": 1.0,
+      "recall": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "stopped_at": {
+      "detection": 8,
+      "approval_gate": 5,
+      "null": 0
+    },
+    "action": {
+      "n_executed": 0,
+      "n_success": 0,
+      "success_rate": null,
+      "by_action": {}
+    },
+    "qa": {
+      "n_judged": 0,
+      "n_passed": 0,
+      "pass_rate": null
+    },
+    "timings": {
+      "detection": {
+        "n": 13,
+        "mean_sec": 0.046,
+        "stdev_sec": 0.036,
+        "min_sec": 0.01,
+        "max_sec": 0.102
+      },
+      "classification": {
+        "n": 5,
+        "mean_sec": 17.706,
+        "stdev_sec": 4.686,
+        "min_sec": 10.585,
+        "max_sec": 23.56
+      },
+      "decision": {
+        "n": 5,
+        "mean_sec": 3.097,
+        "stdev_sec": 6.143,
+        "min_sec": 0.338,
+        "max_sec": 14.087
+      },
+      "action": null,
+      "qa": null,
+      "logging": null,
+      "total": {
+        "n": 13,
+        "mean_sec": 12.352,
+        "stdev_sec": 11.207,
+        "min_sec": 3.081,
+        "max_sec": 34.276
+      }
+    }
+  },
+  "results": [
+    {
+      "resource_id": "i-018cb1f361adb89e8",
+      "label": "anomaly",
+      "profile": "target_cpu_12.0pct",
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 0.6836,
+      "anomaly_score_iforest": 0.7194,
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": null,
+      "selected_action": "ScaleDown",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": null,
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Block",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.102,
+        "classification": 16.885,
+        "decision": 14.087,
+        "total": 34.276
+      },
+      "elapsed_sec": 34.3
+    },
+    {
+      "resource_id": "i-043ad8f8ff784936e",
+      "label": "anomaly",
+      "profile": "target_cpu_12.0pct",
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 1.2643,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_inefficiency",
+      "matched_rule_id": null,
+      "selected_action": "Resize",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-001b",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Stop",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 0.00175
+        },
+        {
+          "action": "Stop+Schedule",
+          "saving_rate": 0.5,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5,
+          "estimated_saving_usd": 0.000875
+        },
+        {
+          "action": "Resize",
+          "saving_rate": 0.5047619047619049,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5047619047619049,
+          "estimated_saving_usd": 0.0106
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.017,
+        "classification": 23.56,
+        "decision": 0.34,
+        "total": 27.603
+      },
+      "elapsed_sec": 27.6
+    },
+    {
+      "resource_id": "i-052f85ca490476138",
+      "label": "anomaly",
+      "profile": "target_cpu_12.0pct",
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 1.1175,
+      "anomaly_score_iforest": 0.0601,
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_inefficiency",
+      "matched_rule_id": null,
+      "selected_action": "Resize",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-001b",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Stop",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 0.00175
+        },
+        {
+          "action": "Stop+Schedule",
+          "saving_rate": 0.5,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5,
+          "estimated_saving_usd": 0.000875
+        },
+        {
+          "action": "Resize",
+          "saving_rate": 0.5047619047619049,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5047619047619049,
+          "estimated_saving_usd": 0.0106
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.097,
+        "classification": 18.651,
+        "decision": 0.349,
+        "total": 22.316
+      },
+      "elapsed_sec": 22.3
+    },
+    {
+      "resource_id": "i-0557e969014023641",
+      "label": "anomaly",
+      "profile": "target_cpu_12.0pct",
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 0.3825,
+      "anomaly_score_iforest": 0.0959,
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_inefficiency",
+      "matched_rule_id": null,
+      "selected_action": "Resize",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-001b",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Stop",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 0.00175
+        },
+        {
+          "action": "Stop+Schedule",
+          "saving_rate": 0.5,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5,
+          "estimated_saving_usd": 0.000875
+        },
+        {
+          "action": "Resize",
+          "saving_rate": 0.5047619047619049,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5047619047619049,
+          "estimated_saving_usd": 0.0106
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.01,
+        "classification": 18.849,
+        "decision": 0.338,
+        "total": 22.344
+      },
+      "elapsed_sec": 22.3
+    },
+    {
+      "resource_id": "i-0e7bbc6f947db83d9",
+      "label": "anomaly",
+      "profile": "target_cpu_12.0pct",
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 1.0467,
+      "anomaly_score_iforest": 0.0675,
+      "triggered_metrics": [
+        "cpu_utilization",
+        "network_in",
+        "network_out"
+      ],
+      "anomaly_type": "cost_inefficiency",
+      "matched_rule_id": null,
+      "selected_action": "Resize",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-001b",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Stop",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 0.00175
+        },
+        {
+          "action": "Stop+Schedule",
+          "saving_rate": 0.5,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5,
+          "estimated_saving_usd": 0.000875
+        },
+        {
+          "action": "Resize",
+          "saving_rate": 0.5047619047619049,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.5047619047619049,
+          "estimated_saving_usd": 0.0106
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.067,
+        "classification": 10.585,
+        "decision": 0.373,
+        "total": 14.227
+      },
+      "elapsed_sec": 14.2
+    },
+    {
+      "resource_id": "i-00bcf958a64f0113a",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.35,
+      "anomaly_score_iforest": 0.0547,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.029,
+        "total": 3.366
+      },
+      "elapsed_sec": 3.4
+    },
+    {
+      "resource_id": "i-034e381688cfb1cc1",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.1987,
+      "anomaly_score_iforest": 0.3847,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.078,
+        "total": 3.287
+      },
+      "elapsed_sec": 3.3
+    },
+    {
+      "resource_id": "i-052aafedee6d81a0a",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.31,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.018,
+        "total": 16.655
+      },
+      "elapsed_sec": 16.7
+    },
+    {
+      "resource_id": "i-07136de010b09d0aa",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.2724,
+      "anomaly_score_iforest": 0.047,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.016,
+        "total": 3.612
+      },
+      "elapsed_sec": 3.6
+    },
+    {
+      "resource_id": "i-0b8b354431850c90b",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.2392,
+      "anomaly_score_iforest": 0.0484,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.096,
+        "total": 3.296
+      },
+      "elapsed_sec": 3.3
+    },
+    {
+      "resource_id": "i-0cc774f725222d838",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.2469,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.018,
+        "total": 3.392
+      },
+      "elapsed_sec": 3.4
+    },
+    {
+      "resource_id": "i-0d2c602df9fe8e1a9",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.4163,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.023,
+        "total": 3.081
+      },
+      "elapsed_sec": 3.1
+    },
+    {
+      "resource_id": "i-0f32adb755ab150ff",
+      "label": "normal",
+      "profile": "target_cpu_45.0pct",
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 0.429,
+      "anomaly_score_iforest": 0.0239,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.025,
+        "total": 3.123
+      },
+      "elapsed_sec": 3.1
+    }
+  ]
+}

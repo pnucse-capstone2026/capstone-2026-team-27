@@ -1,0 +1,42 @@
+2026-09-10 20:51:19,571 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\run_3x_real_pipeline_20260910_205119.log (SCRIPT_VERSION=1)
+2026-09-10 20:51:20,531 [INFO] AWS 자격증명: arn:aws:iam::634236767974:user/capstone (account 634236767974)
+2026-09-10 20:51:20,534 [INFO] 타겟 함수 3개: ['detection-trial-lambda-anomaly-0', 'detection-trial-lambda-anomaly-1', 'detection-trial-lambda-anomaly-2']
+2026-09-10 20:51:20,618 [INFO] [유발 detection-trial-lambda-anomaly-2] 15분간 에러율 0.80, 간격 22s 시작
+2026-09-10 20:51:20,619 [INFO] [유발 detection-trial-lambda-anomaly-1] 15분간 에러율 0.80, 간격 18s 시작
+2026-09-10 20:51:20,641 [INFO] [유발 detection-trial-lambda-anomaly-0] 15분간 에러율 0.80, 간격 21s 시작
+2026-09-10 21:06:25,046 [INFO] [유발 detection-trial-lambda-anomaly-2] 완료 — 40회 호출(강제 에러 32, 실패 0), 15.1분
+2026-09-10 21:06:29,462 [INFO] [유발 detection-trial-lambda-anomaly-0] 완료 — 42회 호출(강제 에러 38, 실패 0), 15.1분
+2026-09-10 21:06:34,366 [INFO] [유발 detection-trial-lambda-anomaly-1] 완료 — 49회 호출(강제 에러 43, 실패 0), 15.2분
+2026-09-10 21:06:34,369 [INFO] === 유발 완료 (15.2분). measure() 3개 병렬 시작 ===
+2026-09-10 21:06:34,369 [INFO] [측정 detection-trial-lambda-anomaly-0] measure() 시작 (bypass_approval_for_timing=True)
+2026-09-10 21:06:34,370 [INFO] [측정 detection-trial-lambda-anomaly-1] measure() 시작 (bypass_approval_for_timing=True)
+2026-09-10 21:06:34,370 [INFO] [측정 detection-trial-lambda-anomaly-2] measure() 시작 (bypass_approval_for_timing=True)
+2026-09-10 21:11:41,608 [INFO] [측정 detection-trial-lambda-anomaly-2] 완료 — anomaly_flag=True, action=Throttle, qa_passed=True, total=307.2s
+2026-09-10 21:11:42,024 [INFO] [측정 detection-trial-lambda-anomaly-0] 완료 — anomaly_flag=True, action=Throttle, qa_passed=False, total=307.7s
+2026-09-10 21:11:42,273 [INFO] [측정 detection-trial-lambda-anomaly-1] 완료 — anomaly_flag=True, action=Throttle, qa_passed=False, total=307.9s
+2026-09-10 21:11:42,278 [INFO] === 결과 ===
+2026-09-10 21:11:42,278 [INFO] [
+  {
+    "resource_id": "detection-trial-lambda-anomaly-0",
+    "anomaly_flag": true,
+    "selected_action": "Throttle",
+    "qa_passed": false,
+    "total_sec": 307.65440249443054
+  },
+  {
+    "resource_id": "detection-trial-lambda-anomaly-1",
+    "anomaly_flag": true,
+    "selected_action": "Throttle",
+    "qa_passed": false,
+    "total_sec": 307.902467250824
+  },
+  {
+    "resource_id": "detection-trial-lambda-anomaly-2",
+    "anomaly_flag": true,
+    "selected_action": "Throttle",
+    "qa_passed": true,
+    "total_sec": 307.23769330978394
+  }
+]
+2026-09-10 21:11:42,278 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\pipeline_timing_lambda_20260910.json (유발 상세: C:\Detection\langgraph_study\playground\eval_outputs\pipeline_timing_lambda_20260910__induce_detail.json)
+2026-09-10 21:11:42,278 [WARNING] 예약 동시성은 아직 걸려 있음 — D(verify_cost_predictions.py)까지 끝낸 뒤 '--restore' 로 원복할 것.

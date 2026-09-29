@@ -1,0 +1,34 @@
+{
+  "scenario_key": "s3",
+  "resource_id": "detection-trial-anomaly-0",
+  "resource_type": "S3",
+  "run_started_at": "2026-09-28T12:51:12.165329+00:00",
+  "run_ended_at": "2026-09-28T12:56:30.105770+00:00",
+  "elapsed_seconds_total": 317.94,
+  "step_timings_ms": {
+    "detection": 13,
+    "classification": 1,
+    "decision": 21,
+    "action": 441,
+    "qa": 300243
+  },
+  "estimated_cost_usd": 0.02426328975678086,
+  "anomaly_flag": true,
+  "anomaly_score_zscore": 2.9861,
+  "anomaly_score_iforest": 1.0,
+  "triggered_metrics": [
+    "number_of_requests",
+    "bytes_downloaded",
+    "cost"
+  ],
+  "ec2_utilization_band": null,
+  "anomaly_type": "risk_security",
+  "selected_action": "Block",
+  "risk_level": "HIGH",
+  "requires_approval": false,
+  "action_result": {
+    "status": "success"
+  },
+  "qa_passed": true,
+  "rollback_count": 0
+}

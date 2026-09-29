@@ -1,0 +1,35 @@
+2026-09-12 06:38:29,914 [INFO] 로그: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260912_063829.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-12 06:38:29,914 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===
+2026-09-12 06:38:29,916 [INFO] [anomaly i-018cb1f361adb89e8] 측정 시작 (profile=target_cpu_12.0pct, age=50341s)
+2026-09-12 06:38:29,922 [INFO] [anomaly i-043ad8f8ff784936e] 측정 시작 (profile=target_cpu_12.0pct, age=50341s)
+2026-09-12 06:38:29,926 [INFO] [anomaly i-052f85ca490476138] 측정 시작 (profile=target_cpu_12.0pct, age=50341s)
+2026-09-12 06:38:29,933 [INFO] [anomaly i-0e7bbc6f947db83d9] 측정 시작 (profile=target_cpu_12.0pct, age=50341s)
+2026-09-12 06:38:29,938 [INFO] [anomaly i-0557e969014023641] 측정 시작 (profile=target_cpu_12.0pct, age=50341s)
+2026-09-12 06:38:29,940 [INFO] [normal i-00bcf958a64f0113a] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:29,942 [INFO] [normal i-07136de010b09d0aa] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:29,944 [INFO] [normal i-0b8b354431850c90b] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:29,947 [INFO] [normal i-052aafedee6d81a0a] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:29,949 [INFO] [normal i-0f32adb755ab150ff] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:29,999 [INFO] [normal i-0cc774f725222d838] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:30,016 [INFO] [normal i-034e381688cfb1cc1] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:30,030 [INFO] [normal i-0d2c602df9fe8e1a9] 측정 시작 (profile=target_cpu_45.0pct, age=50339s)
+2026-09-12 06:38:39,197 [INFO] [anomaly i-018cb1f361adb89e8] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,277 [INFO] [normal i-00bcf958a64f0113a] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,343 [INFO] [anomaly i-0e7bbc6f947db83d9] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,363 [INFO] [anomaly i-0557e969014023641] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,374 [INFO] [normal i-052aafedee6d81a0a] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,380 [INFO] [normal i-034e381688cfb1cc1] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,390 [INFO] [normal i-0d2c602df9fe8e1a9] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,399 [INFO] [normal i-07136de010b09d0aa] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,571 [INFO] [anomaly i-043ad8f8ff784936e] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:39,979 [INFO] [normal i-0b8b354431850c90b] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:42,961 [INFO] [anomaly i-052f85ca490476138] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:48,006 [INFO] [normal i-0cc774f725222d838] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:48,893 [INFO] [normal i-0f32adb755ab150ff] production.or_gate=False (IF=False, 절대=False) / teammate.anomaly_flag=False
+2026-09-12 06:38:48,897 [INFO] [production(detection_node 실제 방식)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-12 06:38:48,897 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 06:38:48,897 [INFO] [iforest_only(persistence 적용)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-12 06:38:48,897 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 06:38:48,897 [INFO] [teammate_compat(낡은 헬퍼 방식)] TP=0 TN=8 FP=0 FN=5 / accuracy=61.5% recall=0.0%
+2026-09-12 06:38:48,897 [INFO]     recall 95% CI(Clopper-Pearson) = [0.0%, 52.2%]
+2026-09-12 06:38:48,901 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\ec2_repeated_trial__n8-5_scriptv1_20260912.json

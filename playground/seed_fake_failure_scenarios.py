@@ -1,7 +1,7 @@
 """
 playground/seed_fake_failure_scenarios.py
 
-⚠️ 대시보드 데모/테스트 전용 — 실제 AWS 호출도, 실제 LLM 호출도 하지 않는다.
+대시보드 데모/테스트 전용 — 실제 AWS 호출도, 실제 LLM 호출도 하지 않는다.
 playground/seed_fake_action_scenario.py와 동일한 방식: 그래프를 돌리지 않고
 "이미 실패로 끝난" state를 직접 만들어 logging_node()에만 넘긴다.
 

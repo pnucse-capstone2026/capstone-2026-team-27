@@ -1,0 +1,275 @@
+[
+  {
+    "resource_id": "detection-test-lambda-anomaly-2",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.04167985916137695,
+      "classification": 8.273124694824219e-05,
+      "decision": 0.004970073699951172,
+      "action": 1.2970221042633057,
+      "qa": 301.10013008117676,
+      "logging": 0.15163445472717285,
+      "total": 304.0442485809326
+    },
+    "concurrency_setting": 1,
+    "measured_at": "2026-09-13T03:33:54.484850+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-anomaly-3",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.015609264373779297,
+      "classification": 4.8160552978515625e-05,
+      "decision": 0.0019237995147705078,
+      "action": 0.8495368957519531,
+      "qa": 300.9621298313141,
+      "logging": 0.07463622093200684,
+      "total": 302.86164379119873
+    },
+    "concurrency_setting": 1,
+    "measured_at": "2026-09-13T03:34:26.820921+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-anomaly-4",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.037137508392333984,
+      "classification": 0.00015115737915039062,
+      "decision": 0.0056874752044677734,
+      "action": 1.5255732536315918,
+      "qa": 301.48320484161377,
+      "logging": 0.10064888000488281,
+      "total": 304.4276080131531
+    },
+    "concurrency_setting": 1,
+    "measured_at": "2026-09-13T03:33:20.874191+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-1",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.016536712646484375,
+      "classification": 7.271766662597656e-05,
+      "decision": 0.003142118453979492,
+      "action": 1.341614007949829,
+      "qa": 300.93454337120056,
+      "logging": 0.12619256973266602,
+      "total": 303.75343322753906
+    },
+    "concurrency_setting": 2,
+    "measured_at": "2026-09-13T03:32:40.653912+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-2",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.016127586364746094,
+      "classification": 6.008148193359375e-05,
+      "decision": 0.002146482467651367,
+      "action": 0.8142087459564209,
+      "qa": 301.39237093925476,
+      "logging": 0.14159202575683594,
+      "total": 303.2622401714325
+    },
+    "concurrency_setting": 2,
+    "measured_at": "2026-09-13T03:34:57.239342+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-3",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.009987115859985352,
+      "classification": 4.172325134277344e-05,
+      "decision": 0.001953601837158203,
+      "action": 0.8471207618713379,
+      "qa": 301.5899896621704,
+      "logging": 0.1519458293914795,
+      "total": 303.52246475219727
+    },
+    "concurrency_setting": 2,
+    "measured_at": "2026-09-13T03:35:22.796758+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-4",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.034932851791381836,
+      "classification": 0.00011157989501953125,
+      "decision": 0.0039844512939453125,
+      "action": 1.3087475299835205,
+      "qa": 301.04919719696045,
+      "logging": 0.13022136688232422,
+      "total": 303.7399299144745
+    },
+    "concurrency_setting": 3,
+    "measured_at": "2026-09-13T03:32:43.580916+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-5",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.018136262893676758,
+      "classification": 5.984306335449219e-05,
+      "decision": 0.002671480178833008,
+      "action": 1.3613500595092773,
+      "qa": 301.0123689174652,
+      "logging": 0.1324295997619629,
+      "total": 303.9885392189026
+    },
+    "concurrency_setting": 3,
+    "measured_at": "2026-09-13T03:33:50.707516+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-6",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.012973308563232422,
+      "classification": 5.412101745605469e-05,
+      "decision": 0.0020630359649658203,
+      "action": 0.8553760051727295,
+      "qa": 301.3172447681427,
+      "logging": 0.12817621231079102,
+      "total": 303.14114570617676
+    },
+    "concurrency_setting": 3,
+    "measured_at": "2026-09-13T03:35:00.692345+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-7",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.010310888290405273,
+      "classification": 4.0531158447265625e-05,
+      "decision": 0.00165557861328125,
+      "action": 0.8572788238525391,
+      "qa": 300.92886877059937,
+      "logging": 0.08582043647766113,
+      "total": 302.8332874774933
+    },
+    "concurrency_setting": 5,
+    "measured_at": "2026-09-13T03:34:23.632363+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-normal-8",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.03681635856628418,
+      "classification": 0.00010943412780761719,
+      "decision": 0.0033140182495117188,
+      "action": 1.3680634498596191,
+      "qa": 301.2557053565979,
+      "logging": 0.12378239631652832,
+      "total": 304.21676802635193
+    },
+    "concurrency_setting": 5,
+    "measured_at": "2026-09-13T03:33:17.156389+00:00"
+  },
+  {
+    "resource_id": "detection-retry-storm-test",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.039343833923339844,
+      "classification": 8.375095844268799,
+      "decision": 0.0023844242095947266,
+      "action": 2.2713193893432617,
+      "qa": 301.25561237335205,
+      "logging": 0.21346688270568848,
+      "total": 314.50399827957153
+    },
+    "concurrency_setting": null,
+    "measured_at": "2026-09-13T03:32:20.498851+00:00"
+  },
+  {
+    "resource_id": "detection-test-lambda-anomaly-5",
+    "resource_type": "Lambda",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_spike",
+    "selected_action": "Throttle",
+    "risk_level": "MED",
+    "approval_bypassed_for_timing": true,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.04460740089416504,
+      "classification": 11.501152038574219,
+      "decision": 0.003942251205444336,
+      "action": 2.1623878479003906,
+      "qa": 301.0665349960327,
+      "logging": 0.08744072914123535,
+      "total": 317.8696846961975
+    },
+    "concurrency_setting": null,
+    "measured_at": "2026-09-13T03:32:20.815718+00:00"
+  }
+]

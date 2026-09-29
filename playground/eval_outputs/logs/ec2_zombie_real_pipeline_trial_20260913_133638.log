@@ -1,0 +1,152 @@
+2026-09-13 13:36:38,816 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_zombie_real_pipeline_trial_20260913_133638.log
+2026-09-13 13:36:39,014 [INFO] === 측정 시작 (13대 병렬, bypass_approval_for_timing=True) ===
+2026-09-13 13:36:39,014 [INFO] [측정 i-00f27d6650869a74d] measure() 시작 (label=anomaly, profile=silent)
+2026-09-13 13:36:39,021 [INFO] [측정 i-094595e331b19be17] measure() 시작 (label=anomaly, profile=silent)
+2026-09-13 13:36:39,027 [INFO] [측정 i-0238a05593fbcf2f2] measure() 시작 (label=anomaly, profile=whisper)
+2026-09-13 13:36:39,028 [INFO] [측정 i-046cbf400dd6dc9d7] measure() 시작 (label=anomaly, profile=whisper)
+2026-09-13 13:36:39,029 [INFO] [측정 i-013a9d143009d1376] measure() 시작 (label=anomaly, profile=whisper_more)
+2026-09-13 13:36:39,030 [INFO] [측정 i-0e810265b88caeac5] measure() 시작 (label=normal, profile=light)
+2026-09-13 13:36:39,031 [INFO] [측정 i-0cd6cf73f56959d2e] measure() 시작 (label=normal, profile=light)
+2026-09-13 13:36:39,032 [INFO] [측정 i-07c77db4628d7e7ca] measure() 시작 (label=normal, profile=moderate)
+2026-09-13 13:36:39,033 [INFO] [측정 i-04cec80c3045da327] measure() 시작 (label=normal, profile=moderate)
+2026-09-13 13:36:39,033 [INFO] [측정 i-0380a0b372a973a5c] measure() 시작 (label=normal, profile=heavy)
+2026-09-13 13:36:39,034 [INFO] [측정 i-053230c6e903132f8] measure() 시작 (label=normal, profile=heavy)
+2026-09-13 13:36:39,034 [INFO] [측정 i-01aed37041b8e6946] measure() 시작 (label=normal, profile=bursty)
+2026-09-13 13:36:39,049 [INFO] [측정 i-0973aa83fa2ba0dd9] measure() 시작 (label=normal, profile=bursty)
+2026-09-13 13:36:46,797 [INFO] [측정 i-07c77db4628d7e7ca] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,345 [INFO] [측정 i-01aed37041b8e6946] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,416 [INFO] [측정 i-0cd6cf73f56959d2e] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,421 [INFO] [측정 i-0238a05593fbcf2f2] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,445 [INFO] [측정 i-046cbf400dd6dc9d7] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,513 [INFO] [측정 i-053230c6e903132f8] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:47,851 [INFO] [측정 i-0973aa83fa2ba0dd9] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:48,133 [INFO] [측정 i-00f27d6650869a74d] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:48,166 [INFO] [측정 i-0380a0b372a973a5c] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:48,190 [INFO] [측정 i-094595e331b19be17] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:52,459 [INFO] [측정 i-04cec80c3045da327] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:53,397 [INFO] [측정 i-013a9d143009d1376] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:54,517 [INFO] [측정 i-0e810265b88caeac5] 완료 — anomaly_flag=False, anomaly_type=None, action=None, qa_passed=None
+2026-09-13 13:36:54,523 [INFO] === 결과 ===
+2026-09-13 13:36:54,523 [INFO] [
+  {
+    "resource_id": "i-00f27d6650869a74d",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-094595e331b19be17",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0238a05593fbcf2f2",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-046cbf400dd6dc9d7",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-013a9d143009d1376",
+    "label": "anomaly",
+    "profile": "whisper_more",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0e810265b88caeac5",
+    "label": "normal",
+    "profile": "light",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0cd6cf73f56959d2e",
+    "label": "normal",
+    "profile": "light",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-07c77db4628d7e7ca",
+    "label": "normal",
+    "profile": "moderate",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-04cec80c3045da327",
+    "label": "normal",
+    "profile": "moderate",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0380a0b372a973a5c",
+    "label": "normal",
+    "profile": "heavy",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-053230c6e903132f8",
+    "label": "normal",
+    "profile": "heavy",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-01aed37041b8e6946",
+    "label": "normal",
+    "profile": "bursty",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  },
+  {
+    "resource_id": "i-0973aa83fa2ba0dd9",
+    "label": "normal",
+    "profile": "bursty",
+    "anomaly_flag": false,
+    "anomaly_type": null,
+    "action": null,
+    "qa_passed": null
+  }
+]
+2026-09-13 13:36:54,523 [INFO] 결과 저장: C:\Detection\langgraph_study\playground\eval_outputs\ec2_zombie_real_pipeline_trial_20260913.json
+2026-09-13 13:36:54,523 [INFO] normal 오탐: 0/8, anomaly 정탐: 0/5
+2026-09-13 13:36:54,523 [INFO] 정리(전체 정지) 시작...
+2026-09-13 13:36:56,086 [INFO] 전체 13대 정지 요청 완료

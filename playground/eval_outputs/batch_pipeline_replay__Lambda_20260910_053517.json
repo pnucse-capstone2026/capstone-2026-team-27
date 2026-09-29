@@ -1,0 +1,540 @@
+{
+  "script_version": "1",
+  "resource_type": "Lambda",
+  "generated_at": "2026-09-09T20:35:17.438184+00:00",
+  "replayed_from": "lambda_retry_repeated_trial__phase15m_n8-5_scriptv1_20260910.json",
+  "replay_note": "detection 입력만 저장된 실측 raw_metrics(재시도폭증이 살아있던 시점)이고, action은 실제 함수에 실행되며(Throttle) QA는 라이브 지표를 재조회하는 하이브리드. EC2와 달리 13개 시행이 같은 함수 하나를 공유하므로 순차 실행함.",
+  "wall_clock_sec": 0.1,
+  "summary": {
+    "n_resources": 13,
+    "n_error": 0,
+    "detection": {
+      "confusion_matrix": {
+        "TP": 5,
+        "FN": 0,
+        "FP": 1,
+        "TN": 7
+      },
+      "accuracy": 0.9230769230769231,
+      "recall": 1.0,
+      "false_positive_rate": 0.125
+    },
+    "stopped_at": {
+      "detection": 7,
+      "approval_gate": 6,
+      "null": 0
+    },
+    "action": {
+      "n_executed": 0,
+      "n_success": 0,
+      "success_rate": null,
+      "by_action": {}
+    },
+    "qa": {
+      "n_judged": 0,
+      "n_passed": 0,
+      "pass_rate": null
+    },
+    "timings": {
+      "detection": {
+        "n": 13,
+        "mean_sec": 0.009,
+        "stdev_sec": 0.001,
+        "min_sec": 0.007,
+        "max_sec": 0.011
+      },
+      "classification": {
+        "n": 6,
+        "mean_sec": 0.0,
+        "stdev_sec": 0.001,
+        "min_sec": 0.0,
+        "max_sec": 0.002
+      },
+      "decision": {
+        "n": 6,
+        "mean_sec": 0.004,
+        "stdev_sec": 0.004,
+        "min_sec": 0.002,
+        "max_sec": 0.012
+      },
+      "action": null,
+      "qa": null,
+      "logging": null,
+      "total": {
+        "n": 13,
+        "mean_sec": 0.011,
+        "stdev_sec": 0.004,
+        "min_sec": 0.008,
+        "max_sec": 0.023
+      }
+    }
+  },
+  "results": [
+    {
+      "resource_id": "detection-test-lambda#0",
+      "label": "anomaly",
+      "rep": 0,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.2346,
+      "anomaly_score_iforest": 0.9972,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 3e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.01,
+        "classification": 0.002,
+        "decision": 0.003,
+        "total": 0.015
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#1",
+      "label": "anomaly",
+      "rep": 1,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.4273,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.009,
+        "classification": 0.0,
+        "decision": 0.002,
+        "total": 0.01
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#2",
+      "label": "anomaly",
+      "rep": 2,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.0368,
+      "anomaly_score_iforest": 0.8941,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 6e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.01,
+        "classification": 0.0,
+        "decision": 0.002,
+        "total": 0.012
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#3",
+      "label": "anomaly",
+      "rep": 3,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.6458,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "error_count",
+        "invocation_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 7e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.01,
+        "classification": 0.0,
+        "decision": 0.003,
+        "total": 0.012
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#4",
+      "label": "anomaly",
+      "rep": 4,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.7704,
+      "anomaly_score_iforest": 0.9551,
+      "triggered_metrics": [
+        "invocation_count",
+        "cost",
+        "error_count"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-002",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 4e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.01,
+        "classification": 0.0,
+        "decision": 0.012,
+        "total": 0.023
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#0",
+      "label": "normal",
+      "rep": 0,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.4094,
+      "anomaly_score_iforest": 0.3907,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.011,
+        "total": 0.011
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#1",
+      "label": "normal",
+      "rep": 1,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.1727,
+      "anomaly_score_iforest": 0.1966,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.009,
+        "total": 0.009
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#2",
+      "label": "normal",
+      "rep": 2,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.8322,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.009,
+        "total": 0.009
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#3",
+      "label": "normal",
+      "rep": 3,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.7249,
+      "anomaly_score_iforest": 0.0135,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.009,
+        "total": 0.009
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#4",
+      "label": "normal",
+      "rep": 4,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.3099,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.008,
+        "total": 0.008
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#5",
+      "label": "normal",
+      "rep": 5,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 2.2663,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.009,
+        "total": 0.009
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#6",
+      "label": "normal",
+      "rep": 6,
+      "anomaly_flag": false,
+      "anomaly_score_zscore": 1.8585,
+      "anomaly_score_iforest": 0.0,
+      "triggered_metrics": [],
+      "stopped_at": "detection",
+      "timings": {
+        "detection": 0.009,
+        "total": 0.009
+      },
+      "elapsed_sec": 0.0
+    },
+    {
+      "resource_id": "detection-test-lambda#7",
+      "label": "normal",
+      "rep": 7,
+      "anomaly_flag": true,
+      "anomaly_score_zscore": 2.9409,
+      "anomaly_score_iforest": 1.0,
+      "triggered_metrics": [
+        "invocation_count",
+        "cost"
+      ],
+      "anomaly_type": "cost_spike",
+      "matched_rule_id": "CLF-006",
+      "selected_action": "Throttle",
+      "risk_level": "MED",
+      "requires_approval": true,
+      "matched_decision_rule_id": "DEC-002",
+      "candidate_actions": [
+        {
+          "action": "NoAction",
+          "saving_rate": 0.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 0.0,
+          "estimated_saving_usd": 0.0
+        },
+        {
+          "action": "Throttle",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "Block",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        },
+        {
+          "action": "ScaleDown",
+          "saving_rate": 1.0,
+          "impact_score": 0.0,
+          "stability_score": 0.0,
+          "score": 1.0,
+          "estimated_saving_usd": 2e-06
+        }
+      ],
+      "stopped_at": "approval_gate",
+      "timings": {
+        "detection": 0.007,
+        "classification": 0.0,
+        "decision": 0.003,
+        "total": 0.01
+      },
+      "elapsed_sec": 0.0
+    }
+  ]
+}

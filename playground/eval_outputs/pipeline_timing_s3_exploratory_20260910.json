@@ -1,0 +1,52 @@
+[
+  {
+    "resource_id": "detection-trial-anomaly-0",
+    "resource_type": "S3",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_inefficiency",
+    "selected_action": "NoAction",
+    "risk_level": "LOW",
+    "approval_bypassed_for_timing": false,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.02495598793029785,
+      "classification": 16.379239797592163,
+      "decision": 11.146093606948853,
+      "action": 0.0,
+      "qa": 0.009225130081176758,
+      "logging": 0.03444719314575195,
+      "total": 28.802835941314697
+    },
+    "measured_at": "2026-09-09T16:43:34.488231+00:00"
+  },
+  {
+    "resource_id": "detection-trial-anomaly-1",
+    "resource_type": "S3",
+    "anomaly_flag": true,
+    "anomaly_type": "cost_inefficiency",
+    "selected_action": "NoAction",
+    "risk_level": "LOW",
+    "approval_bypassed_for_timing": false,
+    "qa_passed": true,
+    "timings": {
+      "detection": 0.0229947566986084,
+      "classification": 9.682049751281738,
+      "decision": 12.336983442306519,
+      "action": 0.0,
+      "qa": 0.018459320068359375,
+      "logging": 0.016033172607421875,
+      "total": 23.18075942993164
+    },
+    "measured_at": "2026-09-09T16:44:22.647173+00:00"
+  },
+  {
+    "resource_id": "detection-trial-anomaly-2",
+    "resource_type": "S3",
+    "anomaly_flag": false,
+    "timings": {
+      "detection": 0.009460926055908203,
+      "total": 1.0681731700897217
+    },
+    "measured_at": "2026-09-09T17:04:24.646075+00:00"
+  }
+]

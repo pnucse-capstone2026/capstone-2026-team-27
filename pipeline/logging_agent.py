@@ -1,21 +1,12 @@
 """
-pipeline/logging_agent.py (박소영)
+Logging Agent (Audit Log)
 
-3.3.6 Logging Agent (Audit Log)
-- 전체 에이전트 실행 과정/결과를 PostgreSQL 기반 Audit Log로 기록.
-- 테이블 3개:
-    agent_runs  : 파이프라인 실행 1회 = 1행 (리소스/이상유형/액션/리스크/QA 결과 요약)
-    agent_steps : 실행 중 거친 각 단계(detection/classification/decision/action/qa) 1행씩
-    action_log  : 실제로 액션이 실행된 경우의 상세 기록 (전/후 스냅샷, 성공 여부)
+PostgreSQL 기반 실행 로그 기록.
 
-⚠️ Grafana 시각화는 지금 단계에서 만들지 않음.
-   - 아직 AWS 미연동이라 비용 추이/탐지 빈도 등이 실데이터를 반영 못 함
-   - Grafana는 별도 서버/인프라가 필요한 운영 단계 작업
-   - 대신 나중에 바로 쓸 수 있는 패널용 SQL은 grafana_dashboard_queries.sql에 미리 정리해둠
-
-⚠️ agent_steps.duration_ms(단계별 지연 시간)는 현재 NULL.
-   각 agent 노드가 자기 시작/종료 시각을 state에 남기지 않고 있어서 아직 측정 불가.
-   팀에서 instrumentation(타이밍 기록) 추가하면 그때 채울 수 있음 — 대화로 따로 제안.
+테이블:
+  - agent_runs: 파이프라인 실행 1회 = 1행
+  - agent_steps: 각 단계(detection/classification/decision/action/qa) 기록
+  - action_log: 실제 액션 실행 상세 (전/후 스냅샷, 성공 여부)
 """
 
 from __future__ import annotations
@@ -48,10 +39,10 @@ _REQUIRED_PG_VARS = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
 def _pg_connection_params() -> dict[str, str]:
     """.env에서 읽은 PG 접속 정보를 dict로 반환 (비밀번호도 포함, 로그 출력 금지)."""
     return {
-        "host":     os.environ.get("PGHOST", "localhost"),
-        "port":     os.environ.get("PGPORT", "5432"),
-        "dbname":   os.environ.get("PGDATABASE", "cloud_anomaly_agent"),
-        "user":     os.environ.get("PGUSER", "postgres"),
+        "host": os.environ.get("PGHOST", "localhost"),
+        "port": os.environ.get("PGPORT", "5432"),
+        "dbname": os.environ.get("PGDATABASE", "cloud_anomaly_agent"),
+        "user": os.environ.get("PGUSER", "postgres"),
         "password": os.environ.get("PGPASSWORD", ""),
     }
 
@@ -99,6 +90,14 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     status            TEXT NOT NULL
 );
 
+-- [2026-09-28 ADDED] 기존 테이블에도 안전하게 적용되도록 ALTER로 추가.
+-- Grafana 비용/소요시간 패널이 참조할 실제 컬럼 (그동안 하드코딩된 값으로 대체돼 있었음).
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS current_cost_usd NUMERIC;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS after_cost_usd NUMERIC;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS estimated_saving_usd NUMERIC;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS total_duration_ms INTEGER;
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS avoided_cost_usd NUMERIC;
+
 CREATE TABLE IF NOT EXISTS agent_steps (
     step_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id      UUID NOT NULL REFERENCES agent_runs(run_id) ON DELETE CASCADE,
@@ -135,6 +134,7 @@ CREATE TABLE IF NOT EXISTS rule_stats (
 );
 """
 
+
 def _ensure_tables(conn) -> None:
     """테이블이 없으면 생성. CREATE TABLE IF NOT EXISTS라서 이미 있으면 아무것도 안 함."""
     with conn.cursor() as cur:
@@ -144,6 +144,7 @@ def _ensure_tables(conn) -> None:
 
 # ── state → 레코드 변환 (DB 없이도 단독 테스트 가능하도록 순수 함수로 분리) ─────
 
+
 def _build_run_record(state: PipelineState) -> dict[str, Any]:
     status = "completed"
     if state.get("qa_passed") is False:
@@ -152,63 +153,89 @@ def _build_run_record(state: PipelineState) -> dict[str, Any]:
         status = "rollback_exhausted"
 
     return {
-        "resource_id":       state["resource_id"],
-        "resource_type":     state["resource_type"],
-        "metric_timestamp":  state["timestamp"],
-        "anomaly_flag":      state.get("anomaly_flag"),
-        "anomaly_type":      state.get("anomaly_type"),
-        "selected_action":   state.get("selected_action"),
-        "risk_level":        state.get("risk_level"),
+        "resource_id": state["resource_id"],
+        "resource_type": state["resource_type"],
+        "metric_timestamp": state["timestamp"],
+        "anomaly_flag": state.get("anomaly_flag"),
+        "anomaly_type": state.get("anomaly_type"),
+        "selected_action": state.get("selected_action"),
+        "risk_level": state.get("risk_level"),
         "requires_approval": state.get("requires_approval"),
-        "qa_passed":         state.get("qa_passed"),
-        "rollback_count":    state.get("rollback_count", 0),
-        "status":            status,
+        "qa_passed": state.get("qa_passed"),
+        "rollback_count": state.get("rollback_count", 0),
+        "status": status,
+        "current_cost_usd": state.get("current_cost_usd"),
+        "after_cost_usd": state.get("after_cost_usd"),
+        "estimated_saving_usd": state.get("estimated_saving_usd"),
+        "total_duration_ms": sum((state.get("step_timings") or {}).values()) or None,
+        "avoided_cost_usd": state.get("avoided_cost_usd"),
     }
 
 
 def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
     steps = [
-        ("detection", {
-            "anomaly_flag":          state.get("anomaly_flag"),
-            "anomaly_score_zscore":  state.get("anomaly_score_zscore"),
-            "anomaly_score_iforest": state.get("anomaly_score_iforest"),
-            "triggered_metrics":     state.get("triggered_metrics"),
-            # Grafana "실제 지출 비용" 패널용 — raw_metrics 자체는 로그에 안 남기고
-            # 이 실행 시점의 최신 cost 값 하나만 남김 (전 리소스 타입 공통 필드)
-            "latest_cost":           (state.get("raw_metrics", {}).get("cost") or [None])[-1],
-        }),
-        ("classification", {
-            "anomaly_type":   state.get("anomaly_type"),
-            "reasoning":      state.get("classification_reasoning"),
-            "interim_action": state.get("interim_action_taken"),
-        }),
-        ("decision", {
-            "candidate_actions":  state.get("candidate_actions"),
-            "selected_action":    state.get("selected_action"),
-            "risk_level":         state.get("risk_level"),
-            "requires_approval":  state.get("requires_approval"),
-            "reasoning":          state.get("decision_reasoning"),
-        }),
-        ("action", {
-            "action_executed": state.get("action_executed"),
-            "action_result":   state.get("action_result"),
-        }),
-        ("qa", {
-            "qa_passed":        state.get("qa_passed"),
-            "sla_check_result": state.get("sla_check_result"),
-            "rollback_count":   state.get("rollback_count"),
-        }),
+        (
+            "detection",
+            {
+                "anomaly_flag": state.get("anomaly_flag"),
+                "anomaly_score_zscore": state.get("anomaly_score_zscore"),
+                "anomaly_score_iforest": state.get("anomaly_score_iforest"),
+                "triggered_metrics": state.get("triggered_metrics"),
+                # IForest 트리거 시에만 채워짐(Z-score/EC2 유휴 단독 트리거는 None) —
+                # detection_agent.py의 explain_iforest_top_features() 결과.
+                "shap_top_features": state.get("shap_top_features"),
+                # Grafana "실제 지출 비용" 패널용 — raw_metrics 자체는 로그에 안 남기고
+                # 이 실행 시점의 최신 cost 값 하나만 남김 (전 리소스 타입 공통 필드)
+                "latest_cost": (state.get("raw_metrics", {}).get("cost") or [None])[-1],
+            },
+        ),
+        (
+            "classification",
+            {
+                "anomaly_type": state.get("anomaly_type"),
+                "reasoning": state.get("classification_reasoning"),
+                "interim_action": state.get("interim_action_taken"),
+            },
+        ),
+        (
+            "decision",
+            {
+                "candidate_actions": state.get("candidate_actions"),
+                "selected_action": state.get("selected_action"),
+                "risk_level": state.get("risk_level"),
+                "requires_approval": state.get("requires_approval"),
+                "reasoning": state.get("decision_reasoning"),
+            },
+        ),
+        (
+            "action",
+            {
+                "action_executed": state.get("action_executed"),
+                "action_result": state.get("action_result"),
+            },
+        ),
+        (
+            "qa",
+            {
+                "qa_passed": state.get("qa_passed"),
+                "sla_check_result": state.get("sla_check_result"),
+                "rollback_count": state.get("rollback_count"),
+            },
+        ),
     ]
 
+    step_timings = state.get("step_timings") or {}
     records = []
     for step_name, output in steps:
         status = "skipped" if all(v is None for v in output.values()) else "success"
-        records.append({
-            "step_name":   step_name,
-            "status":      status,
-            "output":      output,
-            "duration_ms": None,  # TODO: timing instrumentation 추가 후 채움
-        })
+        records.append(
+            {
+                "step_name": step_name,
+                "status": status,
+                "output": output,
+                "duration_ms": step_timings.get(step_name),
+            }
+        )
     return records
 
 
@@ -224,13 +251,13 @@ def _build_action_record(state: PipelineState) -> Optional[dict[str, Any]]:
     success = result.get("status") == "success" and not result.get("rolled_back", False)
 
     return {
-        "resource_id":         state["resource_id"],
-        "action_name":         state["action_executed"],
-        "risk_level":          state.get("risk_level"),
-        "requires_approval":   state.get("requires_approval"),
+        "resource_id": state["resource_id"],
+        "action_name": state["action_executed"],
+        "risk_level": state.get("risk_level"),
+        "requires_approval": state.get("requires_approval"),
         "pre_action_snapshot": state.get("pre_action_snapshot"),
-        "action_result":       result,
-        "success":             success,
+        "action_result": result,
+        "success": success,
     }
 
 
@@ -248,6 +275,7 @@ def _format_human_readable(state: PipelineState) -> list[str]:
 
 # ── 실제 DB INSERT ───────────────────────────────────────────────────────────
 
+
 def _insert_run(conn, record: dict) -> str:
     with conn.cursor() as cur:
         cur.execute(
@@ -255,10 +283,14 @@ def _insert_run(conn, record: dict) -> str:
             INSERT INTO agent_runs
                 (resource_id, resource_type, metric_timestamp, anomaly_flag,
                  anomaly_type, selected_action, risk_level, requires_approval,
-                 qa_passed, rollback_count, status)
+                 qa_passed, rollback_count, status,
+                 current_cost_usd, after_cost_usd, estimated_saving_usd, total_duration_ms,
+                 avoided_cost_usd)
             VALUES (%(resource_id)s, %(resource_type)s, %(metric_timestamp)s, %(anomaly_flag)s,
                     %(anomaly_type)s, %(selected_action)s, %(risk_level)s, %(requires_approval)s,
-                    %(qa_passed)s, %(rollback_count)s, %(status)s)
+                    %(qa_passed)s, %(rollback_count)s, %(status)s,
+                    %(current_cost_usd)s, %(after_cost_usd)s, %(estimated_saving_usd)s, %(total_duration_ms)s,
+                    %(avoided_cost_usd)s)
             RETURNING run_id
             """,
             record,
@@ -274,8 +306,13 @@ def _insert_steps(conn, run_id: str, records: list[dict]) -> None:
                 INSERT INTO agent_steps (run_id, step_name, status, output, duration_ms)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
-                (run_id, r["step_name"], r["status"],
-                 json.dumps(r["output"], ensure_ascii=False, default=str), r["duration_ms"]),
+                (
+                    run_id,
+                    r["step_name"],
+                    r["status"],
+                    json.dumps(r["output"], ensure_ascii=False, default=str),
+                    r["duration_ms"],
+                ),
             )
 
 
@@ -291,9 +328,14 @@ def _insert_action(conn, run_id: str, record: Optional[dict]) -> None:
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
-                run_id, record["resource_id"], record["action_name"], record["risk_level"],
+                run_id,
+                record["resource_id"],
+                record["action_name"],
+                record["risk_level"],
                 record["requires_approval"],
-                json.dumps(record["pre_action_snapshot"], ensure_ascii=False, default=str),
+                json.dumps(
+                    record["pre_action_snapshot"], ensure_ascii=False, default=str
+                ),
                 json.dumps(record["action_result"], ensure_ascii=False, default=str),
                 record["success"],
             ),
@@ -310,22 +352,22 @@ def logging_node(state: PipelineState) -> PipelineState:
     # 던지지는 않지만, 원인 파악이 안 되면 안 되므로 "무시됨"으로 뭉개지 않고
     # 연결 실패/저장 실패 원인을 반드시 콘솔에 출력한다.
     try:
-        conn = _get_connection()   # 실패 시 RuntimeError(원인 포함) 발생
+        conn = _get_connection()  # 실패 시 RuntimeError(원인 포함) 발생
         try:
             _ensure_tables(conn)
             run_id = _insert_run(conn, run_record)
             _insert_steps(conn, run_id, step_records)
             _insert_action(conn, run_id, action_record)
             conn.commit()
-            print(f"[logging_node] DB 저장 성공 (run_id={run_id})")
+            logger.info("[logging_node] DB 저장 성공 (run_id=%s)", run_id)
         except Exception as e:
             conn.rollback()
-            print(f"[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: {e!r}")
+            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계): %r", e)
         finally:
             conn.close()
     except Exception as e:
         # _get_connection()에서 발생한 RuntimeError (원인이 이미 메시지에 포함됨)
-        print(f"[logging_node] {e}")
+        logger.error("[logging_node] %s", e)
 
     # DB 적재와 별개로, state["log_entries"]엔 기존처럼 사람이 읽기 좋은 요약을 유지
     entries = state.get("log_entries", [])
@@ -339,6 +381,7 @@ def logging_node(state: PipelineState) -> PipelineState:
         if state.get("matched_rule_id") is None:
             try:
                 from pipeline.rule_promoter import queue_promotion_candidates
+
                 queued = queue_promotion_candidates()
                 if queued:
                     logger.info(
@@ -346,12 +389,17 @@ def logging_node(state: PipelineState) -> PipelineState:
                         len(queued),
                     )
             except Exception as e:
-                logger.warning("[logging_node] Classification 규칙 대기 큐 추가 실패: %s", e)
+                logger.warning(
+                    "[logging_node] Classification 규칙 대기 큐 추가 실패: %s", e
+                )
 
         # Decision 규칙 승격 후보 → 승인 대기 큐 (LLM 액션 선택 사용 시에만)
         if state.get("matched_decision_rule_id") is None:
             try:
-                from pipeline.decision_pseudocode_promoter import queue_decision_promotion_candidates
+                from pipeline.decision_pseudocode_promoter import (
+                    queue_decision_promotion_candidates,
+                )
+
                 queued = queue_decision_promotion_candidates()
                 if queued:
                     logger.info(

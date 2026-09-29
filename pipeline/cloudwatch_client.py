@@ -32,9 +32,11 @@ METRIC_SPEC: dict[str, dict[str, tuple[str, str, str]]] = {
         "invocation_count": ("AWS/Lambda", "Invocations", "Sum"),
         "error_count":      ("AWS/Lambda", "Errors", "Sum"),
         "duration_avg":     ("AWS/Lambda", "Duration", "Average"),
+        "throttle_count":   ("AWS/Lambda", "Throttles", "Sum"),
+        "async_event_age":  ("AWS/Lambda", "AsyncEventAge", "Average"),
     },
     "S3": {
-        # ⚠️ S3 Request Metrics를 버킷에서 활성화해야 값이 나옴 (지금은 테스트 보류 상태)
+        # S3 Request Metrics를 버킷에서 활성화해야 값이 나옴 (지금은 테스트 보류 상태)
         "number_of_requests": ("AWS/S3", "AllRequests", "Sum"),
         "bytes_downloaded":   ("AWS/S3", "BytesDownloaded", "Sum"),
     },
