@@ -339,39 +339,42 @@ cp .env.example .env
 # (SLACK_WEBHOOK_URL은 선택)
 ```
 
-### 실행 순서 (의존성 순서대로)
+### 배포 URL (클라우드)
 
-**1) DB** 
+| 서비스 | URL |
+|--------|-----|
+| **프론트엔드** | https://detection.vercel.app |
+| **백엔드 API** | https://finops-auto-recovery-production.up.railway.app |
+
+→ 로그인: admin1 / admin1
+
+### 로컬 실행 (개발용)
+
+**1) DB**
 ```bash
 docker compose up -d postgres
 ```
 
-**2) Grafana** 
+**2) Grafana**
 ```bash
 docker compose up -d grafana
 ```
 → 접속: http://localhost:3001 (admin / admin)
 
-**3) 백엔드** 
+**3) 백엔드**
 ```bash
 python -m api.main
 ```
 → 접속: http://localhost:8000
 
-**4) 프론트엔드 접속**
-→ https://detection.vercel.app (admin1 / admin1)
-
-> 프론트엔드는 Vercel에 배포되어 있어 별도 실행이 필요 없습니다.
-> 각자 로컬에서 DB와 백엔드만 실행하면, 배포된 프론트엔드가 로컬 백엔드(localhost:8000)에 연결됩니다.
-
-**로컬 개발 시** (선택):
+**4) 프론트엔드**
 ```bash
 cd frontend
 npm run dev
 ```
-→ http://localhost:3000
+→ http://localhost:3000 (admin1 / admin1)
 
-**의존성 요약**: `Postgres` → `백엔드` → `프론트엔드 접속`
+**의존성 요약**: `Postgres` → `백엔드` → `프론트엔드`
 
 ---
 
