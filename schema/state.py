@@ -44,11 +44,7 @@ class AutoScalingMetrics(TypedDict):
     group_desired_capacity: list[float]  # 목표 인스턴스 수
     group_in_service_instances: list[float]  # 실행 중 인스턴스 수
     cost: list[float]  # USD
-    # 2026-09-12 추가: EDoS는 트래픽(원인)이 capacity(결과)를 밀어올리는 구조인데,
-    # group_desired_capacity는 "순간 인스턴스 개수"라 값의 가짓수가 극히 적어(이산적)
-    # 통계적 탐지(z-score/IForest)에 불리함을 실측으로 확인했다. ALB의 RequestCount처럼
-    # 일정 기간 누적되는 지표는 값의 폭이 넓어 탐지에 유리할 것으로 보고 추가한다.
-    request_count: list[float]  # ALB RequestCount(Sum) - 원인(트래픽) 직접 관측용
+    request_count: list[float]  # ALB RequestCount(Sum), EDoS 탐지용
 
 
 # ── pre_action_snapshot 리소스별 구조 ────────────────────────────────────────
@@ -248,15 +244,10 @@ class PipelineState(TypedDict):
     rollback_count: int  # 기본값 0, 최대 2
     qa_matched_rule_id: Optional[str]  # 매칭된 QA 규칙 ID (예: "QA-001")
     whitelisted: bool  # 화이트리스트에 의해 스킵되었는지
-    # [ADDED] QA가 액션 후 실측 재조회로 raw_metrics를 덮어쓰기 전, 액션 *전*
-    # 원본을 보존해둔 것 (팀원 B 승인 후 적용 — QA_agent._refresh_metrics_after_action).
     pre_action_raw_metrics: Optional[
         EC2Metrics | LambdaMetrics | S3Metrics | RDSMetrics | AutoScalingMetrics
     ]
 
-    # [ADDED] 단계별(detection/classification/decision/action/qa) 소요 시간(ms).
-    # pipeline/graph.py가 각 노드 호출을 감싸며 채우고, logging_agent.py가
-    # agent_steps.duration_ms(그동안 항상 NULL이었음)에 그대로 기록한다.
     step_timings: dict[str, int]
 
     # ── Step 6: Logging Agent ─────────────────────────────────────────────────

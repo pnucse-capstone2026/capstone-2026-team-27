@@ -5,7 +5,7 @@ Lambda 스로틀(429)/동시성 소진 재시도 폭증 시나리오 전용 목�
 (normal/anomaly/edge_normal)을 생성한다 — 기존 generate_ec2_lambda_retry_mock.py와
 동일한 철학·스키마를 따르되, 이번엔 throttle_count/async_event_age 기반이다.
 
-⚠️ 이 시나리오는 2026-09-13/14 리팩터링으로 독립 절대임계값 게이트가 없다 —
+이 시나리오는 2026-09-13/14 리팩터링으로 독립 절대임계값 게이트가 없다 —
 detection_node의 최종 판정은 순수 IForest(+ Z-score, 이 시나리오에선 거의 안 걸림)
 단독이다. 그래서 검증 함수(_lambda_error_rate_check 같은 결정론적 체크)가 없고,
 대신 실제 detection_node()를 그대로 통과시켜 "설계 의도"가 아니라 "실제 판정"을
@@ -79,7 +79,7 @@ def make_normal(rng: np.random.Generator) -> dict:
     """무제한 동시성 정상 트래픽 — 실측(diverse trial) 4단계 볼륨을 그대로 재현.
     throttle_count는 실측 전 구간에서 예외 없이 0.
 
-    ⚠️ invocation 수준은 lambda_train.json(현재 캐시된 모델의 실제 학습 데이터)의
+    invocation 수준은 lambda_train.json(현재 캐시된 모델의 실제 학습 데이터)의
     정상 범위(11.99~210.98, 평균 79.7)에 맞춰 보정했다 — 처음엔 실 AWS 테스트
     함수의 저볼륨(5~40건)을 그대로 썼는데, 그러면 이 모델 기준으로는 오히려
     "너무 낮아서 이상"으로 오판되는 걸 실측으로 확인함(4/20 오탐)."""
@@ -104,7 +104,7 @@ def make_throttle_anomaly(rng: np.random.Generator, severity: str) -> dict:
     베이스라인(첫 27포인트)은 make_normal과 같은 범위로 맞춰서(모델 기준 "정상") 마지막
     3포인트의 스로틀 신호만 튀게 한다.
 
-    ⚠️ throttle_count 절대값은 실측(2026-09-13, CloudWatch 직접 조회)의 5분 구간당
+    throttle_count 절대값은 실측(2026-09-13, CloudWatch 직접 조회)의 5분 구간당
     평균치를 그대로 씀 — 처음엔 throttle_rate 공식(thr/(thr+inv))으로 역산한 값(8~32)을
     썼는데, 이건 실제 관측치(severe 90~120, moderate 55~95, mild 40~45)보다 훨씬
     작아서 모델이 노이즈로 취급해 7/10이 미탐되는 걸 실측으로 확인함 — AWS 비동기
@@ -243,7 +243,7 @@ def main() -> None:
     rng = np.random.default_rng(2026)
     windows = build_file(rng)
 
-    # ⚠️ 2026-09-14 방향 수정: 처음엔 normal/anomaly 전부 일치를 강제(assert)했는데,
+    # 2026-09-14 방향 수정: 처음엔 normal/anomaly 전부 일치를 강제(assert)했는데,
     # 기존 다른 시나리오 파일(ec2_eval.json 5%, lambda_eval_retry.json 15%)도 실제로는
     # 0% 오탐이 아니라 "오탐률 자체를 결과로 보고"하는 방식이었다 -- IForest 기반
     # 판정에 0% FP를 강제로 맞추는 건 비현실적이고, 오히려 있는 그대로의 오탐률을

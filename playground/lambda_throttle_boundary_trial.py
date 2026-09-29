@@ -9,7 +9,7 @@ lambda_throttle_repeated_trial.py(동시성 1 vs 무제한, 100% 정확도)는 �
 걸고, **throttle_rate 실측값과 detection_node의 실제 판정(anomaly_flag)이
 동시성에 따라 어떻게 변하는지** 확인한다.
 
-⚠️ 2026-09-13 아키텍처 변경 반영: Lambda의 throttle_rate/error_rate는 이제
+2026-09-13 아키텍처 변경 반영: Lambda의 throttle_rate/error_rate는 이제
 detection_node의 직접 트리거가 아니라 IForest 입력 feature로만 작동한다
 (pipeline/detection_agent.py 리팩터링 참고). 즉 이번 시행은 "throttle_rate가
 THROTTLE_RATE_THRESHOLD(0.4)를 넘었는가"가 아니라 "IForest가 실제로 어느

@@ -94,7 +94,7 @@ def test_all_normal_yields_nothing():
     resources = [_normal_ec2("i-normal-1"), _normal_ec2("i-normal-2")]
     results = list(scan_resources_sequential(resources))
     assert results == [], f"정상 리소스만 있는데 뭔가 나옴: {[r['resource_id'] for r in results]}"
-    print("✅ [1] 정상 리소스만 있으면 빈 결과")
+    print("[1] 정상 리소스만 있으면 빈 결과")
 
 
 # ── 2. 이상 리소스만, 입력 순서 그대로 하나씩 ──────────────────────────────────
@@ -113,7 +113,7 @@ def test_only_anomalies_in_order():
 
     assert ids == ["i-spike-2", "func-spike-3", "i-spike-5"], f"순서/필터링 불일치: {ids}"
     assert all(r["anomaly_flag"] for r in results), "yield된 결과는 전부 anomaly_flag=True여야 함"
-    print("✅ [2] 정상은 스킵, 이상 리소스만 입력 순서 그대로 방출:", ids)
+    print("[2] 정상은 스킵, 이상 리소스만 입력 순서 그대로 방출:", ids)
 
 
 # ── 3. 제너레이터 = 스트리밍 (미리 다 처리하고 몰아주는 게 아님) ────────────────
@@ -156,7 +156,7 @@ def test_lazy_streaming_not_batched():
     assert remaining == [], "남은 건 정상 리소스뿐이라 더 나오면 안 됨"
     assert processed_order == ["i-spike-1", "i-normal-2", "i-spike-3", "i-normal-4"]
 
-    print("✅ [3] 제너레이터가 실제로 하나씩 지연 평가(streaming)됨 — 배치 처리 아님")
+    print("[3] 제너레이터가 실제로 하나씩 지연 평가(streaming)됨 — 배치 처리 아님")
 
 
 # ── 4. _build_initial_state가 PipelineState 필드를 빠짐없이 채움 ──────────────
@@ -182,7 +182,7 @@ def test_build_initial_state_covers_all_fields():
     assert state["rollback_count"] == 0
     assert state["whitelisted"] is False
     assert state["log_entries"] == []
-    print(f"✅ [4] PipelineState {len(expected_keys)}개 필드 전부 채워짐 (누락/여분 없음)")
+    print(f"[4] PipelineState {len(expected_keys)}개 필드 전부 채워짐 (누락/여분 없음)")
 
 
 # ── 5. timestamp 생략 시 자동으로 채워짐 ──────────────────────────────────────
@@ -197,7 +197,7 @@ def test_timestamp_defaults_when_missing():
     state = _build_initial_state(resource)
     assert state["timestamp"], "timestamp가 비어있으면 안 됨"
     assert "T" in state["timestamp"], f"ISO 8601 형식이 아님: {state['timestamp']}"
-    print("✅ [5] timestamp 생략 시 자동으로 현재 시각 채워짐:", state["timestamp"])
+    print("[5] timestamp 생략 시 자동으로 현재 시각 채워짐:", state["timestamp"])
 
 
 if __name__ == "__main__":
@@ -208,4 +208,4 @@ if __name__ == "__main__":
     test_timestamp_defaults_when_missing()
 
     _reset_model_cache()
-    print("\n✅ Phase 0 전체 테스트 통과")
+    print("\nPhase 0 전체 테스트 통과")

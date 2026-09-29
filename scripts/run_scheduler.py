@@ -4,7 +4,7 @@ run_scheduler.py — Phase E 오케스트레이션 진입점.
 AWS CloudWatch에서 Detection=true 태그가 붙은 리소스를 찾아서 지표를 수집하고,
 이상이 있는지 탐지한다.
 
-⚠️ 안전 설계: 여기서는 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은 자동
+안전 설계: 여기서는 탐지만 하고 끝난다. 실제 액션(Stop/Throttle 등)은 자동
    실행하지 않는다 — 이상이 발견된 리소스 목록만 출력한다. 실제로 전체 파이프라인
    (classification → decision → action → qa → logging)까지 이어서 돌리고 싶으면
    pipeline.graph.app.invoke(state)를 별도로, 명시적으로 호출해야 한다.

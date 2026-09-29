@@ -97,7 +97,7 @@ def get_status():
     store.pipeline_stats["anomaly_failed"] = counts["anomaly_failed"]
     store.pipeline_stats["pending_approvals"] = len(graph_runtime.list_pending_approvals())
 
-    # ⚠️ 예전엔 api/store.py의 죽은 mock 리스트(store.rule_book)를 셌었다 — Rule Book이
+    # 예전엔 api/store.py의 죽은 mock 리스트(store.rule_book)를 셌었다 — Rule Book이
     # schema/rules/*.json 실파일로 바뀐 뒤로도 그대로 남아있던 버그라, 규칙을 추가/삭제/
     # 토글해도 이 숫자는 항상 mock 개수(3) 그대로였다. RuleEngine이 이미 각 파일에서
     # "enabled"인 규칙만 걸러서 들고 있으니 그걸 그대로 센다 (reload_rules()가 rules.py

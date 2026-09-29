@@ -18,18 +18,18 @@ def _build_message(row: dict) -> dict:
 
     if row["event_type"] == "decision":
         if row["requires_approval"]:
-            text = f"🔍 {scenario}! 확인이 필요합니다"
+            text = f"{scenario}! 확인이 필요합니다"
         else:
-            text = f"🔍 {scenario}! 자동으로 {action}합니다"
+            text = f"{scenario}! 자동으로 {action}합니다"
     else:
         if row["qa_passed"]:
             if row["selected_action"] == "NoAction":
-                text = "✅ 정상 범위로 판단되어 추가 조치 없이 지켜봅니다"
+                text = "정상 범위로 판단되어 추가 조치 없이 지켜봅니다"
             else:
                 label = completion_action_label(
                     row["selected_action"], row["anomaly_type"]
                 )
-                text = f"✅ {label} 완료! QA 검증까지 통과했습니다"
+                text = f"{label} 완료! QA 검증까지 통과했습니다"
         else:
             text = "↩️ QA가 효과 없음을 확인해 원래대로 되돌렸습니다"
 

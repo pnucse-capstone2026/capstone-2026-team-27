@@ -196,7 +196,7 @@ def verify(manifest_path: str) -> None:
         target = spec["target_cpu_pct"]
         print(f"  {group}: 평균={avg}, 목표={target}%, 포인트수={len(vals)}")
         if avg is None or (target > 0 and avg < target * 0.3):
-            print(f"    ⚠️ 목표({target}%) 대비 너무 낮음 — 부하 미작동 의심")
+            print(f"    목표({target}%) 대비 너무 낮음 — 부하 미작동 의심")
             ok = False
     if ok:
         print("\n모든 그룹이 목표 방향으로 CPU가 형성되고 있음 — 계속 진행 가능")

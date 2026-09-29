@@ -160,7 +160,7 @@ def check_capacity_budget(
 ) -> None:
     """예상 최대 동시 인스턴스로 vCPU 쿼터와 프리티어(EBS 30GB, 750 인스턴스-시간)를 검증.
 
-    ⚠️ 쿼터를 넘기면 ASG는 조용히 실패한다 — update_auto_scaling_group/set_desired_capacity는
+    쿼터를 넘기면 ASG는 조용히 실패한다 — update_auto_scaling_group/set_desired_capacity는
     즉시 성공을 반환하고 실패는 ASG의 scaling activities에만 남는다. 그러면 desired만 오르고
     in_service는 안 올라서, mock이 학습한 "둘 다 급증" 패턴이 아닌 다른 신호를 측정하게 된다.
     """
@@ -327,7 +327,7 @@ def _ensure_asg(
             ],
         )
 
-    # ⚠️ 이걸 안 켜면 GroupDesiredCapacity/GroupInServiceInstances가 CloudWatch에
+    # 이걸 안 켜면 GroupDesiredCapacity/GroupInServiceInstances가 CloudWatch에
     # 아예 안 올라간다 (S3의 Request Metrics와 같은 성격). v1에 빠져 있었다.
     autoscaling.enable_metrics_collection(
         AutoScalingGroupName=name, Granularity="1Minute"

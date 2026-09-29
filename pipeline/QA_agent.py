@@ -1,25 +1,17 @@
 """
-QA Agent
---------
-액션 수행 이후 SLA 준수 여부를 검증하고, 실패 시 롤백을 트리거
+QA Agent (SLA 검증)
+
+액션 수행 후 SLA 준수 여부 검증, 실패 시 롤백 트리거.
 
 검증 항목:
-1) CPU SLA: 액션 후 CPU 사용률이 임계값(80%) 이하인지
-2) 비용 SLA: 액션이 실제 비용 절감 효과를 가져왔는지
-3) 가용성 SLA: 서비스 가용성이 유지되는지 (액션 결과 정상 여부)
+  - CPU SLA: 사용률 80% 이하
+  - 비용 SLA: 실제 비용 절감 효과 확인
+  - 가용성 SLA: 서비스 가용성 유지
 
-처리 흐름 (A안 — 실패 원인 구분 없이 항상 롤백 후 재시도):
-- 검증 통과 → qa_passed=True, logging으로 이동
-- 검증 실패 + rollback_count < 2
-    → pre_action_snapshot으로 즉시 rollback_action() 실행 (실행 실패든 SLA 위반이든 동일하게 처리)
-    → qa_passed=False, rollback_count 증가, action으로 재시도
-- 검증 실패 + rollback_count >= 2 → qa_passed=False, 현재 상태 유지, 관리자 알림
-  (이 경우도 롤백 자체는 실행하되, 더 이상 action으로 재시도하지 않음)
-
-   주의: 여기서의 "재시도"는 node_contracts.md 스펙 그대로 "같은 selected_action을
-   처음부터 다시 실행"하는 것이다. SLA 위반(예: 비용 급증)으로 실패한 경우 원인이
-   그대로면 재시도해도 같은 이유로 다시 실패할 수 있다 — 이는 스펙상 의도된 동작이며,
-   rollback_count<2 만큼만 반복하고 그 이후엔 관리자 알림으로 넘어간다.
+처리 흐름:
+  - 통과 → qa_passed=True
+  - 실패 + rollback_count < 2 → 롤백 후 재시도
+  - 실패 + rollback_count >= 2 → 관리자 알림
 """
 
 import json
@@ -38,21 +30,6 @@ from utils.slack_notifier import send_slack_alert
 
 logger = logging.getLogger(__name__)
 
-# [ADDED] 액션 직후 QA가 판단에 쓰던 raw_metrics는 원래 Detection 때(액션 *전*)
-# 가져온 것 그대로였다 — cost_ok/cpu_ok 체크가 "액션 후 실제 효과"가 아니라
-# "액션 전 트렌드"만 보고 있었던 구조적 문제(세션에서 확인, 팀원 B 승인 후 적용).
-# CloudWatch가 5분 단위 구간이라 액션 직후 조회해도 새 구간이 안 잡혀서, 짧게라도
-# 기다렸다가 재조회해야 의미가 있다.
-#
-# 2026-09-14: 중간에 짧은 주기로 폴링하며 "값이 바뀌면 조기 종료"하는 방식을
-# 검토했으나 폐기했다 — 조회 윈도우가 항상 "지금부터 과거 300초"를 담는
-# 슬라이딩 윈도우라서, 300초가 채 지나기 전에 재조회하면 액션 전후 데이터가
-# 섞인 값만 얻는다. 섞인 값에서 감지되는 "변화"는 판단에 쓸 만큼 깨끗한
-# 신호가 아니라서(액션 전 구간이 아직 다수 섞여 있음), SLA 판단은 액션 이후
-# 데이터로만 온전히 채워지는 시점 — 즉 정확히 POST_ACTION_WAIT_SECONDS(300초)
-# 경과 시점의 값으로만 한다. 리소스 타입(EC2/Lambda/S3 등)과 무관하게 조회
-# 윈도우 폭 자체가 300초로 통일되어 있으므로, 이 상수도 리소스 타입 구분 없이
-# 동일하게 적용한다.
 POST_ACTION_WAIT_SECONDS = 300
 
 # LLM 판단 로그 경로 (classification_agent.py와 동일)
@@ -66,17 +43,8 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
     LLM 판단 로그에 QA 결과를 추가.
     trace_id로 해당 로그 엔트리를 찾아 qa_result 필드를 업데이트.
 
-    Decision 단계가 LLM 판단이 아닌 경우는 스킵.
-
-    ⚠️ 2026-09-12 버그 수정: 원래 이 조건이 state["matched_rule_id"]를 봤는데, 그건
-    Decision이 아니라 Classification 단계가 채우는 필드다(schema/state.py 참고 -
-    classification_agent.py의 CLF-xxx 규칙 매칭 결과). Classification은 거의 항상
-    규칙에 매칭되므로, Decision이 실제로 LLM을 썼어도 이 조건 때문에 매번 "LLM
-    판단 아님"으로 오판해 로깅을 건너뛰었다 - 그 결과 llm_decision_log.jsonl의
-    모든 LLM 판단 항목이 qa_result=null로 남아 decision_pseudocode_promoter.py가
-    검증된 패턴을 하나도 못 찾는 상태였다. Decision이 LLM을 썼는지는
-    decision_agent.py가 LLM 경로에서만 채우는 state["decision_pseudo_code"]로
-    판단해야 정확하다.
+    Decision 단계가 LLM 판단이 아닌 경우(Rule Book 매칭)는 스킵.
+    LLM 사용 여부는 state["decision_pseudo_code"] 존재로 판단.
     """
     trace_id = state.get("trace_id")
     decision_used_llm = bool(state.get("decision_pseudo_code"))
@@ -127,13 +95,6 @@ def _update_llm_log_with_qa_result(state: PipelineState) -> None:
         print(f"[QA_agent] LLM 로그 QA 결과 업데이트 실패: {e}")
 
 
-# [ADDED] "QA 정확도(전체 케이스 기준)" 실측용. _update_llm_log_with_qa_result()는
-# Rule Book 처리 건을 의도적으로 스킵하는데(그 로그는 "LLM 판단 승격 후보 추적"이
-# 목적이라 이미 규칙인 것은 대상이 아님 — 이 스킵 자체는 그대로 둔다), 그러면
-# Rule Book으로 처리되는 대부분의 실제 케이스(S3 등)는 QA 정확도를 측정할 방법이
-# 아예 없어진다. 그래서 decision_agent.py가 Rule Book/LLM 구분 없이 전부 남기는
-# cost_prediction_log.jsonl에 qa_passed를 별도로 업데이트한다 — 기존 로그의 의미는
-# 안 건드리고, 전체 케이스를 커버하는 새 경로를 추가하는 것.
 COST_PREDICTION_LOG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "schema", "logs", "cost_prediction_log.jsonl"
 )
@@ -183,11 +144,6 @@ SLA_THRESHOLDS = {
     "availability_min": 99.0,  # 최소 가용성 (%)
 }
 
-# [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
-# GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
-# GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
-# .format()으로 렌더링해서 call_gemini(prompt: str)에 그대로 넘긴다.
-
 # LLM 프롬프트: 복잡한 SLA 판단이 필요한 경우 (str.format()과 동일한 {{ }} 이스케이프 규칙)
 PROMPT_TEMPLATE = """
 당신은 AWS 클라우드 복구 액션의 품질을 검증하는 QA 전문가입니다.
@@ -236,16 +192,8 @@ def _metrics_summary(raw_metrics: dict) -> dict:
     return summary
 
 
-# [수정] 원래 이름은 _check_cpu_sla였고 항상 cpu_utilization만 봤다 — Lambda/S3/
-# AutoScaling처럼 CPU 지표 자체가 없는 리소스는 사실상 이 체크가 전부 통과 처리돼서,
-# "액션 후 원래 튀었던 지표가 진짜 가라앉았는지"를 전혀 검증 못 하고 있었다(예: S3
-# 대량다운로드 Block 후에도 bytes_downloaded가 여전히 높으면 못 잡음). CPU 하드코딩
-# 대신 detection 단계에서 실제로 이상을 트리거했던 지표(triggered_metrics)를 그대로
-# 재검사하도록 일반화 — 리소스 타입별 하드코딩 없이 자동으로 맞는 지표를 본다.
-# SlaCheckResult 스키마 호환을 위해 반환 키 이름(cpu_ok)은 그대로 유지.
-
-# CPU처럼 절대 임계값(%)이 있는 지표. 그 외(bytes_downloaded, invocation_count 등)는
-# 절대 임계값 개념이 없어서 "액션 전 기준선 대비 얼마나 높아졌는지" 상대 비교로 판단.
+# triggered_metrics 기반 SLA 체크 (CPU 외 지표도 자동 검증)
+# 절대 임계값 있는 지표와 상대 비교 지표 구분
 _ABSOLUTE_THRESHOLD_METRICS = {"cpu_utilization": SLA_THRESHOLDS["cpu_utilization_max"]}
 _RELATIVE_SPIKE_RATIO = (
     1.5  # 기준선(초반 평균) 대비 1.5배 넘으면 아직 안 가라앉은 것으로 판단
@@ -432,13 +380,7 @@ def _apply_rule_based_qa(
             None,
         )
 
-    # 2026-09-14 버그 수정: action_result.status가 "failed"가 아니라 "not_implemented"인
-    # 경우(예: EC2에 ScaleDown처럼 execute_action()에 분기 자체가 없는 액션이 선택된 경우)를
-    # 위 "failed" 체크가 못 잡아서, 아무 조치도 안 됐는데 뒤이은 일반 SLA 체크(지표가 우연히
-    # 정상이면 통과)로 새서 qa_passed=True로 잘못 기록되는 사례가 실측(batch_pipeline_replay
-    # __EC2_20260912_134432.json의 i-018cb1f361adb89e8, ScaleDown)으로 확인됐다. "액션을
-    # 선택했는데 실행 자체가 안 된 것"은 "실패"보다도 더 명확한 검증 실패이므로 별도로 우선
-    # 처리한다.
+    # 액션 미구현 상태도 실패로 처리
     if action_result.get("status") == "not_implemented":
         return (
             {
@@ -458,13 +400,7 @@ def _apply_rule_based_qa(
     cost_ok, cost_detail = _check_cost_sla(state)
     avail_ok, avail_detail = _check_availability_sla(state)
 
-    # 2026-09-14 버그 수정: 이 함수는 모든 분기에서 tuple을 반환해서 qa_node의
-    # `if rule_result is not None` 조건이 항상 참이 되고, 그 아래 LLM 기반 QA
-    # (_call_llm_qa, "모호한 케이스"를 처리하도록 설계된 폴백)가 실제로는 한 번도
-    # 호출되지 않는 죽은 코드였다(실측 확인). 규칙 기반 체크가 판단할 데이터 자체가
-    # 부족해서 "일단 통과"로 낙관 처리한 경우(_check_cpu_sla/_check_cost_sla가
-    # "지표 없음"/"데이터 부족"으로 자동 True를 준 경우)는 규칙만으로 확신할 수 없는
-    # 모호한 케이스이므로, 여기서 None을 반환해 LLM 검증으로 위임한다.
+    # 데이터 부족으로 판단 불가 시 LLM 검증으로 위임
     ambiguous = "체크할 트리거 지표 없음" in cpu_detail or "데이터 부족" in cost_detail
     if ambiguous:
         return None
@@ -620,7 +556,7 @@ def _trigger_rollback(state: PipelineState, qa_reasoning: str) -> str:
     QA 실패 확정 시 pre_action_snapshot으로 즉시 롤백을 실행한다.
     (A안: 실행 실패/SLA 위반 구분 없이 항상 동일하게 롤백한다)
 
-    ⚠️ action_result에 "이 액션은 이후 롤백되었다"는 사실을 명확히 남긴다.
+    action_result에 "이 액션은 이후 롤백되었다"는 사실을 명확히 남긴다.
        action_result는 schema/state.py에서 Optional[dict]로만 선언돼 있어
        (필드 구조가 고정된 TypedDict가 아님) 스키마 필드명을 바꾸지 않고도
        아래 키들을 안전하게 추가할 수 있다:

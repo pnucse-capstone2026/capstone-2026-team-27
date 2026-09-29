@@ -18,7 +18,7 @@ lambda_retry_repeated_trial.py("에러로 인한 재시도" 시나리오)와 동
   맞춰서, 스로틀 폭증 오탐(FP)이 "호출량 자체" 때문이 아니라 "동시성 소진"
   때문에만 나는지 확인할 수 있게 했다.
 
-⚠️ 완전한 독립시행은 아님: 13개 함수가 서로 다르므로 함수 간 독립은 보장되고
+완전한 독립시행은 아님: 13개 함수가 서로 다르므로 함수 간 독립은 보장되고
    (같은 함수에 반복하는 것과 다름), 판정도 각자 CloudWatch 지표 기준이라
    교차 오염은 없다. 다만 lambda_retry_repeated_trial.py처럼 "같은 조건으로
    n_rep회 반복"하는 방식은 아니고 n=1(함수당 1회)이라는 점은 감안할 것 —
@@ -165,7 +165,7 @@ def _burst_invoke(lam, function_name: str, invoke_pool: ThreadPoolExecutor) -> l
     """BURST_SIZE건 동시 호출을 N_BURSTS회, BURST_INTERVAL_SEC 간격으로 발사.
     anomaly/normal 공통 — 호출 패턴 자체는 완전히 동일하게 맞춘다.
 
-    ⚠️ 2026-09-13 수정: 함수마다(13개) 매번 새 ThreadPoolExecutor(40)를 만들면
+    2026-09-13 수정: 함수마다(13개) 매번 새 ThreadPoolExecutor(40)를 만들면
     13개가 동시에 돌 때 스레드가 13x40=520개까지 치솟아서 GIL 경합으로 거의
     멈추는 사고가 실제로 났다(단일 함수 테스트 때 40건에 15~20초였는데, 13개
     동시 실행에서는 몇 분째 함수당 4~5건만 나가고 멈춤을 실측으로 확인). 이제

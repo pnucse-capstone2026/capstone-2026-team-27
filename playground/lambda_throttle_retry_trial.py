@@ -4,7 +4,7 @@ playground/lambda_throttle_retry_trial.py
 Lambda "스로틀(429)/시스템 에러 재시도 폭증" 시나리오의 실 AWS 종단 검증
 (계획서 C/F 항목 — 2026-09-12 계획서 참고).
 
-⚠️ lambda_retry_repeated_trial.py("에러로 인한 재시도" 시나리오)와는 완전히 다른
+lambda_retry_repeated_trial.py("에러로 인한 재시도" 시나리오)와는 완전히 다른
 메커니즘이다. 그쪽은 함수 코드가 예외를 던져서 생기는 재시도(최대 2회, ~3분,
 invocation_count/error_count에 그대로 잡힘)를 다루고, 이 스크립트는 "동시성 소진으로
 인한 스로틀" 재시도(정해진 횟수 없음, 최대 6시간)를 다룬다 — AWS 공식 문서 확인:
@@ -72,7 +72,7 @@ from playground.measure_pipeline_timing import measure
 
 AWS_REGION = "ap-northeast-2"
 
-# ⚠️ 2026-09-13 실측으로 발견: .env의 AWS_PROFILE(detection-runtime, DetectionRuntimeRole)은
+# 2026-09-13 실측으로 발견: .env의 AWS_PROFILE(detection-runtime, DetectionRuntimeRole)은
 # 프로덕션 파이프라인이 실제로 필요한 권한(PutFunctionConcurrency 등, Throttle 액션)만
 # 최소권한으로 갖고 있어서 lambda:*FunctionEventInvokeConfig 권한이 없다 — 이건 테스트
 # 하네스가 재시도 시간을 단축하려고 쓰는 설정일 뿐 프로덕션 액션이 아니므로 애초에
@@ -123,7 +123,7 @@ def _snapshot_path(function_name: str) -> Path:
 
 def _snapshot(lam, function_name: str) -> dict:
     """현재 상태를 조회한다 — "원래 상태"가 아니라 호출 시점의 현재 상태다.
-    ⚠️ 2026-09-13 버그로 발견: 원복 시점에 이 함수를 다시 불러서 "현재 값"을
+    2026-09-13 버그로 발견: 원복 시점에 이 함수를 다시 불러서 "현재 값"을
     "원래 값"으로 오인하면 안 된다 — 그 사이 프로덕션 액션(Throttle)이 값을
     바꿔놨을 수 있다(실제로 1->5로 바뀐 뒤 원복이 "5가 원래 값"이라고 착각해
     그대로 둔 사고가 있었음). 그래서 원복은 반드시 induce_throttle_storm()이

@@ -1,21 +1,12 @@
 """
-pipeline/logging_agent.py (박소영)
+Logging Agent (Audit Log)
 
-3.3.6 Logging Agent (Audit Log)
-- 전체 에이전트 실행 과정/결과를 PostgreSQL 기반 Audit Log로 기록.
-- 테이블 3개:
-    agent_runs  : 파이프라인 실행 1회 = 1행 (리소스/이상유형/액션/리스크/QA 결과 요약)
-    agent_steps : 실행 중 거친 각 단계(detection/classification/decision/action/qa) 1행씩
-    action_log  : 실제로 액션이 실행된 경우의 상세 기록 (전/후 스냅샷, 성공 여부)
+PostgreSQL 기반 실행 로그 기록.
 
-⚠️ Grafana 시각화는 지금 단계에서 만들지 않음.
-   - 아직 AWS 미연동이라 비용 추이/탐지 빈도 등이 실데이터를 반영 못 함
-   - Grafana는 별도 서버/인프라가 필요한 운영 단계 작업
-   - 대신 나중에 바로 쓸 수 있는 패널용 SQL은 grafana_dashboard_queries.sql에 미리 정리해둠
-
-⚠️ agent_steps.duration_ms(단계별 지연 시간)는 현재 NULL.
-   각 agent 노드가 자기 시작/종료 시각을 state에 남기지 않고 있어서 아직 측정 불가.
-   팀에서 instrumentation(타이밍 기록) 추가하면 그때 채울 수 있음 — 대화로 따로 제안.
+테이블:
+  - agent_runs: 파이프라인 실행 1회 = 1행
+  - agent_steps: 각 단계(detection/classification/decision/action/qa) 기록
+  - action_log: 실제 액션 실행 상세 (전/후 스냅샷, 성공 여부)
 """
 
 from __future__ import annotations
@@ -210,7 +201,7 @@ def _build_step_records(state: PipelineState) -> list[dict[str, Any]]:
             "step_name":   step_name,
             "status":      status,
             "output":      output,
-            "duration_ms": None,  # TODO: timing instrumentation 추가 후 채움
+            "duration_ms": None,
         })
     return records
 
@@ -323,14 +314,7 @@ def logging_node(state: PipelineState) -> PipelineState:
             logger.info("[logging_node] DB 저장 성공 (run_id=%s)", run_id)
         except Exception as e:
             conn.rollback()
-            # ⚠️ 2026-09-13 발견: 여기가 print()였을 때, Windows cp949 콘솔에서
-            # 메시지의 "—"(em dash)를 인코딩 못 해 UnicodeEncodeError로 죽었다.
-            # 그러면 이 except가 "원인 파악용으로 출력만 하고 넘어가는" 원래
-            # 의도와 반대로, 예외가 measure() 호출 전체를 타고 올라가 파이프라인이
-            # 통째로 죽어버렸다(Lambda 13개 반복시행에서 13개 전부 이렇게 유실됨).
-            # logging 모듈은 인코딩 불가 문자를 만나도 콘솔 출력에서 죽지 않는 걸
-            # 이 세션 내내 확인했으므로 print 대신 logger를 쓴다.
-            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계) — 원인: %r", e)
+            logger.error("[logging_node] DB 저장 실패 (INSERT/DDL 단계): %r", e)
         finally:
             conn.close()
     except Exception as e:

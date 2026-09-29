@@ -35,7 +35,7 @@ MOCK_DATA_DIR = PROJECT_ROOT / "playground" / "mock_data"
 
 # resource_type -> train 파일. RDS는 아직 데이터 없어서 제외.
 #
-# ⚠️ Lambda만 원본(lambda_train.json, 팀원 제공)이 아니라 throttle_count/
+# Lambda만 원본(lambda_train.json, 팀원 제공)이 아니라 throttle_count/
 # async_event_age 베이스라인을 덧붙인 사본(lambda_train_with_throttle_baseline.json,
 # _tmp_augment_lambda_train.py로 생성)을 쓴다 — 2026-09-14 실측으로 확인: 원본엔
 # 이 두 컬럼이 아예 없어서(항상 0/mask=0) IsolationForest가 이 피처로 전혀 분할을

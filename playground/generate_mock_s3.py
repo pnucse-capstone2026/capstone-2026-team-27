@@ -128,7 +128,7 @@ def generate_normal_s3_window(window_id: str, start_hour: int, day_of_week: int 
 def generate_anomaly_s3_window(window_id: str, start_hour: int, day_of_week: int = 0) -> dict:
     """이상 S3 윈도우 생성 (대량다운로드 폭증).
 
-    ⚠️ 배율(4~6배) 산정 근거: AWS 공식 문서나 실제 공격 사례 통계가 아니라,
+    배율(4~6배) 산정 근거: AWS 공식 문서나 실제 공격 사례 통계가 아니라,
     "우리 탐지 알고리즘의 Z-score 임계값(2.75)을 확실히 넘기려면 얼마나 커야
     하는가"를 역산한 값이다 (generate_mock_lambda.py와 동일한 방식).
 

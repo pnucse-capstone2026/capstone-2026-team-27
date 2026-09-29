@@ -4,11 +4,11 @@ playground/measure_pipeline_timing.py
 파이프라인 전체(Detection -> Classification -> Decision -> Action -> QA -> Logging)를
 실제 리소스 하나에 처음부터 끝까지 돌려서 단계별 + 총 소요시간을 실측한다.
 
-⚠️ QA_agent.py에 액션 후 5분 대기+실측 재조회(POST_ACTION_WAIT_SECONDS)가 추가된
+QA_agent.py에 액션 후 5분 대기+실측 재조회(POST_ACTION_WAIT_SECONDS)가 추가된
 이후로는 "액션이 실제로 실행되는 케이스"의 전체 파이프라인 시간이 예전(초 단위)과
 완전히 달라진다 — 이 스크립트가 그 실제 소요시간을 잰다.
 
-⚠️ risk_level=HIGH인 액션(예: S3 Block)은 원래 requires_approval=True라서
+risk_level=HIGH인 액션(예: S3 Block)은 원래 requires_approval=True라서
 action_node가 실제 실행을 안 하고 "pending_approval"로 멈춘다. 이러면 Action/QA
 단계 시간을 잴 수가 없으므로, 이 스크립트는 **타이밍 측정 목적으로만** 승인
 게이트를 우회한다(state["requires_approval"]=False로 직접 덮어씀 — action_agent.py나

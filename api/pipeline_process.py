@@ -53,12 +53,7 @@ def _read_state() -> dict:
 
 def _is_our_process(pid: int) -> bool:
     """PID 재사용(다른 프로그램이 같은 PID를 새로 받은 경우) 오판 방지 — cmdline에
-    run_full_pipeline.py가 있는 프로세스인지 확인.
-
-    [임시 - 2026-09-20, 사용자 요청] mock_demo_pipeline.py(영상 시연용 재생
-    스크립트)도 여기 포함시켰다 - 데모 스크립트를 돌리는 동안 사이드바
-    RUNNING 배지도 같이 반응하게 하려는 용도. 진짜 운영 파이프라인 여부를
-    보장하는 목적이라면 빼야 함."""
+    run_full_pipeline.py가 있는 프로세스인지 확인."""
     try:
         proc = psutil.Process(pid)
         return any(

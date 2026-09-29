@@ -3,7 +3,7 @@ playground/visualize_s3_repeated_trial.py
 
 s3_repeated_trial.py의 결과 JSON을 읽어 포스터/보고서용 차트 2종을 만든다.
 
-⚠️ 지표 종류에 따라 다른 그래프를 쓴다 (섞으면 안 됨 — 세션에서 논의된 이유):
+지표 종류에 따라 다른 그래프를 쓴다 (섞으면 안 됨 — 세션에서 논의된 이유):
   - 비율 지표(accuracy/recall/precision/FPR)는 이항분포이므로 정규근사 에러바가
     아니라 Clopper-Pearson 95% CI를 막대+구간으로 표시한다. n이 작고 0%/100%
     같은 극단값에서 정규근사는 100% 초과/음수 구간을 만들 수 있어 부적절하다.

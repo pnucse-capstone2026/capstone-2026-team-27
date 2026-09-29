@@ -21,7 +21,6 @@ export function clearStoredToken() {
   try {
     localStorage.removeItem(TOKEN_STORAGE);
   } catch {
-    // no-op
   }
 }
 
@@ -98,7 +97,6 @@ export const api = {
   approveQueueItem: (id) => request(`/queue/${id}/approve`, { method: "POST" }),
   rejectQueueItem: (id) => request(`/queue/${id}/reject`, { method: "POST" }),
 
-  // Rules - 새 API 형식
   getRules: async () => {
     const data = await request("/rules");
     // classification + decision을 합쳐서 flat array로 반환
@@ -131,7 +129,6 @@ export const api = {
   deleteRule: (id) => request(`/rules/${id}`, { method: "DELETE" }),
   toggleRule: (id) => request(`/rules/${id}/toggle`, { method: "PATCH" }),
 
-  // Whitelist - 새 API 형식
   getWhitelist: async () => {
     const data = await request("/whitelist");
     return data.map(e => ({

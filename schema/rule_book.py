@@ -79,10 +79,7 @@ class WhitelistEntry(TypedDict):
                                    # 이벤트/시간대와 무관한 화이트리스트가 EDoS 판정에 영향 주지 않게 구분
     effective_from: Optional[str]  # None이면 created_at부터 즉시 유효 (이벤트 기간 등록 시 시작일 지정)
     expires_at: Optional[str]     # None이면 영구
-    # 2026-09-13 추가: category="recurring_hours"일 때만 쓰는 "매일 반복되는 시간대"
-    # 필드 - effective_from/expires_at(날짜 범위)과 별개로, 매일 특정 시:분 사이만
-    # 예외 처리한다(예: 매일 22:00~06:00 야간은 EDoS 탐지 제외). daily_end_hour가
-    # daily_start_hour보다 작으면 자정을 넘기는 것으로 취급(22시~6시 같은 경우).
+    # recurring_hours용: 매일 반복 시간대 (자정 넘김 지원, end < start면 야간)
     daily_start_hour: Optional[int]  # 0~23, UTC 기준
     daily_end_hour: Optional[int]    # 0~23, UTC 기준
     created_at: str

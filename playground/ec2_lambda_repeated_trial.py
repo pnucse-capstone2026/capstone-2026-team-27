@@ -14,7 +14,7 @@ TP/TN/FP/FN, accuracy, recall(+ Clopper-Pearson 95% CI)을 계산한다.
 - 시행마다 부하량에 ±노이즈를 줘서 동일 반복이 되지 않게 한다.
 - 신뢰구간은 Clopper-Pearson 정확 이항 신뢰구간(양측 95%).
 
-⚠️ 팀원 스크립트와의 중요한 차이 — 판정 로직을 두 가지로 나눠서 모두 기록한다:
+팀원 스크립트와의 중요한 차이 — 판정 로직을 두 가지로 나눠서 모두 기록한다:
   (a) teammate_compat : _zscore_max(창 최댓값) + _iforest_score(마지막 1개 시점).
       s3_repeated_trial.py / phase_g_real_world_validation.py가 쓰는 방식.
       phase_g가 2026-08-25에 작성된 뒤 2026-08-28에 persistence가, 2026-09-08에

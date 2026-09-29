@@ -1,7 +1,7 @@
 """
 playground/seed_fake_action_scenario.py
 
-⚠️ 대시보드 데모/테스트 전용 — 실제 AWS 호출도, 실제 LLM 호출도 하지 않는다.
+대시보드 데모/테스트 전용 — 실제 AWS 호출도, 실제 LLM 호출도 하지 않는다.
 
 detection → classification → decision → action → qa 전체 그래프를 돌리지 않고,
 "액션까지 전부 성공한 것처럼" 이미 완성된 state를 직접 만들어서 logging_node()에만

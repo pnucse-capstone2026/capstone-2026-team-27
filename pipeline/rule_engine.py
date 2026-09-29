@@ -89,9 +89,7 @@ class RuleEngine:
                 except ValueError:
                     pass  # 파싱 실패 시 무시
 
-            # 2026-09-13 추가: category="recurring_hours"면 effective_from/expires_at
-            # (날짜 범위)과 별개로, "매일 이 시:분 사이"인지도 확인한다(예: 매일 22~06시
-            # 야간). daily_end_hour < daily_start_hour면 자정을 넘기는 구간으로 취급.
+            # recurring_hours: 매일 반복되는 시간대 체크
             if entry.get("category") == "recurring_hours":
                 start_h = entry.get("daily_start_hour")
                 end_h = entry.get("daily_end_hour")
@@ -211,7 +209,7 @@ class RuleEngine:
         # "요청자 집중"/"에러 동반"은 인프라가 없어 스코프 밖이지만, "알려진 이벤트
         # 기간인지"는 whitelist.json에 category="event_period"로 미리 등록해두는
         # 것으로 대체한다 — 세일 등으로 예정된 트래픽 증가를 EDoS로 오탐하지 않게 함.
-        # ⚠️ 화이트리스트엔 "개발서버 제외" 같은 이벤트와 무관한 항목도 있으므로,
+        # 화이트리스트엔 "개발서버 제외" 같은 이벤트와 무관한 항목도 있으므로,
         # category가 정확히 "event_period"인 항목에 매칭될 때만 예외 처리한다 —
         # 화이트리스트 매칭 여부 자체만으로 판단하지 않는다.
         if conditions.get("skip_if_whitelisted"):
