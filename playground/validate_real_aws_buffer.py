@@ -11,11 +11,11 @@ CloudWatch 데이터 기준으로 기록한다.
   낮/밤·평일/주말 패턴과 시점 간 자기상관이 있어서 합성 데이터와 통계적 성질이
   다르다 — 이 스크립트로 실제 데이터에서는 채택률/오탐률이 어떻게 나오는지 확인한다.
 
-⚠️ 실제 AWS API를 호출한다 (CloudWatch GetMetricData, EC2/Lambda/ASG 설명 조회 등 — 전부
+실제 AWS API를 호출한다 (CloudWatch GetMetricData, EC2/Lambda/ASG 설명 조회 등 — 전부
    읽기 전용). detection_node()만 직접 호출하고 classification/decision/action/qa는
    거치지 않으므로 실제 Stop/Throttle 같은 조치는 절대 실행되지 않는다.
 
-⚠️ 모델 캐시는 기본적으로 이 검증 전용 디렉토리(.validation_models_real_aws)를 쓴다 —
+모델 캐시는 기본적으로 이 검증 전용 디렉토리(.validation_models_real_aws)를 쓴다 —
    실제 운영 중인 models/ 버퍼에 영향 안 주려는 것. 운영 중인 실제 버퍼 자체를 보고
    싶으면 PIPELINE_MODEL_DIR 환경변수를 운영과 동일하게 맞춰서 실행하면 된다.
 

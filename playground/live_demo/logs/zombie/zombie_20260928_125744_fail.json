@@ -1,0 +1,24 @@
+{
+  "scenario_key": "zombie",
+  "resource_id": "i-0bdf42c66d4a8a6eb",
+  "resource_type": "EC2",
+  "run_started_at": "2026-09-28T12:57:44.420783+00:00",
+  "run_ended_at": "2026-09-28T12:57:44.562193+00:00",
+  "elapsed_seconds_total": 0.14,
+  "step_timings_ms": {
+    "detection": 14
+  },
+  "estimated_cost_usd": 0.021,
+  "anomaly_flag": false,
+  "anomaly_score_zscore": 1.0276,
+  "anomaly_score_iforest": 0.0266,
+  "triggered_metrics": [],
+  "ec2_utilization_band": null,
+  "anomaly_type": null,
+  "selected_action": null,
+  "risk_level": null,
+  "requires_approval": false,
+  "action_result": null,
+  "qa_passed": null,
+  "rollback_count": 0
+}

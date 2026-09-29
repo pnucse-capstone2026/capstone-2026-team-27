@@ -1,0 +1,43 @@
+2026-09-13 01:12:24,151 [INFO] 로그 파일: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_zombie_real_pipeline_trial_20260913_011224.log
+2026-09-13 01:12:25,319 [INFO] [i-00f27d6650869a74d] IAM instance profile 연결 완료
+2026-09-13 01:12:25,751 [INFO] [i-094595e331b19be17] IAM instance profile 이미 연결됨 — 스킵
+2026-09-13 01:12:26,899 [INFO] [i-0238a05593fbcf2f2] IAM instance profile 연결 완료
+2026-09-13 01:12:27,243 [INFO] [i-046cbf400dd6dc9d7] IAM instance profile 연결 완료
+2026-09-13 01:12:27,582 [INFO] [i-013a9d143009d1376] IAM instance profile 연결 완료
+2026-09-13 01:12:27,992 [INFO] [i-0e810265b88caeac5] IAM instance profile 연결 완료
+2026-09-13 01:12:28,317 [INFO] [i-0cd6cf73f56959d2e] IAM instance profile 연결 완료
+2026-09-13 01:12:28,645 [INFO] [i-07c77db4628d7e7ca] IAM instance profile 연결 완료
+2026-09-13 01:12:29,014 [INFO] [i-04cec80c3045da327] IAM instance profile 연결 완료
+2026-09-13 01:12:29,360 [INFO] [i-0380a0b372a973a5c] IAM instance profile 연결 완료
+2026-09-13 01:12:29,750 [INFO] [i-053230c6e903132f8] IAM instance profile 연결 완료
+2026-09-13 01:12:30,205 [INFO] [i-01aed37041b8e6946] IAM instance profile 연결 완료
+2026-09-13 01:12:30,626 [INFO] [i-0973aa83fa2ba0dd9] IAM instance profile 연결 완료
+2026-09-13 01:12:32,044 [INFO] 전체 13대 시작 요청 완료
+2026-09-13 01:12:47,529 [INFO] 전체 13대 running 상태 도달
+2026-09-13 01:12:48,294 [INFO] [i-0238a05593fbcf2f2] SSM 등록 확인
+2026-09-13 01:12:48,294 [INFO] [i-053230c6e903132f8] SSM 등록 확인
+2026-09-13 01:12:48,295 [INFO] [i-04cec80c3045da327] SSM 등록 확인
+2026-09-13 01:12:48,295 [INFO] [i-01aed37041b8e6946] SSM 등록 확인
+2026-09-13 01:12:48,295 [INFO] [i-0cd6cf73f56959d2e] SSM 등록 확인
+2026-09-13 01:12:48,296 [INFO] [i-0e810265b88caeac5] SSM 등록 확인
+2026-09-13 01:12:48,296 [INFO] [i-094595e331b19be17] SSM 등록 확인
+2026-09-13 01:12:48,296 [INFO] [i-013a9d143009d1376] SSM 등록 확인
+2026-09-13 01:12:48,297 [INFO] [i-046cbf400dd6dc9d7] SSM 등록 확인
+2026-09-13 01:12:48,297 [INFO] [i-0380a0b372a973a5c] SSM 등록 확인
+2026-09-13 01:12:48,297 [INFO] [i-0973aa83fa2ba0dd9] SSM 등록 확인
+2026-09-13 01:12:48,297 [INFO] [i-07c77db4628d7e7ca] SSM 등록 확인
+2026-09-13 01:12:48,298 [INFO] [i-00f27d6650869a74d] SSM 등록 확인
+2026-09-13 01:12:48,298 [INFO] [i-00f27d6650869a74d] anomaly(silent) — 부하 없음, 유휴 상태 유지
+2026-09-13 01:12:48,298 [INFO] [i-094595e331b19be17] anomaly(silent) — 부하 없음, 유휴 상태 유지
+2026-09-13 01:12:48,298 [INFO] [i-0238a05593fbcf2f2] anomaly(whisper) — 부하 없음, 유휴 상태 유지
+2026-09-13 01:12:48,299 [INFO] [i-046cbf400dd6dc9d7] anomaly(whisper) — 부하 없음, 유휴 상태 유지
+2026-09-13 01:12:48,299 [INFO] [i-013a9d143009d1376] anomaly(whisper_more) — 부하 없음, 유휴 상태 유지
+2026-09-13 01:12:48,387 [INFO] [i-0e810265b88caeac5] 부하 주입 시작 (profile=light, command_id=f996d9cf-b5bf-4762-b432-33c8b4577280, 14400초간)
+2026-09-13 01:12:48,463 [INFO] [i-0cd6cf73f56959d2e] 부하 주입 시작 (profile=light, command_id=9505c605-fd94-4a2f-bbe4-ee45eb43c933, 14400초간)
+2026-09-13 01:12:48,546 [INFO] [i-07c77db4628d7e7ca] 부하 주입 시작 (profile=moderate, command_id=01b386e3-1c96-4189-a2f3-6f468e034ca8, 14400초간)
+2026-09-13 01:12:48,626 [INFO] [i-04cec80c3045da327] 부하 주입 시작 (profile=moderate, command_id=796d4d7e-cba2-4fa0-99a2-88c03765f7f1, 14400초간)
+2026-09-13 01:12:48,701 [INFO] [i-0380a0b372a973a5c] 부하 주입 시작 (profile=heavy, command_id=5fb74c33-4c6c-46d3-aec6-af8c487508ea, 14400초간)
+2026-09-13 01:12:48,749 [INFO] [i-053230c6e903132f8] 부하 주입 시작 (profile=heavy, command_id=0b058582-8452-4605-95be-93d8dcc0c5d3, 14400초간)
+2026-09-13 01:12:48,799 [INFO] [i-01aed37041b8e6946] 부하 주입 시작 (profile=bursty, command_id=d5563525-0998-4c31-b70b-576a508b7283, 14400초간)
+2026-09-13 01:12:48,896 [INFO] [i-0973aa83fa2ba0dd9] 부하 주입 시작 (profile=bursty, command_id=619c019a-a288-4d27-aadd-5efab0f005e1, 14400초간)
+2026-09-13 01:12:48,896 [INFO] 10800초(3.0시간) 대기 — 나이 가드 통과 + 부하 누적...

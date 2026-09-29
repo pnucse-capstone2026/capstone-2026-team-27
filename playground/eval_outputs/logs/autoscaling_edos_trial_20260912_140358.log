@@ -1,0 +1,6 @@
+2026-09-12 14:03:58,343 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_trial_20260912_140358.log (SCRIPT_VERSION=2)
+2026-09-12 14:03:59,745 [INFO] 예상 최대 동시 인스턴스 36대 (기존 13 + 이번 23)
+2026-09-12 14:03:59,745 [INFO]   vCPU: 72 (쿼터 64)
+2026-09-12 14:03:59,746 [INFO]   EBS: 288GB (프리티어 30GB) -> 초과분은 시간비례 과금
+2026-09-12 14:03:59,746 [INFO]   인스턴스-시간: 약 74.8 (프리티어 월 750시간)
+2026-09-12 14:03:59,758 [WARNING] 프리티어 EC2/EBS는 계정 생성 후 12개월만 적용됨 — 12개월 초과 계정이면 위 한도가 없고 전부 과금됨. Billing 콘솔에서 확인할 것.

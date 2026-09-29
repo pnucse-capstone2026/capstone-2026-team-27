@@ -1,0 +1,73 @@
+{
+  "source_result_file": "playground\\eval_outputs\\ec2_zombie_replay_trial__n8-5_scriptv1_20260910.json",
+  "zscore_standalone_approx": {
+    "confusion_matrix": {
+      "TP": 0,
+      "FN": 5,
+      "FP": 6,
+      "TN": 2
+    },
+    "accuracy": 0.15384615384615385,
+    "accuracy_ci_95": [
+      0.019206671982528473,
+      0.45447105567655766
+    ],
+    "recall": 0.0,
+    "recall_ci_95": [
+      0.0,
+      0.5218237501049814
+    ],
+    "false_positive_rate": 0.75,
+    "fpr_ci_95": [
+      0.34914420558717585,
+      0.9681459737500557
+    ]
+  },
+  "iforest_standalone_approx": {
+    "confusion_matrix": {
+      "TP": 4,
+      "FN": 1,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 0.9230769230769231,
+    "accuracy_ci_95": [
+      0.6397025647321225,
+      0.9980543715026533
+    ],
+    "recall": 0.8,
+    "recall_ci_95": [
+      0.28358206388191054,
+      0.9949492366205319
+    ],
+    "false_positive_rate": 0.0,
+    "fpr_ci_95": [
+      0.0,
+      0.36941664755281917
+    ]
+  },
+  "ensemble_actual": {
+    "confusion_matrix": {
+      "TP": 5,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    },
+    "accuracy": 1.0,
+    "accuracy_ci_95_clopper_pearson": [
+      0.752947361999529,
+      1.0
+    ],
+    "recall": 1.0,
+    "recall_ci_95_clopper_pearson": [
+      0.47817624989501856,
+      1.0
+    ],
+    "precision": 1.0,
+    "false_positive_rate": 0.0,
+    "fpr_ci_95_clopper_pearson": [
+      0.0,
+      0.36941664755281917
+    ]
+  }
+}

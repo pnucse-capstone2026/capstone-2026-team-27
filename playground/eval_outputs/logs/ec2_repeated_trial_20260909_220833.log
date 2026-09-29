@@ -1,0 +1,3 @@
+2026-09-09 22:08:33,383 [INFO] 로그: C:\Detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260909_220833.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-09 22:08:33,384 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===
+2026-09-09 22:08:33,384 [WARNING] 아직 측정 가능 시점이 아닙니다(나이가드 2.5시간 미충족). 61.7분 더 대기 필요 (기준 2026-09-09T14:10:16+00:00).

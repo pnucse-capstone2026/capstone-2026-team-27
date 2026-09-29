@@ -1,0 +1,175 @@
+2026-09-11 20:59:48,869 [INFO] 로그: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\ec2_repeated_trial_20260911_205948.log (SCRIPT_VERSION=1, scenario=ec2)
+2026-09-11 20:59:48,870 [INFO] === EC2 좀비: 매니페스트 기반 인스턴스별 1회 측정 ===
+2026-09-11 20:59:48,873 [INFO] [anomaly i-018cb1f361adb89e8] 측정 시작 (profile=target_cpu_12.0pct, age=15620s)
+2026-09-11 20:59:48,883 [INFO] [anomaly i-043ad8f8ff784936e] 측정 시작 (profile=target_cpu_12.0pct, age=15620s)
+2026-09-11 20:59:48,896 [INFO] [anomaly i-052f85ca490476138] 측정 시작 (profile=target_cpu_12.0pct, age=15620s)
+2026-09-11 20:59:48,897 [INFO] [anomaly i-0e7bbc6f947db83d9] 측정 시작 (profile=target_cpu_12.0pct, age=15620s)
+2026-09-11 20:59:48,899 [INFO] [anomaly i-0557e969014023641] 측정 시작 (profile=target_cpu_12.0pct, age=15620s)
+2026-09-11 20:59:48,899 [INFO] [normal i-00bcf958a64f0113a] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,901 [INFO] [normal i-07136de010b09d0aa] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,903 [INFO] [normal i-0b8b354431850c90b] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,906 [INFO] [normal i-052aafedee6d81a0a] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,908 [INFO] [normal i-0f32adb755ab150ff] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,910 [INFO] [normal i-0cc774f725222d838] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,912 [INFO] [normal i-034e381688cfb1cc1] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:48,913 [INFO] [normal i-0d2c602df9fe8e1a9] 측정 시작 (profile=target_cpu_45.0pct, age=15618s)
+2026-09-11 20:59:58,673 [ERROR] [i-0557e969014023641] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,674 [ERROR] [i-052f85ca490476138] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,675 [ERROR] [i-00bcf958a64f0113a] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,676 [ERROR] [i-018cb1f361adb89e8] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,676 [ERROR] [i-0f32adb755ab150ff] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,676 [ERROR] [i-034e381688cfb1cc1] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,728 [ERROR] [i-0d2c602df9fe8e1a9] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,757 [ERROR] [i-0b8b354431850c90b] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,798 [ERROR] [i-052aafedee6d81a0a] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,809 [ERROR] [i-0cc774f725222d838] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,824 [ERROR] [i-07136de010b09d0aa] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,879 [ERROR] [i-0e7bbc6f947db83d9] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,880 [ERROR] [i-043ad8f8ff784936e] 실패: 단가 미등록 EC2 인스턴스 타입: t3.small
+Traceback (most recent call last):
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 279, in one
+    res = detect_both("EC2", inst["instance_id"], resource_age_seconds=age)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\ec2_lambda_repeated_trial.py", line 157, in detect_both
+    usage_with_cost["cost"] = estimate_cost_series(resource_type, resource_id, usage)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 236, in estimate_cost_series
+    cost_per_period = estimate_ec2_cost(instance_type, hours_per_period)
+  File "C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\pipeline\cost_estimator.py", line 70, in estimate_ec2_cost
+    raise ValueError(f"단가 미등록 EC2 인스턴스 타입: {instance_type}")
+ValueError: 단가 미등록 EC2 인스턴스 타입: t3.small
+
+2026-09-11 20:59:58,882 [INFO] [production(detection_node 실제 방식)] TP=0 TN=0 FP=0 FN=0 / accuracy=N/A recall=N/A
+2026-09-11 20:59:58,883 [INFO] [iforest_only(persistence 적용)] TP=0 TN=0 FP=0 FN=0 / accuracy=N/A recall=N/A
+2026-09-11 20:59:58,883 [INFO] [teammate_compat(낡은 헬퍼 방식)] TP=0 TN=0 FP=0 FN=0 / accuracy=N/A recall=N/A
+2026-09-11 20:59:58,887 [INFO] 결과 저장: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\ec2_repeated_trial__n0-0_scriptv1_20260911.json

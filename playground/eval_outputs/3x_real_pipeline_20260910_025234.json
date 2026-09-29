@@ -1,0 +1,132 @@
+{
+  "generated_at": "2026-09-09T17:52:34.061425+00:00",
+  "n": 3,
+  "pipeline_timing_sec": {
+    "values": [
+      300.5972800254822,
+      300.63354659080505,
+      300.67095494270325
+    ],
+    "mean": 300.63392718633014,
+    "sd": 0.03683893316313805
+  },
+  "predicted_saving_usd": {
+    "values": [
+      0.006197,
+      0.005294,
+      0.005811
+    ],
+    "mean": 0.0057673333333333335,
+    "sd": 0.0004530809346389819,
+    "note": "예측치(decision 시점) - 실측 검증은 별도로 verify_cost_predictions.py 필요"
+  },
+  "raw_results": [
+    {
+      "resource_id": "detection-trial-anomaly-1",
+      "resource_type": "S3",
+      "anomaly_flag": true,
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "risk_level": "HIGH",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.029268503189086914,
+        "classification": 0.0,
+        "decision": 0.010565757751464844,
+        "action": 0.29464292526245117,
+        "qa": 300.1226327419281,
+        "logging": 0.004132747650146484,
+        "total": 300.5972800254822
+      },
+      "induce_and_run_elapsed_sec": 1201.9808194637299
+    },
+    {
+      "resource_id": "detection-trial-anomaly-0",
+      "resource_type": "S3",
+      "anomaly_flag": true,
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "risk_level": "HIGH",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.01834583282470703,
+        "classification": 0.013246536254882812,
+        "decision": 0.020682811737060547,
+        "action": 0.2951807975769043,
+        "qa": 300.140376329422,
+        "logging": 0.01418924331665039,
+        "total": 300.63354659080505
+      },
+      "induce_and_run_elapsed_sec": 1202.0047690868378
+    },
+    {
+      "resource_id": "detection-trial-anomaly-3",
+      "resource_type": "S3",
+      "anomaly_flag": true,
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "risk_level": "HIGH",
+      "approval_bypassed_for_timing": true,
+      "qa_passed": true,
+      "timings": {
+        "detection": 0.03166699409484863,
+        "classification": 0.0,
+        "decision": 0.016417264938354492,
+        "action": 0.3346428871154785,
+        "qa": 300.1573712825775,
+        "logging": 0.0030393600463867188,
+        "total": 300.67095494270325
+      },
+      "induce_and_run_elapsed_sec": 1202.0471606254578
+    }
+  ],
+  "cost_prediction_entries": [
+    {
+      "trace_id": "342ae017-41e8-4fec-9346-fc14b5d9e4b8",
+      "decided_at": "2026-09-09T17:47:33.544890Z",
+      "resource_id": "detection-trial-anomaly-0",
+      "resource_type": "S3",
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "matched_decision_rule_id": "DEC-004",
+      "risk_level": "HIGH",
+      "requires_approval": true,
+      "current_cost_usd": 0.006906,
+      "predicted_after_cost_usd": 0.000709,
+      "estimated_saving_usd": 0.006197,
+      "verified": null
+    },
+    {
+      "trace_id": "40ed3b50-5ae5-44a3-a2ac-a9c67440be4b",
+      "decided_at": "2026-09-09T17:47:33.559782Z",
+      "resource_id": "detection-trial-anomaly-3",
+      "resource_type": "S3",
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "matched_decision_rule_id": "DEC-004",
+      "risk_level": "HIGH",
+      "requires_approval": true,
+      "current_cost_usd": 0.006954,
+      "predicted_after_cost_usd": 0.00166,
+      "estimated_saving_usd": 0.005294,
+      "verified": null
+    },
+    {
+      "trace_id": "156ee73b-8255-4c52-ada9-ffb2f28ba141",
+      "decided_at": "2026-09-09T17:47:33.563828Z",
+      "resource_id": "detection-trial-anomaly-1",
+      "resource_type": "S3",
+      "anomaly_type": "risk_security",
+      "selected_action": "Block",
+      "matched_decision_rule_id": "DEC-004",
+      "risk_level": "HIGH",
+      "requires_approval": true,
+      "current_cost_usd": 0.007032,
+      "predicted_after_cost_usd": 0.001221,
+      "estimated_saving_usd": 0.005811,
+      "verified": null
+    }
+  ]
+}

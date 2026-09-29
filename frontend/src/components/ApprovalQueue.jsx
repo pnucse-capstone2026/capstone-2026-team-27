@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { card, colors, button, badgeStyle, SEVERITY_STYLES } from "../styles.js";
+import { formatUsdPerHour } from "../format.js";
 
 // decision_agent.py가 저장하는 원문은
 // "LLM boto3 스펙 기반 선택: 'Throttle' - <진짜 이유> (risk=MED, cost 1.68 -> 0.10 USD/hr, 절감액=1.58/hr)"
@@ -32,7 +33,7 @@ function QueueCard({ item, onApprove, onReject }) {
             {new Date(item.timestamp).toLocaleString("ko-KR")}
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#3b82f6" }}>
-            +${item.estimated_saving.toFixed(2)}/hr
+            +${formatUsdPerHour(item.estimated_saving)}/hr
           </div>
           <div style={{ fontSize: 11, color: colors.subtext }}>예상 절감</div>
         </div>

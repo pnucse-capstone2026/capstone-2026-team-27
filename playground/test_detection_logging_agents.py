@@ -63,7 +63,7 @@ def spike_at_end(n: int = 30, base: float = 50.0, noise: float = 2.0,
                  spike: float = 200.0) -> list[float]:
     """마지막 포인트에만 스파이크.
 
-    ⚠️ detection_node의 알림 판단은 이제 지속성 체크(최근 PERSISTENCE_WINDOW_POINTS개가
+    detection_node의 알림 판단은 이제 지속성 체크(최근 PERSISTENCE_WINDOW_POINTS개가
     전부 임계값을 넘어야 트리거, pipeline/detection_agent.py의 _zscore_check_persistent
     참고)라서, 이 헬퍼로 만든 "마지막 1개만 튄" 데이터는 트리거 여부 검증(anomaly_flag,
     triggered_metrics)에는 더 이상 못 쓴다 — 의도적으로 순간 노이즈로 걸러지는 케이스라서.
@@ -255,7 +255,7 @@ class TestDetectionAgent:
     def test_iforest_model_cache_reused(self, tmp_path, monkeypatch):
         """두 번째 호출에서 모델 파일을 재학습하지 않고 캐시 재사용.
 
-        ⚠️ 이 테스트는 이 세션의 지속성 체크 변경과 무관한 기존(pre-existing) 버그를
+        이 테스트는 이 세션의 지속성 체크 변경과 무관한 기존(pre-existing) 버그를
         고친 것 — 리소스 타입별 모델(iforest_EC2.pkl 등)이 아니라 통합 모델
         (iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl) 하나만 쓰도록 리팩토링된 지 오래인데
         (커밋 5423848 "refactor(detection-agent): unify isolation forest model"),

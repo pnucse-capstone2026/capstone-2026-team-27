@@ -26,12 +26,6 @@ load_dotenv()
 # LLM 판단 로그 경로
 LLM_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "logs", "llm_classification_log.jsonl")
 
-#llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
-# [REMOVED] llm = ChatGoogleGenerativeAI(...) / chain = prompt | llm
-# GEMINI_API_KEY 하나로 직접 호출하던 부분을 call_gemini()로 교체 (429 시
-# GEMINI_KEY_1/2/3 자동 순환). ChatPromptTemplate 대신 일반 문자열 템플릿을
-# .format()으로 렌더링해서 call_gemini(prompt: str)에 그대로 넘긴다.
-
 # 프롬프트 (str.format()과 동일한 {{ }} 이스케이프 규칙 사용)
 PROMPT_TEMPLATE = """
 당신은 AWS 클라우드 비용 이상 징후를 분류하는 전문가입니다.

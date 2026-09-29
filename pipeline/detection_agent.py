@@ -1,25 +1,26 @@
 """
-pipeline/detection_agent.py (박소영)
+Detection Agent (이상 탐지)
 
-3.3.1 Detection Agent (이상 탐지)
-- Z-score 기반 탐지 (단기 스파이크 대응) + Isolation Forest 탐지 (다변량 복합 드리프트 대응)
-  → 두 알고리즘을 병렬 적용하고 OR 앙상블로 결합.
+OR 앙상블 3가지 경로:
+  1. Z-score: 단기 스파이크 탐지
+  2. Isolation Forest: 다변량 복합 드리프트 탐지
+  3. EC2 저사용률: 좀비/오버프로비저닝 판정 (절대임계값 기반)
 
-⚠️ 현재 AWS 미연동 상태
-- 실제로는 CloudWatch에서 EC2/Lambda/S3/RDS 지표를 30분 슬라이딩 윈도우로 가져와야 하지만,
-  지금은 state["raw_metrics"]로 전달되는 윈도우 데이터를 그대로 사용한다.
-- Isolation Forest 모델은 리소스 타입별로 파일(pickle)에 캐싱해두고, "모델이 확신하는
-  정상 윈도우"만 골라 학습 버퍼에 누적하며 5개 쌓일 때마다 재학습한다 (자기참조 학습,
-  아래 학습 버퍼 섹션 참고). 타입당 최대 MAX_WINDOWS_PER_TYPE개만 유지하고 오래된
-  것부터 자동으로 교체(FIFO)하는 방식으로 concept drift에 대응한다 — 예전엔 24시간마다
-  버퍼 전체를 통째로 리셋하는 방식이었는데, 리셋될 때마다 콜드 스타트(창 1개 학습)로
-  되돌아가 정확도가 급락하는 문제가 있어 제거했다.
+주요 feature:
+  - ec2_idle_flag: EC2 유휴 상태 (IForest가 잘 못잡아서 별도 게이트 유지)
+  - lambda_error_rate: Lambda 에러 재시도 폭증
+  - throttle_rate: Lambda 스로틀(429) 재시도 폭증
+
+IForest 학습:
+  - 정상 판정된 윈도우를 버퍼에 누적 (타입당 최대 MAX_WINDOWS_PER_TYPE개)
+  - 5개 쌓일 때마다 재학습, FIFO로 오래된 것부터 교체
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import pickle
 import time
 from datetime import datetime, timezone
@@ -38,13 +39,31 @@ logger = logging.getLogger(__name__)
 # 합성 평가 데이터셋(435개) 기준 정확도가 76.78%에 머물러 80% 목표에 미달했던 것을,
 # "학습 버퍼를 리소스 타입당 다수 윈도우로 확장"(아래 학습 버퍼 섹션 참고)하면서
 # 재튜닝해 0.5 / 2.75로 변경 — 정확도 80.46%, 결합(다변량) 이상 탐지율 99.29% 확인.
-Z_SCORE_THRESHOLD = 2.75                     # k = 2.75 (기존 3.0)
-Z_SCORE_EPSILON = 1e-9                       # ε (분모 0 방지)
-IFOREST_THRESHOLD = 0.5                      # τ = 0.5 (기존 0.6)
-IFOREST_CONTAMINATION = 0.1                  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
+Z_SCORE_THRESHOLD = 2.75  # k = 2.75 (기존 3.0)
+Z_SCORE_EPSILON = 1e-9  # ε (분모 0 방지)
+IFOREST_THRESHOLD = 0.5  # τ = 0.5 (기존 0.6)
+IFOREST_CONTAMINATION = (
+    0.1  # 스코어의 창 내부 min-max 정규화 특성상 결과에 영향 없음 (Phase 5에서 확인)
+)
 IFOREST_RANDOM_STATE = 42
-IFOREST_MODEL_DIR = os.environ.get("PIPELINE_MODEL_DIR", "models")
+# [2026-09-28] 원래 상대경로("models")라서, 스크립트를 어느 cwd에서 실행하느냐에
+# 따라 완전히 다른 모델 파일을 썼다 — playground/real_demo/에서 cwd로 실행한
+# real_demo 스크립트들이 프로젝트 루트의 실제 학습된 모델 대신
+# playground/real_demo/models/ 밑에 콜드스타트로 새로 생긴 모델을 쓰고 있었음을
+# real_demo 실측 검증 중 발견(오늘 IForest 점수가 계속 이상하게 0에 붙던 원인 중
+# 하나로 추정). 이 파일(pipeline/detection_agent.py) 기준 프로젝트 루트에
+# 항상 고정되도록 절대경로로 변경.
+IFOREST_MODEL_DIR = os.environ.get(
+    "PIPELINE_MODEL_DIR",
+    str(pathlib.Path(__file__).resolve().parent.parent / "models"),
+)
 MIN_POINTS_FOR_IFOREST = 5
+
+# IForest가 트리거된 경우 SHAP 상위 몇 개 기여 지표를 state/DB에 남길지 (2026-09-14
+# 프로덕션 경로 연결). 관리자 화면에 근거로 보여주기엔 3~5개면 충분하고, 그 이상은
+# 오히려 "결정적 지표가 뭔지" 파악을 방해한다고 판단해 5로 설정 — 엄밀한 튜닝은
+# 아니고 관례적 선택.
+SHAP_TOP_N = 5
 
 # 알림 판단(지속성 체크)용: 최근 이만큼의 연속 시점이 전부 임계값을 넘어야 트리거.
 # period_seconds=300초(5분) 기준 3개 = 15분 — 순간적인 노이즈 튐 한 번에는 반응하지 않되,
@@ -53,39 +72,135 @@ MIN_POINTS_FOR_IFOREST = 5
 # `for: 15m` 관례와 유사한 수준)
 PERSISTENCE_WINDOW_POINTS = 3
 
-# ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
-MAX_WINDOWS_PER_TYPE = 30          # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
-RETRAIN_EVERY_N_NEW_WINDOWS = 5    # 새 윈도우가 이만큼 쌓일 때마다 재학습
-BUFFER_SCORE_MARGIN = 0.9          # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
-BUFFER_ZSCORE_MARGIN = 0.9         # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
-                                    # 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
+# ── EC2 저사용률(유휴) 체크 (절대임계값, 신규) ────────────────────────────────
+# 출처: AWS Compute Optimizer idle recommendations 기준
+#   https://docs.aws.amazon.com/compute-optimizer/latest/ug/view-idle-recommendations.html
+#   "peak CPU utilization < 5% AND network I/O < 5MB/day (14일 lookback)"
+#
+# 팀 논의로 확정한 단순화(2026-09-05, 시나리오 1 작업): 이 파이프라인은 14일치
+# 일별 데이터가 아니라 2.5시간(n_points=30 × period_seconds=300초, cloudwatch_client.py
+# 기본값) 슬라이딩 윈도우만 갖고 있어서, AWS의 "14일 중 4일 이상 지속" 조건을 그대로
+# 재현하지 않는다. 대신 "윈도우 전체(30포인트)가 처음부터 끝까지 임계값 이하"를
+# 지속성 조건으로 대체한 근사치다 — AWS 원문 기준을 그대로 적용한 게 아니라 우리
+# 시스템의 윈도우 스케일(2.5시간)로 축소 적용한 것임을 로그/문서에 명시할 것.
+# (참고로 "5%"는 Compute Optimizer 기준이고, "4일 이상"은 별개 체크인 Trusted
+# Advisor의 Low Utilization EC2 Instances 체크(CPU 10%대)에서 온 것이라 두 체크가
+# 섞여 있었음 — 이번에 5%(Compute Optimizer) 쪽으로 통일해서 채택.)
+EC2_IDLE_CPU_THRESHOLD_PCT = 5.0  # peak(윈도우 내 최댓값) 기준
 
-# Z-score는 "비용, 네트워크 입력, 호출 횟수, 인스턴스 수" 지표에 적용 (보고서 3.3.1).
+# ── EC2 오버프로비저닝 체크 (절대임계값, 신규) ─────────────────────────────────
+# 좀비(완전 유휴)와 별개로 "쓰긴 쓰는데 사양이 과한" 케이스를 구분한다.
+# AWS Compute Optimizer의 오버프로비저닝 판정은 percentile(P99.5/P90)+headroom
+# 조합이라 우리 스코프에서 그대로 재현하기 어렵다 — 대신 AWS의 두 공식 저사용률
+# 체크(Compute Optimizer idle 5%, Trusted Advisor Low Utilization 10%)를 참고해
+# 그 위에 안전 마진을 둔 20%를 자체 채택했다(실측으로 조정 가능, 팀 논의 2026-09-11).
+#   peak CPU ≤ 5%         → 좀비(zombie)         → Stop
+#   5% < peak CPU ≤ 20%   → 오버프로비저닝(overprovisioned) → Resize
+#   peak CPU > 20%         → 정상
+EC2_OVERPROVISION_CPU_THRESHOLD_PCT = 20.0
+
+_EC2_IDLE_NETWORK_IO_MB_PER_DAY = 5.0
+_EC2_IDLE_WINDOW_HOURS = (30 * 300) / 3600  # n_points × period_seconds 기본값 = 2.5시간
+# 5MB/day를 윈도우 길이에 비례 환산 (network_in/network_out은 Sum 스탯이라
+# 누적량이므로 비례식이 그대로 성립) → 약 546,133 bytes(~0.52MB)
+EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD = (
+    _EC2_IDLE_NETWORK_IO_MB_PER_DAY * 1024 * 1024 * (_EC2_IDLE_WINDOW_HOURS / 24)
+)
+
+# network_in + network_out 합산을 "network I/O"로 매핑 (AWS 정의상 in+out 합산이 일반적)
+EC2_IDLE_TARGET_METRICS = ("cpu_utilization", "network_in", "network_out")
+
+# ── Lambda 에러 재시도 폭증 체크 (절대임계값, 신규, 시나리오 4) ────────────────
+# 스코프: "에러로 인한 재시도 폭증"(Lambda 비동기 호출은 에러 시 기본 2회, 최대 6시간에
+# 걸쳐 재시도하며 이 추가 호출도 전부 과금됨)만 다룬다. AWS Lambda의 재귀 루프 감지
+# (X-Ray Lineage 헤더 기반 16회 초과 차단, RecursiveInvocationsDropped 지표)는 에러 없이도
+# 발생 가능한 별개 현상이라 이번 범위에서 제외 — 별도 시나리오로 분리하기로 팀 논의 확정
+# (2026-09-05). 출처: https://aws.amazon.com/blogs/compute/implementing-error-handling-for-aws-lambda-asynchronous-invocations/
+#
+# EC2 유휴 체크와 반대로 "윈도우 전체"가 아니라 "최근 k개 포인트"(PERSISTENCE_WINDOW_POINTS
+# 재사용, 기본 3개=15분) 지속 여부를 본다 — 유휴 탐지는 신생 리소스 오탐을 피하려고
+# 일부러 보수적으로(느리게) 설계했지만, 비용이 실시간으로 새는 재시도 폭증은 반대로
+# 빨리 반응하는 게 유리하기 때문 (설계 의도가 정반대).
+LAMBDA_ERROR_RATE_THRESHOLD = 0.5  # 50% — Lambda 기본 재시도 최대 2회 감안, 진짜 지속적
+# 장애면 호출의 절반 이상이 실패로 나타날 가능성이 높음.
+# 이보다 낮추면(예: 20%) 정상 서비스의 베이스라인 에러율
+# (외부 API 오류 등)까지 폭증으로 오탐할 위험이 커짐.
+
+# 노이즈 방지용 최소 호출수 게이트(포인트당). 베이스라인 에러율 5%인 정상 서비스가
+# 우연히 한 포인트에서 50% 이상 에러로 보일 확률: N=3이면 약 0.7%, N=5면 약 0.11%,
+# N=10이면 약 0.006% — 게다가 이 조건을 연속 3개 포인트(PERSISTENCE_WINDOW_POINTS)
+# 전부에서 요구하므로 최종 오탐 확률은 사실상 0에 수렴한다. N=10을 채택.
+LAMBDA_ERROR_RATE_MIN_INVOCATIONS = 10
+
+# ── Lambda 스로틀(429)/시스템 에러 재시도 폭증 feature (신규, 2026-09-12) ────────
+# 위 LAMBDA_ERROR_RATE_*와는 발생 메커니즘이 다른 별개 시나리오. "함수 코드 에러"
+# 재시도(최대 2회, ~3분, invocation_count/error_count에 그대로 잡힘)와 달리, 이건
+# "동시성 소진으로 인한 스로틀" 재시도(정해진 횟수 없음, 지수 백오프 1초→최대 5분,
+# MaximumEventAgeInSeconds까지 최대 6시간) — AWS 공식 문서 확인: 이 재시도는
+# invocation_count/error_count(Invocations/Errors)에 전혀 안 잡히고 Throttles/
+# AsyncEventAge에만 나타난다. 그래서 error_count가 아니라 throttle_count 기반의
+# 별도 지표(throttle_rate)가 필요함 — IForest 입력 feature로만 쓰이고(아래
+# detection_node 5번 참고), 별도의 결정론적 임계값 게이트는 2026-09-14부로 제거
+# (실측상 IForest 단독으로 이미 100% 탐지 — 절대임계값은 경계 케이스에서 오히려
+# 놓칠 수 있음을 확인, playground/lambda_throttle_diverse_trial.py 결과 참고).
+#
+# 노이즈 게이트: 구간당 총 시도량(throttle_count+invocation_count)이 이 값
+# 미만이면 throttle_rate를 0.0으로 눌러, 호출이 거의 없는 구간의 우연한 비율
+# 튐(예: 1번 중 1번 스로틀=100%)이 feature 값을 왜곡하지 않게 한다.
+THROTTLE_RATE_MIN_ACTIVITY = 10
+
+# ── 학습 버퍼 정책 (리소스 타입당 다수 정상 윈도우 누적) ────────────────────────
+MAX_WINDOWS_PER_TYPE = 30  # 타입당 최대 보관 윈도우 수 (Phase 5 실험값)
+RETRAIN_EVERY_N_NEW_WINDOWS = 5  # 새 윈도우가 이만큼 쌓일 때마다 재학습
+
+# 임시 동결 플래그 (사전학습 mock 시딩 도입, 2026-09-09) ───────────────────
+# playground/seed_mock_iforest_buffer.py로 5개 타입 × 30개씩 mock 윈도우를
+# 미리 채워서 iforest_unified.pkl/버퍼를 만들어둔 직후 상태. 이 시점엔 아직
+# "실제 데이터가 들어오면 FIFO로 mock을 밀어내며 자연 교체"하는 정상 경로를
+# 켜지 않고, 일단 mock 버퍼를 그대로 고정해서 쓴다.
+#
+# True인 동안 _get_or_train_iforest는 버퍼 채택/재학습을 전혀 안 하고 캐시된
+# 모델을 그대로만 반환한다 — 즉 실제 데이터가 버퍼에 못 들어가고 mock 상태가
+# 계속 유지된다.
+#
+MOCK_SEED_BUFFER_FROZEN = True
+
+# [2026-09-28] real_demo 실측 검증 중 발견: EDoS(AutoScaling)는 mock 시딩 모델이
+# request_count 실측 범위를 전혀 학습 못 해 IForest가 진짜 스파이크(292->2144)를
+# 완전히 놓쳤다(decision_function이 모든 시점에서 사실상 동일값). 이전에 CLF-001
+# 룰 매칭만으로 성공했던 검증과 달리 IForest 게이트 자체가 막고 있었던 것 —
+# AutoScaling만 동결 해제해서 실측 데이터로 버퍼가 실제로 쌓이게 한다(나머지
+# 타입은 아직 Stage 2 후보A 미확정이라 그대로 동결 유지).
+# [2026-09-28 추가] Lambda도 같은 증상으로 동결 해제 — IForest score가 실측
+# throttle_count(6~46)/async_event_age(급증) 값 범위에서 항상 0.0으로 나와
+# mock 시딩 모델이 이 실측 범위를 전혀 학습 못 한 것으로 판단됨.
+MOCK_SEED_BUFFER_UNFROZEN_TYPES = {"AutoScaling", "Lambda"}
+BUFFER_SCORE_MARGIN = 0.9  # 버퍼링 기준 = 탐지 임계값의 90% (기존 0.7 — 콜드스타트
+BUFFER_ZSCORE_MARGIN = 0.9  # 구간에서 채택률이 24%에 그쳐 완화. 게이팅 대신 기준
+# 완화 쪽으로 팀 결정 — phase6 진단 스크립트로 검증함)
+
+# Z-score는 "비용, 네트워크 입력, 호출 횟수" 지표에만 적용 (보고서 3.3.1).
 # 리소스마다 필드명이 달라 의미 단위로 매핑한다.
-#   비용         → cost                       (전 리소스 공통)
-#   네트워크 입력 → network_in                  (EC2)
-#   호출 횟수    → invocation_count             (Lambda)
-#               → number_of_requests           (S3)
-#   인스턴스 수  → group_desired_capacity       (AutoScaling)
-#               → group_in_service_instances   (AutoScaling)
+#   비용        → cost                  (전 리소스 공통)
+#   네트워크 입력 → network_in            (EC2)
+#   호출 횟수    → invocation_count       (Lambda)
+#               → number_of_requests     (S3)
+#   전송량      → bytes_downloaded       (S3)
 Z_SCORE_TARGET_METRICS = {
     "cost",
     "network_in",
     "invocation_count",
     "number_of_requests",
-    "group_desired_capacity",
-    "group_in_service_instances",
+    "bytes_downloaded",
+    "async_event_age",  # Lambda 스로틀 재시도 폭증 신호
+    # [2026-09-28] 빠져있던 걸 real_demo 실측 검증 중 발견 — EDoS 탐지의 핵심(원인)
+    # 지표인데 z-score 체크 대상에서 누락돼 있어서 z-score가 EDoS를 절대 못 잡고
+    # 있었다(schema/state.py:51에 2026-09-12 request_count 필드 추가 당시 여기
+    # 갱신을 빠뜨린 것으로 보임).
+    "request_count",
 }
 
-# 학습 버퍼 채택 판정(_zscore_max) 전용 — 알림 판단(Z_SCORE_TARGET_METRICS)과 다르게
-# network_in을 뺐다. 실제 AWS 실환경 검증(playground/validate_real_aws_buffer.py)에서
-# EC2 network_in이 20~40분 주기로 반복적으로 튀는(9K/16K/23K대 다단계) 패턴을 가진 걸
-# 확인했는데, window-max 방식이라 2.5시간 윈도우 안에 이 튐이 항상 하나쯤 들어있어서
-# 마진(BUFFER_SCORE_MARGIN/BUFFER_ZSCORE_MARGIN)을 아무리 풀어도 EC2 버퍼 채택률이
-# 7% 밑으로 막혀 있었다. 이 반복 패턴은 실제 이상이 아니라 이 리소스의 정상 트래픽
-# 특성이라, 버퍼 채택 판정에서만 network_in을 빼서 학습이 이 패턴을 정상으로
-# 받아들이게 한다. 알림 판단(detection_node)과 IForest 피처에는 network_in이
-# 그대로 남아있어서, 진짜 지속되는 이상은 여전히 감지된다.
+# 버퍼 채택 판정 전용 (network_in 제외 - EC2 주기적 트래픽 패턴이 채택률 저하 유발)
 BUFFER_ZSCORE_TARGET_METRICS = Z_SCORE_TARGET_METRICS - {"network_in"}
 
 # ── Isolation Forest 통합 모델용 스키마 (state.py에서 자동 추출) ──────────
@@ -93,8 +208,7 @@ _raw_metrics_type = typing.get_type_hints(PipelineState)["raw_metrics"]
 _metric_typeddicts = typing.get_args(_raw_metrics_type)
 
 _RESOURCE_TYPEDDICTS: dict[str, type] = {
-    td.__name__.removesuffix("Metrics"): td
-    for td in _metric_typeddicts
+    td.__name__.removesuffix("Metrics"): td for td in _metric_typeddicts
 }
 
 RESOURCE_TYPES: list[str] = list(_RESOURCE_TYPEDDICTS.keys())
@@ -113,9 +227,11 @@ RESOURCE_METRIC_KEYS: dict[str, list[str]] = {
 
 _all_metrics_set = set()
 
-for keys in RESOURCE_METRIC_KEYS.values():   # 바깥 루프: 리소스별 지표 리스트를 하나씩 꺼냄
-    for metric in keys:                       # 안쪽 루프: 그 리스트 안의 지표 이름을 하나씩 꺼냄
-        _all_metrics_set.add(metric)          # set에 추가 (중복이면 자동 무시됨)
+for (
+    keys
+) in RESOURCE_METRIC_KEYS.values():  # 바깥 루프: 리소스별 지표 리스트를 하나씩 꺼냄
+    for metric in keys:  # 안쪽 루프: 그 리스트 안의 지표 이름을 하나씩 꺼냄
+        _all_metrics_set.add(metric)  # set에 추가 (중복이면 자동 무시됨)
 
 ALL_METRICS: list[str] = sorted(_all_metrics_set)
 
@@ -126,7 +242,7 @@ def _zscore_check(values: list[float]) -> tuple[float, bool]:
     """슬라이딩 윈도우 전체로 μ, σ를 구하고, 윈도우 내 각 시점 x에 대해
     Z = (x - μ) / (σ + ε) 를 산출. 윈도우 내 |Z|의 최댓값이 k(=3.0)을 넘으면 트리거.
 
-    ⚠️ detection_node의 알림 판단에는 안 쓰임(_zscore_check_persistent 사용) — 이 함수는
+    detection_node의 알림 판단에는 안 쓰임(_zscore_check_persistent 사용) — 이 함수는
     학습 버퍼 채택 여부(_zscore_max) 판단 전용. 버퍼에는 윈도우 전체(30개 행)가 그대로
     들어가므로, 마지막 값은 정상이어도 윈도우 중간에 스파이크가 섞여 있으면 그 윈도우를
     "정상"으로 학습에 반영하면 안 되기 때문에 window-max를 유지한다.
@@ -176,8 +292,205 @@ def _zscore_check_persistent(
     is_triggered = bool(np.all(recent > Z_SCORE_THRESHOLD))
     return float(recent[-1]), is_triggered
 
+
+def _low_utilization_check(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
+) -> tuple[list[str], bool, Optional[str]]:
+    """EC2 저사용률(좀비/오버프로비저닝) 절대임계값 체크. EC2_IDLE_*/EC2_OVERPROVISION_*
+    상수 정의 위 주석 참고.
+
+    2026-09-12: detection_node는 이 함수를 더 이상 직접 호출하지 않는다 —
+    아래 _derived_features가 이 함수의 판정 결과를 재사용해 ec2_idle_flag
+    feature로 편입시키고, detection_node는 그 feature만 본다(로직 이식이지
+    변경이 아님 — 판정 기준은 100% 동일). 이 함수 자체는 playground 평가/재현
+    스크립트들이 여전히 직접 import해서 쓰므로 하위호환을 위해 남겨둔다.
+
+    z-score/IForest와 달리 window 내부 평균·표준편차를 쓰지 않는 절대 기준이라,
+    "윈도우 내내 낮기만 하고 변동이 없는" 패턴(z-score가 못 잡는 케이스 — 벗어날
+    평균 자체가 없음)도 잡을 수 있다. peak(=max) CPU를 보므로, 윈도우 30포인트
+    전부가 임계값을 만족해야 트리거된다(자체로 이미 지속성 조건).
+
+    출력의 세 번째 값(utilization_band)은 "zombie"/"overprovisioned"/None 중 하나 —
+    decision_node가 이 값으로 Stop(좀비)과 Resize(오버프로비저닝)를 구분한다.
+
+    EC2 전용 — 다른 리소스 타입(RDS 등)은 이번 범위에서 제외, 항상 ([], False, None) 반환.
+
+    신생 인스턴스 오탐 방지 가드 (2026-09-05 실 AWS 테스트에서 발견): CloudWatch는
+    리소스가 존재하기 전 구간을 0으로 채워서 반환한다(cloudwatch_client.py:85-89).
+    막 생성된 인스턴스는 윈도우 대부분이 "진짜 유휴"가 아니라 "아직 이력이 없어서
+    0"인 값이라, 하필 부팅 트래픽마저 작았다면 즉시 좀비로 오판될 수 있다. 나이가
+    윈도우 길이(EC2_IDLE 상수 정의 위 _EC2_IDLE_WINDOW_HOURS)보다 어리면 판단을
+    보류한다. resource_age_seconds=None(나이를 모름 — EC2 외 타입이거나 조회 실패)이면
+    가드를 적용하지 않고 기존처럼 그냥 평가한다(하위호환 기본값).
+    """
+    if resource_type != "EC2":
+        return [], False, None
+    if not all(m in metrics and metrics[m] for m in EC2_IDLE_TARGET_METRICS):
+        return [], False, None
+    if (
+        resource_age_seconds is not None
+        and resource_age_seconds < _EC2_IDLE_WINDOW_HOURS * 3600
+    ):
+        return [], False, None
+
+    peak_cpu = max(metrics["cpu_utilization"])
+    network_io_bytes = sum(metrics["network_in"]) + sum(metrics["network_out"])
+
+    # network I/O가 정상 범위면 CPU만 낮아도 "실제로 트래픽을 처리 중"이라는 뜻이라
+    # 좀비/오버프로비저닝 둘 다 아니다(AND 조건 — 기존 좀비 체크의 회귀 테스트가
+    # 이미 검증한 시맨틱스를 오버프로비저닝에도 동일하게 유지, 2026-09-11).
+    if network_io_bytes <= EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD:
+        if peak_cpu <= EC2_IDLE_CPU_THRESHOLD_PCT:
+            utilization_band = "zombie"
+        elif peak_cpu <= EC2_OVERPROVISION_CPU_THRESHOLD_PCT:
+            utilization_band = "overprovisioned"
+        else:
+            utilization_band = None
+    else:
+        utilization_band = None
+
+    triggered = utilization_band is not None
+    triggered_metrics = list(EC2_IDLE_TARGET_METRICS) if triggered else []
+    return triggered_metrics, triggered, utilization_band
+
+
+def _lambda_error_rate_check(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    k: int = PERSISTENCE_WINDOW_POINTS,
+) -> tuple[list[str], bool]:
+    """Lambda 에러 재시도 폭증 절대임계값 체크. LAMBDA_ERROR_RATE_* 상수 정의 위 주석 참고.
+
+    최근 k개 포인트가 "전부" invocation_count >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+    AND error_count/invocation_count >= LAMBDA_ERROR_RATE_THRESHOLD를 만족해야 트리거된다
+    (_zscore_check_persistent와 동일한 "최근 k개 전부" 지속성 패턴).
+
+    게이트(최소 호출수)를 나눗셈보다 먼저 확인하므로 invocation_count=0인 포인트는
+    항상 게이트에서 먼저 걸러져 0으로 나누는 경우가 발생하지 않는다.
+
+    Lambda 전용 — 다른 리소스 타입은 항상 (), False 반환.
+
+    2026-09-12: detection_node는 이 함수를 더 이상 직접 호출하지 않는다 —
+    아래 _derived_features가 시점별 error_rate를 직접 계산해 lambda_error_rate
+    feature로 편입시키고, detection_node가 그 feature에 동일한 임계값
+    (LAMBDA_ERROR_RATE_THRESHOLD)과 지속성 체크(PERSISTENCE_WINDOW_POINTS)를
+    적용한다 — 이 함수의 최종 판정과 결과가 같도록 상수를 그대로 공유한다.
+    이 함수 자체는 playground 평가/재현 스크립트들이 여전히 직접 import해서
+    쓰므로 하위호환을 위해 남겨둔다.
+    """
+    if resource_type != "Lambda":
+        return [], False
+    if not all(
+        m in metrics and metrics[m] for m in ("invocation_count", "error_count")
+    ):
+        return [], False
+
+    invocation = metrics["invocation_count"]
+    error = metrics["error_count"]
+    k_eff = min(k, len(invocation))
+    recent_invocation = invocation[-k_eff:]
+    recent_error = error[-k_eff:]
+
+    is_surge = all(
+        inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+        and (err / inv) >= LAMBDA_ERROR_RATE_THRESHOLD
+        for inv, err in zip(recent_invocation, recent_error)
+    )
+    triggered_metrics = ["error_count", "invocation_count"] if is_surge else []
+    return triggered_metrics, is_surge
+
+
+# ── 파생 feature (EC2 유휴 / Lambda 재시도 비율, 신규 2026-09-12) ─────────────
+# 기존엔 _low_utilization_check/_lambda_error_rate_check가 detection_node의
+# OR 앙상블에서 독립된 분기로 호출됐다. 이제 그 판정을 "feature 계산" 단계로
+# 옮겨서 build_unified_feature_matrix(=IForest 입력)에도 노출시키고,
+# detection_node의 트리거 판단도 이 feature 하나로 통일한다 — 판정 기준
+# 자체(EC2_IDLE_*/LAMBDA_ERROR_RATE_* 상수)는 전혀 바뀌지 않는다.
+#
+# 두 feature의 지속성 처리 방식이 다른 이유:
+# - ec2_idle_flag: _low_utilization_check가 이미 "윈도우 전체"를 보고 내리는
+#   판정이라 그 자체로 지속성을 내포한다. 이 값을 PERSISTENCE_WINDOW_POINTS
+#   (최근 k개 지점) 지속성 체크에 다시 통과시키면, Z-score/Lambda와 공유하는
+#   이 상수를 EC2만 보고 건드려야 하는 상황이 생겨 다른 체크의 재현율에
+#   의도치 않게 영향을 준다. 그래서 EC2는 윈도우 전체에 동일한 값을
+#   broadcast해두고, detection_node에서 별도 지속성 체크 없이 flag==1이면
+#   바로 트리거로 쓴다.
+# - lambda_error_rate: 원래도 시점별 값 + "최근 k개 전부" 지속성 조건이라
+#   PERSISTENCE_WINDOW_POINTS와 궁합이 그대로 맞는다. 그래서 시점별 비율을
+#   그대로 반환하고, detection_node가 Z-score와 동일한 방식으로 지속성
+#   체크를 적용한다.
+DERIVED_FEATURE_NAMES = ["ec2_idle_flag", "lambda_error_rate", "throttle_rate"]
+
+
+def _derived_features(
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
+) -> dict[str, list[float]]:
+    """DERIVED_FEATURE_NAMES 컬럼들을 계산한다. 전부 원본 CloudWatch 지표가
+    아니라 파생값이라 ALL_METRICS(=schema/state.py TypedDict에서 자동 추출)에는
+    안 넣고 build_unified_feature_matrix에서 별도로 붙인다.
+
+    해당 리소스 타입이 아니면 값들을 0.0으로 채운다(다른 타입에 영향 없음 —
+    ALL_METRICS의 "지표 없으면 0"과 동일한 관례).
+    """
+    n = len(next(iter(metrics.values())))
+
+    # ec2_idle_flag: _low_utilization_check(판정 로직 원본)를 그대로 재사용해
+    # 윈도우 단위 boolean을 얻고, n_points개 전부 같은 값으로 broadcast한다.
+    _, idle_triggered, _ = _low_utilization_check(
+        resource_type, metrics, resource_age_seconds
+    )
+    ec2_idle_flag = [1.0 if idle_triggered else 0.0] * n
+
+    # lambda_error_rate: 시점별 error_count/invocation_count. 최소 호출수
+    # 게이트(LAMBDA_ERROR_RATE_MIN_INVOCATIONS) 미만인 시점은 0.0으로 눌러서
+    # _lambda_error_rate_check와 동일하게 "호출수 부족 = 판단 보류"를 유지한다
+    # (0.0은 항상 LAMBDA_ERROR_RATE_THRESHOLD=0.5 미만이라 트리거되지 않음).
+    lambda_error_rate = [0.0] * n
+    if resource_type == "Lambda" and all(
+        m in metrics and metrics[m] for m in ("invocation_count", "error_count")
+    ):
+        invocation = metrics["invocation_count"]
+        error = metrics["error_count"]
+        lambda_error_rate = [
+            (err / inv) if inv >= LAMBDA_ERROR_RATE_MIN_INVOCATIONS else 0.0
+            for inv, err in zip(invocation, error)
+        ]
+
+    # throttle_rate: 시점별 throttle_count/(throttle_count+invocation_count).
+    # error_count가 아니라 throttle_count를 쓰는 이유는 위 THROTTLE_RATE_MIN_ACTIVITY
+    # 정의 위 주석 참고. 분모를 invocation_count 단독이 아니라
+    # (throttle_count+invocation_count)로 잡은
+    # 이유: 스로틀 폭증 상황에서는 실제 invocation_count가 오히려 낮게 나올 수
+    # 있어서(스로틀된 시도는 Invocations에 안 잡힘, F-1 실측으로 확인) 분모를
+    # invocation_count만으로 두면 불안정해짐. 최소 활동량 게이트
+    # (THROTTLE_RATE_MIN_ACTIVITY) 미만이면 0.0으로 눌러 노이즈를 억제한다
+    # (lambda_error_rate의 MIN_INVOCATIONS 게이트와 동일한 논리).
+    throttle_rate = [0.0] * n
+    if resource_type == "Lambda" and all(
+        m in metrics and metrics[m] for m in ("invocation_count", "throttle_count")
+    ):
+        invocation = metrics["invocation_count"]
+        throttle = metrics["throttle_count"]
+        throttle_rate = [
+            (thr / (thr + inv)) if (thr + inv) >= THROTTLE_RATE_MIN_ACTIVITY else 0.0
+            for inv, thr in zip(invocation, throttle)
+        ]
+
+    return {
+        "ec2_idle_flag": ec2_idle_flag,
+        "lambda_error_rate": lambda_error_rate,
+        "throttle_rate": throttle_rate,
+    }
+
+
 def build_unified_feature_matrix(
-    resource_type: str, metrics: dict[str, list[float]]
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
 ) -> np.ndarray:
     n = len(next(iter(metrics.values())))
     cols: list[np.ndarray] = []
@@ -190,20 +503,27 @@ def build_unified_feature_matrix(
             cols.append(np.zeros(n))
             cols.append(np.zeros(n))
 
+    derived = _derived_features(resource_type, metrics, resource_age_seconds)
+    for name in DERIVED_FEATURE_NAMES:
+        cols.append(np.asarray(derived[name], dtype=float))
+
     for rt in RESOURCE_TYPES:
         cols.append(np.full(n, 1.0 if rt == resource_type else 0.0))
 
     return np.column_stack(cols)
+
 
 def _model_path(resource_type: str) -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
     return os.path.join(IFOREST_MODEL_DIR, f"iforest_{resource_type}.pkl")
 
 
-def _load_cached_model(resource_type: str) -> Optional[tuple[IsolationForest, list[str]]]:
+def _load_cached_model(
+    resource_type: str,
+) -> Optional[tuple[IsolationForest, list[str]]]:
     """캐시된 (model, feature_keys) 로드. 캐시가 없으면 None.
 
-    ⚠️ 예전엔 "24시간 지나면 캐시 전체 무효화"가 있었는데 제거함 — 그 방식은 리셋될
+    예전엔 "24시간 지나면 캐시 전체 무효화"가 있었는데 제거함 — 그 방식은 리셋될
     때마다 학습 버퍼가 통째로 비워져서 콜드 스타트(창 1개로만 학습) 상태로 되돌아가고,
     그때마다 정확도가 급락하는 문제가 있었다 (Phase 5에서 확인한 "창 1개 학습 = 정상
     32.7% 오탐" 문제가 재발). 대신 MAX_WINDOWS_PER_TYPE 기반 FIFO(오래된 윈도우부터
@@ -220,7 +540,9 @@ def _load_cached_model(resource_type: str) -> Optional[tuple[IsolationForest, li
     return model, feature_keys
 
 
-def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[str]) -> None:
+def _save_model(
+    resource_type: str, model: IsolationForest, feature_keys: list[str]
+) -> None:
     with open(_model_path(resource_type), "wb") as f:
         pickle.dump((model, feature_keys, time.time()), f)
 
@@ -238,6 +560,7 @@ def _save_model(resource_type: str, model: IsolationForest, feature_keys: list[s
 # 탐지 임계값보다 더 보수적인 기준으로) 윈도우"를 잠정적 정상으로 간주해 버퍼에
 # 쌓는 자기참조(self-referential) 방식을 쓴다 — 실제 정확도는
 # playground/validate_self_referential_buffer.py로 라벨 없이도 검증함.
+
 
 def _buffer_path() -> str:
     os.makedirs(IFOREST_MODEL_DIR, exist_ok=True)
@@ -257,7 +580,9 @@ def _load_training_buffer() -> tuple[dict[str, list[np.ndarray]], int]:
         return {}, 0
 
 
-def _save_training_buffer(buffer_by_type: dict[str, list[np.ndarray]], pending_count: int) -> None:
+def _save_training_buffer(
+    buffer_by_type: dict[str, list[np.ndarray]], pending_count: int
+) -> None:
     with open(_buffer_path(), "wb") as f:
         pickle.dump((buffer_by_type, pending_count), f)
 
@@ -286,12 +611,20 @@ def _zscore_max(metrics: dict[str, list[float]]) -> float:
 
 
 def _normalized_scores(
-    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]
+    model: IsolationForest,
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    resource_age_seconds: Optional[float] = None,
 ) -> np.ndarray:
     """윈도우 전체에 대해 IsolationForest decision_function을 창 내부 min-max로
     0~1 정규화한 배열을 반환 (1에 가까울수록 이상). _score_with_model과
-    _iforest_score_and_trigger가 공유하는 정규화 로직."""
-    X = build_unified_feature_matrix(resource_type, metrics)
+    _iforest_score_and_trigger가 공유하는 정규화 로직.
+
+    resource_age_seconds는 build_unified_feature_matrix의 ec2_idle_flag 계산에만
+    쓰인다(신생 인스턴스 가드). 실시간 채점(_iforest_score_and_trigger)에서만
+    의미가 있고, 학습 버퍼 admission 등 과거 윈도우 채점에는 age 정보가 없어
+    기본값 None(가드 미적용, 기존 동작과 동일)을 그대로 쓴다."""
+    X = build_unified_feature_matrix(resource_type, metrics, resource_age_seconds)
     raw_scores = model.decision_function(X)  # 낮을수록 이상치
 
     s_min, s_max = raw_scores.min(), raw_scores.max()
@@ -310,7 +643,58 @@ def _normalized_scores(
     return np.clip((s_max - raw_scores) / (s_max - s_min), 0.0, 1.0)
 
 
-def _score_with_model(model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]) -> float:
+# Stage 2 후보 A 그리드 실험(2026-09-09) 결과 채택값 — 실측 근거:
+# contamination 환산 0.02(=percentile 2.0)/K=3 조합이 정상 오탐 6.3%로 가장 낮으면서
+# 장기·지속형 이상(spike_len 15~24)은 87~100% 거부. 짧은 스파이크(len 3~6)는 이 게이트가
+# 아니라 z-score(_zscore_check_persistent)가 먼저 잡는 역할 분담을 전제로 함.
+STAGE2_ADMIT_PERCENTILE = 2.0
+STAGE2_ADMIT_K_MIN = 3
+
+
+def _absolute_score_and_admit(
+    model: IsolationForest,
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    buffer_windows: list[np.ndarray],
+    percentile: float = STAGE2_ADMIT_PERCENTILE,
+    k_min: int = STAGE2_ADMIT_K_MIN,
+) -> tuple[float, bool]:
+    """Stage 2 후보 A: provisional_score(버퍼 admission 판정)를 창 내부 min-max
+    (_normalized_scores) 대신, 모델의 raw score_samples()와 버퍼 자체에서 직접 계산한
+    percentile 임계값으로 판단한다.
+
+    min-max와 다른 점: score_samples()는 트리 구조(fit 시 확정, contamination과
+    무관)에서만 나오는 순수 이상치 점수라 "이 창 안에서 제일 이상한 점은 항상 1.0"
+    같은 구조적 왜곡이 없다. 대신 "얼마나 낮으면 이상치로 볼지" 기준(threshold)을
+    모델의 built-in offset_(contamination=0.1 기준, 최종 알림 판정용) 대신 버퍼
+    자체에서 우리가 원하는 percentile로 별도 계산한다 — sklearn이 모델 생성 시
+    내부적으로 하는 계산(percentile(score_samples(학습데이터), 100*contamination))과
+    같은 공식을, 버퍼 admission이라는 다른 목적에 맞는 값(2%)으로 재사용하는 것.
+    모델을 두 번 학습시킬 필요가 없다(트리는 contamination과 무관하므로).
+
+    아직 어디서도 호출 안 됨(독립·테스트 전용) - _get_or_train_iforest의
+    provisional_score 판정에 실제로 연결하려면 이 함수를 호출하도록 바꿔야 하는데,
+    시연 전 실측 검증(요청 A 포함) 전까지는 보류하기로 함(2026-09-09).
+
+    반환: (최근 시점 raw score_samples 값 — 리포팅용, 버퍼에 받아들여도 되는가)
+    """
+    if not buffer_windows:
+        return 0.0, False
+
+    buffer_matrix = np.vstack(buffer_windows)
+    threshold = float(np.percentile(model.score_samples(buffer_matrix), percentile))
+
+    X = build_unified_feature_matrix(resource_type, metrics)
+    raw = model.score_samples(X)
+    outliers = int((raw < threshold).sum())
+    believed_normal = outliers < k_min
+
+    return float(raw[-1]), believed_normal
+
+
+def _score_with_model(
+    model: IsolationForest, resource_type: str, metrics: dict[str, list[float]]
+) -> float:
     return float(_normalized_scores(model, resource_type, metrics)[-1])
 
 
@@ -324,7 +708,9 @@ SELF_CHECK_RECENT_WINDOW = 6
 SELF_CHECK_MIN_OUTLIERS = 2
 
 
-def _self_referential_iforest_check(resource_type: str, metrics: dict[str, list[float]]) -> bool:
+def _self_referential_iforest_check(
+    resource_type: str, metrics: dict[str, list[float]]
+) -> bool:
     """콜드스타트 시드 후보 검증 전용. 아직 저장된 모델이 없어 정식 IForest 점수를
     못 매기므로(_score_with_model은 학습된 모델이 필요), 이 윈도우 자체(30개 행)로
     임시 IsolationForest를 하나 학습시켜서 "최근 시점들 중 다수가 나머지 대비
@@ -332,7 +718,9 @@ def _self_referential_iforest_check(resource_type: str, metrics: dict[str, list[
     Z-score의 window-max(_zscore_max)와 같은 철학: 윈도우 자기 자신을 기준으로 삼는다.
     반환값 True면 시드 거부 대상."""
     X = build_unified_feature_matrix(resource_type, metrics)
-    temp_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    temp_model = IsolationForest(
+        contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE
+    )
     predictions = temp_model.fit_predict(X)  # -1=이상치, 1=정상
 
     k_eff = min(SELF_CHECK_RECENT_WINDOW, len(predictions))
@@ -370,7 +758,7 @@ def _get_or_train_iforest(
     """캐시된 모델이 있으면 재사용, 없으면(콜드 스타트) 학습 후 캐시 저장.
     새로운 리소스 타입이 처음 보이거나 버퍼에 새 윈도우가 쌓이면 그때그때 재학습.
 
-    ⚠️ AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 윈도우 중
+    AWS 미연동 상태이므로 지금은 "재학습용 데이터" = 지금까지 들어온 윈도우 중
        모델이 잠정적으로 정상이라고 판단한 것들을 리소스 타입별로 모은 누적 버퍼.
        AWS 연동 후엔 이 버퍼링 정책을 유지하면서 데이터 소스만 확장하면 된다.
     """
@@ -379,6 +767,17 @@ def _get_or_train_iforest(
 
     if cached is not None:
         model, cached_keys = cached
+
+        # MOCK_SEED_BUFFER_FROZEN=True인 동안은 버퍼 채택/재학습을 전부 건너뛰고
+        # mock으로 시딩해둔 모델을 그대로 반환한다 (정상 경로 전환 전 임시 동결) —
+        # 단 MOCK_SEED_BUFFER_UNFROZEN_TYPES에 있는 타입(AutoScaling)은 예외로
+        # 아래 정상 버퍼 채택/재학습 경로를 그대로 탄다.
+        if (
+            MOCK_SEED_BUFFER_FROZEN
+            and resource_type not in MOCK_SEED_BUFFER_UNFROZEN_TYPES
+        ):
+            return model
+
         if cached_keys == ALL_METRICS:
             buffer_by_type, pending_count = _load_training_buffer()
 
@@ -390,7 +789,9 @@ def _get_or_train_iforest(
                 type_unseen = not buffer_by_type.get(resource_type)
 
                 if type_unseen:
-                    z_max, believed_normal = _model_independent_seed_check(resource_type, metrics)
+                    z_max, believed_normal = _model_independent_seed_check(
+                        resource_type, metrics
+                    )
                     # 0.0: "모델 기반 score 조건은 이 경로에서 평가 안 함 — z_max/자기참조
                     # IForest만으로 판단"이라는 뜻. score=None을 쓰지 않는 이유: 이 로그를
                     # 파싱하는 playground/phase6_detection_node_e2e.py의
@@ -409,22 +810,32 @@ def _get_or_train_iforest(
                     bucket = buffer_by_type.setdefault(resource_type, [])
                     bucket.append(build_unified_feature_matrix(resource_type, metrics))
                     if len(bucket) > MAX_WINDOWS_PER_TYPE:
-                        del bucket[: len(bucket) - MAX_WINDOWS_PER_TYPE]  # FIFO — 오래된 것부터 제거
+                        del bucket[
+                            : len(bucket) - MAX_WINDOWS_PER_TYPE
+                        ]  # FIFO — 오래된 것부터 제거
                     pending_count += 1
-                    # ⚠️ 로그 인자 순서 (resource_type, score, z_max, ...)는 playground/
+                    # 로그 인자 순서 (resource_type, score, z_max, ...)는 playground/
                     # phase6_detection_node_e2e.py의 _BufferDecisionCapture가
                     # record.args[0:3]을 그대로 파싱하므로 앞 3자리는 유지하고
                     # type_unseen은 뒤에 덧붙인다.
                     logger.info(
                         "[iforest_buffer] 채택 resource_type=%s score=%.4f z_max=%.4f "
                         "버퍼크기=%d pending=%d (신규타입=%s)",
-                        resource_type, provisional_score, z_max, len(bucket), pending_count, type_unseen,
+                        resource_type,
+                        provisional_score,
+                        z_max,
+                        len(bucket),
+                        pending_count,
+                        type_unseen,
                     )
                 else:
                     logger.info(
                         "[iforest_buffer] 제외(경계/이상 의심) resource_type=%s score=%.4f z_max=%.4f "
                         "(신규타입=%s)",
-                        resource_type, provisional_score, z_max, type_unseen,
+                        resource_type,
+                        provisional_score,
+                        z_max,
+                        type_unseen,
                     )
 
                 _save_training_buffer(buffer_by_type, pending_count)
@@ -433,13 +844,18 @@ def _get_or_train_iforest(
                 # 반영한다 — 안 그러면 이 타입은 다음 정기 재학습 전까지 계속 "모델이
                 # 모르는 타입" 상태로 남아 매번 다시 튕겨날 수 있다.
                 type_just_learned = believed_normal and type_unseen
-                if (pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS or type_just_learned) and buffer_by_type:
-                    combined = np.vstack([np.vstack(v) for v in buffer_by_type.values() if v])
+                if (
+                    pending_count >= RETRAIN_EVERY_N_NEW_WINDOWS or type_just_learned
+                ) and buffer_by_type:
+                    combined = np.vstack(
+                        [np.vstack(v) for v in buffer_by_type.values() if v]
+                    )
                     model = _fit_and_cache_unified(combined)
                     _save_training_buffer(buffer_by_type, 0)
                     logger.info(
                         "[iforest_buffer] 재학습 완료 총 윈도우=%d (타입별=%s)%s",
-                        combined.shape[0], {k: len(v) for k, v in buffer_by_type.items()},
+                        combined.shape[0],
+                        {k: len(v) for k, v in buffer_by_type.items()},
                         " (신규 타입 즉시 반영)" if type_just_learned else "",
                     )
 
@@ -448,7 +864,7 @@ def _get_or_train_iforest(
     if n < MIN_POINTS_FOR_IFOREST:
         return None
 
-    # ⚠️ 콜드스타트 시드 검증 (실 AWS 파일럿 테스트에서 발견): 예전엔 첫 윈도우를
+    # 콜드스타트 시드 검증 (실 AWS 파일럿 테스트에서 발견): 예전엔 첫 윈도우를
     # 무조건(어떤 검사도 없이) 정상으로 확정해서 시드 모델을 학습시켰다. 실제로 Lambda
     # 파일럿에서 부하 테스트 시작 직후에 콜드스타트가 겹치면서 부하 자체가 시드로
     # 굳어버리는 사고가 있었음 (z_max=4.88로 명백히 이상했는데도 무조건 통과됐음).
@@ -457,7 +873,8 @@ def _get_or_train_iforest(
         logger.info(
             "[iforest_buffer] 콜드스타트 시드 거부(첫 윈도우가 이미 이상해 보임) "
             "resource_type=%s z_max=%.4f — 다음 사이클에 재시도",
-            resource_type, z_max,
+            resource_type,
+            z_max,
         )
         return None
 
@@ -472,7 +889,7 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
     하나의 다변량 feature 벡터로 구성해 Isolation Forest에 입력하고,
     최신 시점의 이상 점수를 0~1로 정규화해서 반환 (1에 가까울수록 이상).
 
-    ⚠️ detection_node에서는 안 쓰임(_iforest_score_and_trigger 사용) — 이 함수는
+    detection_node에서는 안 쓰임(_iforest_score_and_trigger 사용) — 이 함수는
     playground 평가/검증 스크립트 전용으로 남겨둠(각 스크립트가 "호출 1번 = 모델
     로드+버퍼 갱신 1번"을 전제로 하고 있어서 시그니처를 그대로 유지).
     """
@@ -483,21 +900,36 @@ def _iforest_score(resource_type: str, metrics: dict[str, list[float]]) -> float
 
 
 def _iforest_score_and_trigger(
-    resource_type: str, metrics: dict[str, list[float]], k: int = PERSISTENCE_WINDOW_POINTS
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    k: int = PERSISTENCE_WINDOW_POINTS,
+    resource_age_seconds: Optional[float] = None,
+    model: Optional[IsolationForest] = None,
 ) -> tuple[float, bool]:
     """detection_node 전용: 최신 시점의 이상 점수(리포팅용)와, 최근 k개 시점이
     "전부" 임계값을 넘었는지(트리거 판단, 지속성 체크)를 함께 반환한다.
 
-    ⚠️ _iforest_score를 두 번(점수용 1번 + 트리거용 1번) 부르지 않는 이유:
+    resource_age_seconds는 feature matrix의 ec2_idle_flag 계산(신생 인스턴스
+    가드)에 그대로 전달된다 — detection_node가 별도로 계산하는 ec2_idle_flag와
+    IForest에 실제로 들어가는 값이 어긋나지 않도록 항상 같은 age를 넘겨야 한다.
+
+    _iforest_score를 두 번(점수용 1번 + 트리거용 1번) 부르지 않는 이유:
     _get_or_train_iforest는 호출할 때마다 학습 버퍼를 갱신하는 부수효과가 있어서,
     같은 요청 안에서 두 번 부르면 같은 윈도우가 버퍼에 중복 반영되거나 재학습
     카운트가 두 배로 올라가는 버그가 생긴다. 모델을 한 번만 불러와 재사용한다.
+
+    model을 미리 넘기면(2026-09-14 추가 — SHAP 설명가능성을 프로덕션 경로에 연결
+    하면서 필요해짐) 내부에서 다시 불러오지 않고 그대로 재사용한다 — 호출자(예:
+    detection_node)가 같은 모델을 explain_iforest_top_features()에도 재사용해서
+    _get_or_train_iforest 중복 호출(=버퍼 이중 반영)을 피하려는 목적. 안 넘기면
+    기존과 동일하게 내부에서 조회한다(하위호환).
     """
-    model = _get_or_train_iforest(resource_type, metrics)
+    if model is None:
+        model = _get_or_train_iforest(resource_type, metrics)
     if model is None:
         return 0.0, False
 
-    normalized = _normalized_scores(model, resource_type, metrics)
+    normalized = _normalized_scores(model, resource_type, metrics, resource_age_seconds)
     latest_score = float(normalized[-1])
 
     k_eff = min(k, len(normalized))
@@ -510,19 +942,26 @@ def _iforest_score_and_trigger(
 # SHAP(TreeExplainer)로 각 피처가 최종 이상 점수에 얼마나/어느 방향으로 기여했는지를
 # 사후적으로 계산해서, "이 케이스에서 어떤 지표가 결정적이었는지" 보고서용으로 뽑는다.
 
+
 def _unified_feature_names() -> list[str]:
     """build_unified_feature_matrix가 만드는 컬럼 순서와 1:1로 대응하는 이름 목록."""
     names: list[str] = []
     for m in ALL_METRICS:
         names.append(f"{m}_value")
         names.append(f"{m}_mask")
+    for name in DERIVED_FEATURE_NAMES:
+        # mask 컬럼 없음 — 원본 지표와 달리 파생값은 항상 계산 가능(해당 없는
+        # 타입은 0.0)하고, 리소스 타입 onehot이 이미 "적용 대상인지"를 알려준다.
+        names.append(f"{name}_value")
     for rt in RESOURCE_TYPES:
         names.append(f"onehot_{rt}")
     return names
 
 
 def explain_iforest(
-    resource_type: str, metrics: dict[str, list[float]], model: Optional[IsolationForest] = None
+    resource_type: str,
+    metrics: dict[str, list[float]],
+    model: Optional[IsolationForest] = None,
 ) -> dict[str, float]:
     """윈도우의 마지막 시점(=_iforest_score가 실제로 이상 여부를 판단하는 시점)에 대한
     피처별 SHAP 기여도를 전부(값/마스크/원-핫 컬럼 포함) 반환한다.
@@ -570,11 +1009,13 @@ def explain_iforest_top_features(
 def detection_node(state: PipelineState) -> PipelineState:
     metrics = state["raw_metrics"]
     resource_type = state["resource_type"]
+    resource_age_seconds = state.get("resource_age_seconds")
 
     # ── 1) Z-score 탐지 (비용 / 네트워크 입력 / 호출 횟수 지표만 대상, 최근 몇 시점 지속 기준) ──
     # window-max도 마지막 1개 시점도 아니고 "최근 PERSISTENCE_WINDOW_POINTS개 연속"인
     # 이유: _zscore_check_persistent 문서 참고.
     triggered_metrics: list[str] = []
+    zscore_triggered = False
     max_abs_z = 0.0
 
     for metric_name in metrics:
@@ -583,18 +1024,112 @@ def detection_node(state: PipelineState) -> PipelineState:
         z, is_triggered = _zscore_check_persistent(metrics[metric_name])
         if is_triggered:
             triggered_metrics.append(metric_name)
+            zscore_triggered = True
         max_abs_z = max(max_abs_z, z)
 
-    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표, 다변량, 마찬가지로 지속성 체크) ──
-    iforest_score, iforest_triggered = _iforest_score_and_trigger(resource_type, metrics)
+    # ── 2) Isolation Forest 탐지 (해당 리소스의 모든 지표 + ec2_idle_flag/
+    #    lambda_error_rate/throttle_rate 파생 feature까지 포함한 다변량, 마찬가지로
+    #    지속성 체크) ──
+    # 모델을 여기서 한 번만 불러와서 트리거 판정과(필요시) SHAP 설명 계산에
+    # 재사용한다 — _get_or_train_iforest를 또 부르면 학습 버퍼가 중복 반영되는
+    # 부수효과가 있어서(_iforest_score_and_trigger 문서 참고), 아래 SHAP 계산도
+    # 반드시 이 model을 그대로 넘겨써야 한다.
+    iforest_model = _get_or_train_iforest(resource_type, metrics)
+    iforest_score, iforest_triggered = _iforest_score_and_trigger(
+        resource_type,
+        metrics,
+        resource_age_seconds=resource_age_seconds,
+        model=iforest_model,
+    )
 
-    # ── 3) OR 앙상블 결합 ─────────────────────────────────────────────────
-    anomaly_flag = bool(triggered_metrics) or iforest_triggered
+    # ── 2-1) SHAP 해석가능성 — IForest가 실제로 트리거된 경우에만 계산 (2026-09-14) ──
+    # Z-score 단독이나 EC2 유휴 단독 트리거는 IForest의 판단이 아니므로 SHAP으로
+    # 설명할 대상 자체가 없다 — iforest_triggered 조건으로만 게이팅한다. shap 모듈
+    # import 자체가 explain_iforest() 안에서 지연 임포트라, 트리거 안 되는 절대다수의
+    # 정상 판정 경로에는 여전히 이 의존성/계산 비용이 전혀 안 걸린다.
+    shap_top_features: Optional[dict[str, float]] = None
+    if iforest_triggered and iforest_model is not None:
+        try:
+            shap_top_features = explain_iforest_top_features(
+                resource_type, metrics, model=iforest_model, top_n=SHAP_TOP_N
+            )
+        except Exception:
+            logger.exception(
+                "[detection_node] SHAP 설명 계산 실패 — 탐지 자체는 정상 진행 "
+                "(resource_id=%s, resource_type=%s)",
+                state.get("resource_id"),
+                resource_type,
+            )
+
+    # ── 3) EC2 저사용률(유휴) — 트리거 앙상블의 예외 경로로 유지 (2026-09-13 재확인) ──
+    # EC2 유휴: IForest가 타입 구분을 잘 못해서 별도 게이트 유지
+    derived = _derived_features(resource_type, metrics, resource_age_seconds)
+
+    ec2_idle_flag = derived["ec2_idle_flag"]
+    idle_triggered = bool(ec2_idle_flag) and ec2_idle_flag[-1] == 1.0
+    if idle_triggered:
+        for m in EC2_IDLE_TARGET_METRICS:
+            if m not in triggered_metrics:
+                triggered_metrics.append(m)
+
+    # ec2_idle_flag는 트리거 여부(0/1)만 담고 있어 zombie/overprovisioned를
+    # 구분 못 한다 — decision_agent.py의 Stop(zombie) vs Resize(overprovisioned)
+    # 라우팅이 state["ec2_utilization_band"]에 의존하므로(rule_engine.py 참고)
+    # 별도로 채워야 한다.
+    if resource_type == "EC2":
+        _, _, ec2_utilization_band = _low_utilization_check(
+            resource_type, metrics, resource_age_seconds
+        )
+        state["ec2_utilization_band"] = ec2_utilization_band
+    else:
+        state["ec2_utilization_band"] = None
+
+    # ── 4) Lambda 에러 재시도 폭증 — 2026-09-13부터 직접 트리거 아님, IForest에 위임 ──
+    # EC2 idle과 달리 이 feature의 "이상" 값(에러율 50%+)은 다른 타입의 0(해당없음)
+    # 이나 Lambda 자체 정상 베이스라인(0~2%)과 겹치지 않는 전역적으로 희귀한 값이라
+    # (실측: raw decision_function이 뚜렷한 음수로 나옴 — EC2 idle의 "항상 양수"와
+    # 대조적), 트리가 타입을 못 갈라도 IForest가 잘 잡는다. 그래서 여기는 별도
+    # 결정론적 게이트를 유지할 필요가 없다고 판단해 제거 — 단, 아래 계산은 그대로
+    # 남겨서 triggered_metrics(error_count/invocation_count) 라벨링에는 계속
+    # 쓴다. IForest가 이 케이스를 잡았을 때 CLF-002가 정상적으로 매칭되게 하려면
+    # 이 라벨이 필요하기 때문 — error_surge_detected 자체는 anomaly_flag 계산에는
+    # 안 들어간다.
+    lambda_error_rate = derived["lambda_error_rate"]
+    k_eff = min(PERSISTENCE_WINDOW_POINTS, len(lambda_error_rate))
+    error_surge_detected = bool(lambda_error_rate) and all(
+        v >= LAMBDA_ERROR_RATE_THRESHOLD for v in lambda_error_rate[-k_eff:]
+    )
+    if error_surge_detected:
+        for m in ("error_count", "invocation_count"):
+            if m not in triggered_metrics:
+                triggered_metrics.append(m)
+
+    # ── 5) Lambda 스로틀 재시도 폭증 — IForest 입력 feature로만 사용 (2026-09-14) ──
+    # throttle_rate 자체는 build_unified_feature_matrix를 통해 이미 IForest에
+    # 들어가 있다(derived 딕셔너리 → 피처 행렬). 별도의 결정론적 임계값 게이트는
+    # 두지 않는다 — 여기서 triggered_metrics를 채우지 않아도, IForest가 이 케이스를
+    # 잡았을 때 rule_engine._extract_spike_metrics()(triggered_metrics가 비어있을
+    # 때의 범용 폴백 — raw_metrics에서 latest/mean 급증 지표를 직접 추출)가
+    # throttle_count 급증을 잡아 CLF-007 매칭을 대신 처리한다. 결정론적 게이트를
+    # 하나 더 두는 것보다, 이미 있는 범용 폴백에 맡기는 쪽이 "규칙 기반 예외 처리"를
+    # 늘리지 않고 IForest 판단에 일원화하는 방향에 맞다는 판단.
+
+    # ── 6) OR 앙상블 결합 (2026-09-13 축소: Z-score / IForest / EC2 idle 3개만) ──
+    # Lambda error_rate/throttle_rate는 더 이상 이 OR에 직접 참여하지 않는다 —
+    # IForest 입력으로만 작동하고, 최종 판단은 IForest(위 2번)에 위임한다.
+    anomaly_flag = zscore_triggered or iforest_triggered or idle_triggered
 
     state["anomaly_flag"] = anomaly_flag
     state["anomaly_score_zscore"] = round(max_abs_z, 4)
     state["anomaly_score_iforest"] = round(iforest_score, 4)
     state["triggered_metrics"] = triggered_metrics
+    state["shap_top_features"] = shap_top_features
+    # 공식 스키마(PipelineState) 필드 아님 — 게이트별 기여도 분석/보고서용
+    # 계측 전용. anomaly_score_zscore/iforest만으로는 "지속성 체크까지 통과해
+    # 실제로 트리거됐는지"를 역산할 수 없어서(최근 시점 값만 노출) 추가함.
+    state["_gate_zscore_triggered"] = zscore_triggered
+    state["_gate_iforest_triggered"] = iforest_triggered
+    state["_gate_idle_triggered"] = idle_triggered
 
     return state
 
@@ -604,45 +1139,57 @@ def detection_node(state: PipelineState) -> PipelineState:
 # 넘기지 않고 하나씩 순차적으로 detection_node를 돌려서 발견 즉시 넘긴다
 # (병렬 fan-out이 아니라 의도적인 순차 처리).
 
+
 def _build_initial_state(resource: dict) -> PipelineState:
     """resource: {resource_id, resource_type, raw_metrics, timestamp(optional)}
     나머지 PipelineState 필드는 파이프라인 시작 전 기본값으로 채운다.
     """
     return {
-        "trace_id":      None,
-        "resource_id":   resource["resource_id"],
+        "trace_id": None,
+        "resource_id": resource["resource_id"],
         "resource_type": resource["resource_type"],
-        "raw_metrics":   resource["raw_metrics"],
-        "timestamp":     resource.get("timestamp") or datetime.now(timezone.utc).isoformat(),
-
-        "anomaly_flag":          False,
-        "anomaly_score_zscore":  None,
+        "raw_metrics": resource["raw_metrics"],
+        "timestamp": resource.get("timestamp")
+        or datetime.now(timezone.utc).isoformat(),
+        "resource_age_seconds": resource.get("resource_age_seconds"),
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
         "anomaly_score_iforest": None,
-        "triggered_metrics":     [],
-
-        "anomaly_type":             None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+        "ec2_utilization_band": None,
+        "anomaly_type": None,
         "classification_reasoning": None,
-        "interim_action_taken":     None,
-        "matched_rule_id":          None,
-
-        "candidate_actions":   [],
-        "selected_action":     None,
-        "risk_level":          None,
-        "requires_approval":   False,
-        "decision_reasoning":  None,
+        "interim_action_taken": None,
+        "matched_rule_id": None,
+        "candidate_actions": [],
+        "selected_action": None,
+        "risk_level": None,
+        "requires_approval": False,
+        "decision_reasoning": None,
         "target_instance_type": None,
-
+        "decision_pseudo_code": "",
+        "matched_decision_rule_id": None,
+        "current_cost_usd": None,
+        "after_cost_usd": None,
+        "estimated_saving_usd": None,
+        "avoided_cost_usd": None,
         "pre_action_snapshot": None,
-        "action_executed":     None,
-        "action_result":       None,
-
-        "qa_passed":         None,
-        "sla_check_result":  None,
-        "rollback_count":    0,
+        "action_executed": None,
+        "action_result": None,
+        "dry_run": False,
+        "apply_waf": False,
+        "waf_rate_limit": 2000,
+        "associated_alb_arn": None,
+        "qa_passed": None,
+        "sla_check_result": None,
+        "rollback_count": 0,
         "qa_matched_rule_id": None,
-        "whitelisted":       False,
-
+        "whitelisted": False,
+        "pre_action_raw_metrics": None,
+        "step_timings": {},
         "log_entries": [],
+        "_demo_replay": None,
     }
 
 

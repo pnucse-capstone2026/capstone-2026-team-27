@@ -5,7 +5,7 @@ import sys
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-# ⚠️ 이 테스트는 아래에서 shutil.rmtree(IFOREST_MODEL_DIR)로 모델 캐시를 반복적으로
+# 이 테스트는 아래에서 shutil.rmtree(IFOREST_MODEL_DIR)로 모델 캐시를 반복적으로
 # 지운다. PIPELINE_MODEL_DIR을 지정 안 하면 pipeline/detection_agent.py의
 # IFOREST_MODEL_DIR이 프로덕션과 동일한 "models/" 디렉터리를 가리켜서, 실 AWS
 # 파일럿(run_full_pipeline.py 등)이 쌓아온 학습 버퍼가 이 테스트 실행 한 번에 통째로
@@ -20,6 +20,7 @@ from pipeline.detection_agent import (
     build_unified_feature_matrix,
     ALL_METRICS,
     RESOURCE_TYPES,
+    DERIVED_FEATURE_NAMES,
 )
 
 def test_shape_and_mask():
@@ -31,11 +32,12 @@ def test_shape_and_mask():
     }
     X = build_unified_feature_matrix("EC2", metrics)
 
-    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 리소스타입수
-    expected_cols = len(ALL_METRICS) * 2 + len(RESOURCE_TYPES)
+    # 행 개수 = 시점 개수(3), 열 개수 = (지표수*2) + 파생feature수(ec2_idle_flag/
+    # lambda_error_rate, 2026-09-12 추가) + 리소스타입수
+    expected_cols = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES) + len(RESOURCE_TYPES)
     assert X.shape == (3, expected_cols), f"실제 shape: {X.shape}, 기대값: (3, {expected_cols})"
 
-    print("✅ shape 통과:", X.shape)
+    print("shape 통과:", X.shape)
 
 test_shape_and_mask()
 
@@ -60,7 +62,7 @@ def test_mask_values():
         if has_it:
             assert np.allclose(value_col, metrics[metric_name]), f"{metric_name} 값 불일치"
 
-    print("✅ 마스크 검증 통과")
+    print("마스크 검증 통과")
 
 test_mask_values()
 
@@ -69,7 +71,7 @@ def test_one_hot():
     X_ec2 = build_unified_feature_matrix("EC2", metrics)
     X_lambda = build_unified_feature_matrix("Lambda", metrics)
 
-    onehot_start = len(ALL_METRICS) * 2  # one-hot 컬럼이 시작되는 위치
+    onehot_start = len(ALL_METRICS) * 2 + len(DERIVED_FEATURE_NAMES)  # one-hot 컬럼이 시작되는 위치
 
     ec2_onehot = X_ec2[0, onehot_start:]
     lambda_onehot = X_lambda[0, onehot_start:]
@@ -82,14 +84,14 @@ def test_one_hot():
     assert ec2_onehot.sum() == 1.0  # 딱 하나만 켜져야 함
     assert lambda_onehot.sum() == 1.0
 
-    print("✅ one-hot 검증 통과")
+    print("one-hot 검증 통과")
 
 test_one_hot()
 
 def test_module_loads_without_assertion_error():
     # 이 함수가 에러 없이 import를 마쳤다면, state.py와 불일치가 없다는 뜻
     import pipeline.detection_agent  # noqa
-    print("✅ RESOURCE_TYPES 일치성 검증 통과 (import 성공)")
+    print("RESOURCE_TYPES 일치성 검증 통과 (import 성공)")
 
 test_module_loads_without_assertion_error()
 
@@ -153,11 +155,11 @@ def test_end_to_end_detection_node():
     # 캐시 파일이 통합 이름으로 생겼는지 확인
     expected_path = os.path.join(IFOREST_MODEL_DIR, f"iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl")
     assert os.path.exists(expected_path), "통합 모델 캐시 파일이 안 생김"
-    print("✅ 통합 모델 캐시 파일 생성 확인:", expected_path)
+    print("통합 모델 캐시 파일 생성 확인:", expected_path)
 
     # 3개 시점 연속 스파이크(지속성 조건 충족)가 들어갔으니 트리거되어야 함
     assert result["anomaly_flag"] is True
-    print("✅ end-to-end 통과")
+    print("end-to-end 통과")
 
 test_end_to_end_detection_node()
 
@@ -201,7 +203,7 @@ def test_cold_start_seed_rejects_contaminated_window():
         )
     expected_path = os.path.join(IFOREST_MODEL_DIR, f"iforest_{IFOREST_UNIFIED_MODEL_NAME}.pkl")
     assert not os.path.exists(expected_path), "오염된 윈도우인데도 모델 캐시 파일이 생성됨"
-    print("✅ 오염된 윈도우 5회 시도 전부 시드 거부 확인 (캐시 파일 미생성)")
+    print("오염된 윈도우 5회 시도 전부 시드 거부 확인 (캐시 파일 미생성)")
 
     # 정상 데이터가 들어오면 그제서야 시드되어야 함
     detection_node({
@@ -210,7 +212,7 @@ def test_cold_start_seed_rejects_contaminated_window():
         "anomaly_score_zscore": None, "anomaly_score_iforest": None, "triggered_metrics": [],
     })
     assert os.path.exists(expected_path), "정상 윈도우인데도 시드가 안 됨"
-    print("✅ 정상 윈도우가 들어오자 정상적으로 시드됨")
+    print("정상 윈도우가 들어오자 정상적으로 시드됨")
 
     if os.path.exists(IFOREST_MODEL_DIR):
         shutil.rmtree(IFOREST_MODEL_DIR)
@@ -249,7 +251,7 @@ def test_multiple_resource_types_share_cache():
     assert files == expected, (
         f"통합 모델이 아니라 리소스별 파일이 따로 생김: {files}"
     )
-    print("✅ 통합 캐시 재사용 확인 (리소스 타입별 파일 없음)")
+    print("통합 캐시 재사용 확인 (리소스 타입별 파일 없음)")
 
 test_multiple_resource_types_share_cache()
 
@@ -273,7 +275,7 @@ def test_inference_time():
     print("추론 시간 벤치마크:", result)
 
     assert result["max_sec"] < 1.0, f"1초 초과! {result['max_sec']}초"
-    print("✅ 추론 시간 1초 미만 확인")
+    print("추론 시간 1초 미만 확인")
 
 test_inference_time()
 
@@ -305,7 +307,7 @@ def test_zscore_persistent_ignores_past_spike():
     assert persistent_triggered is False, "persistent 방식은 값이 회복되면 트리거되면 안 됨"
     assert persistent_z < window_max_z, "persistent z는 window-max z보다 작아야 함"
 
-    print("✅ 스파이크 회복 후 persistent 방식만 알림이 해제됨을 확인")
+    print("스파이크 회복 후 persistent 방식만 알림이 해제됨을 확인")
 
 test_zscore_persistent_ignores_past_spike()
 
@@ -320,7 +322,7 @@ def test_zscore_persistent_ignores_single_blip():
     print(f"single blip (k={PERSISTENCE_WINDOW_POINTS}):", z, triggered)
 
     assert triggered is False, "마지막 1개 시점만 튄 노이즈는 지속성 체크에서 걸러져야 함"
-    print("✅ 순간적인 노이즈 튐 한 번은 트리거되지 않음을 확인 (flapping 방지)")
+    print("순간적인 노이즈 튐 한 번은 트리거되지 않음을 확인 (flapping 방지)")
 
 test_zscore_persistent_ignores_single_blip()
 
@@ -337,7 +339,7 @@ def test_zscore_persistent_triggers_on_sustained_spike():
     print(f"sustained spike (k={PERSISTENCE_WINDOW_POINTS}):", z, triggered)
 
     assert triggered is True, "최근 3개 시점이 계속 이상이면 트리거되어야 함"
-    print("✅ 지속되는 이상은 여전히 잡힘을 확인")
+    print("지속되는 이상은 여전히 잡힘을 확인")
 
 test_zscore_persistent_triggers_on_sustained_spike()
 
@@ -374,10 +376,645 @@ def test_detection_node_clears_after_spike_recovers():
     assert "cost" not in result["triggered_metrics"], (
         "값이 회복됐는데도 과거 스파이크 때문에 cost가 여전히 트리거됨 (window-max로 되돌아간 회귀)"
     )
-    print("✅ 과거 스파이크가 윈도우에 남아있어도 값이 회복되면 더 이상 트리거되지 않음을 확인")
+    print("과거 스파이크가 윈도우에 남아있어도 값이 회복되면 더 이상 트리거되지 않음을 확인")
 
     # 캐시 정리 (다음 테스트 실행에 영향 안 주도록)
     if os.path.exists(IFOREST_MODEL_DIR):
         shutil.rmtree(IFOREST_MODEL_DIR)
 
 test_detection_node_clears_after_spike_recovers()
+
+
+from pipeline.detection_agent import (
+    _low_utilization_check,
+    EC2_IDLE_CPU_THRESHOLD_PCT,
+    EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD,
+    EC2_IDLE_TARGET_METRICS,
+    EC2_OVERPROVISION_CPU_THRESHOLD_PCT,
+)
+
+
+def test_low_utilization_check_flags_flat_idle_ec2():
+    """시나리오 1 (좀비 EC2): 윈도우 내내 CPU/네트워크 둘 다 낮고 변동이 없는 케이스.
+    z-score는 window 내부 평균/표준편차 기준이라 이런 무변동 저사용 패턴을 못 잡는데
+    (z≈0), 이 절대임계값 체크는 window 전체의 peak CPU/합산 network I/O를 직접
+    보므로 잡아야 한다."""
+    metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+        "cost":             [0.05] * 30,
+    }
+    triggered, is_idle, _ = _low_utilization_check("EC2", metrics)
+
+    assert is_idle is True, "CPU/네트워크 둘 다 임계값 이하로 지속되면 유휴로 판정되어야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS), (
+        f"트리거 시 cpu_utilization/network_in/network_out이 함께 반환되어야 함: {triggered}"
+    )
+    print("완전 평평한 저사용률 EC2 윈도우 → 유휴 판정 확인")
+
+test_low_utilization_check_flags_flat_idle_ec2()
+
+
+def test_low_utilization_check_requires_both_cpu_and_network_low():
+    """AWS Compute Optimizer 기준은 CPU AND network I/O 둘 다 낮아야 idle이다.
+    CPU만 낮고 network_in/out은 정상 범위(예: 트래픽만 통과시키는 인스턴스)면
+    idle이 아니어야 한다 — 이걸 false negative로 오인하지 않도록 회귀 방지용으로
+    남겨둔다 (시나리오 1 케이스 D 논의 참고)."""
+    metrics = {
+        "cpu_utilization": [2.0] * 30,       # 임계값(5%) 이하
+        "network_in":      [50000.0] * 30,   # 임계값을 훨씬 초과하는 정상 트래픽
+        "network_out":     [30000.0] * 30,
+    }
+    triggered, is_idle, _ = _low_utilization_check("EC2", metrics)
+
+    assert is_idle is False, "CPU만 낮고 network는 정상이면 idle로 판정되면 안 됨(AND 조건)"
+    assert triggered == []
+    print("CPU만 낮고 network는 정상인 케이스는 idle로 판정되지 않음을 확인 (AND 시맨틱스)")
+
+test_low_utilization_check_requires_both_cpu_and_network_low()
+
+
+def test_low_utilization_check_boundary_network_io():
+    """network I/O 합계가 임계값과 정확히 같으면(<=) 트리거되고, 아주 조금이라도
+    넘으면 트리거되지 않아야 한다 (경계값 검증)."""
+    n = 30
+    cpu_safe = [1.0] * n  # cpu는 임계값과 충분히 떨어뜨려서 network만 경계 테스트
+
+    at_boundary = {
+        "cpu_utilization": cpu_safe,
+        "network_in": [EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD / n] * n,
+        "network_out": [0.0] * n,
+    }
+    _, is_idle_at, _ = _low_utilization_check("EC2", at_boundary)
+    assert is_idle_at is True, "network I/O 합계가 임계값과 정확히 같으면 트리거되어야 함"
+
+    over_boundary = {
+        "cpu_utilization": cpu_safe,
+        "network_in": [(EC2_IDLE_NETWORK_IO_BYTES_THRESHOLD + n) / n] * n,  # 총합 임계값 + n bytes
+        "network_out": [0.0] * n,
+    }
+    _, is_idle_over, _ = _low_utilization_check("EC2", over_boundary)
+    assert is_idle_over is False, "network I/O 합계가 임계값을 조금이라도 넘으면 트리거되면 안 됨"
+
+    print("network I/O 임계값 경계(<=) 동작 확인")
+
+test_low_utilization_check_boundary_network_io()
+
+
+def test_low_utilization_check_boundary_cpu():
+    """peak CPU가 좀비 임계값(5%)과 정확히 같으면(<=) zombie로, 조금이라도 넘으면
+    (오버프로비저닝 임계값 20% 이내라면) overprovisioned로 판정되어야 한다.
+    오버프로비저닝 임계값(20%)을 넘으면 더 이상 트리거되지 않아야 한다.
+    [2026-09-11 갱신] 오버프로비저닝 밴드 추가로 "5% 초과 시 무조건 미탐지"였던
+    기존 기대값이 바뀜 — 이제 5~20%는 overprovisioned로 여전히 트리거된다."""
+    n = 30
+    network_safe = {"network_in": [0.0] * n, "network_out": [0.0] * n}  # network는 충분히 낮게 고정
+
+    at_boundary = {"cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * n, **network_safe}
+    _, is_idle_at, band_at = _low_utilization_check("EC2", at_boundary)
+    assert is_idle_at is True, "peak CPU가 좀비 임계값과 정확히 같으면 트리거되어야 함"
+    assert band_at == "zombie", "좀비 임계값 이내는 zombie 밴드여야 함"
+
+    just_over_zombie = {
+        "cpu_utilization": [EC2_IDLE_CPU_THRESHOLD_PCT] * (n - 1) + [EC2_IDLE_CPU_THRESHOLD_PCT + 0.01],
+        **network_safe,
+    }
+    _, is_idle_over, band_over = _low_utilization_check("EC2", just_over_zombie)
+    assert is_idle_over is True, "좀비 임계값을 조금 넘어도 오버프로비저닝 밴드 이내면 트리거되어야 함"
+    assert band_over == "overprovisioned", "좀비~오버프로비저닝 임계값 사이는 overprovisioned 밴드여야 함"
+
+    over_overprovision = {
+        "cpu_utilization": [EC2_OVERPROVISION_CPU_THRESHOLD_PCT + 0.01] * n,
+        **network_safe,
+    }
+    _, is_idle_normal, band_normal = _low_utilization_check("EC2", over_overprovision)
+    assert is_idle_normal is False, "오버프로비저닝 임계값을 넘으면 트리거되면 안 됨"
+    assert band_normal is None
+
+    print("CPU 임계값 경계(좀비 5% / 오버프로비저닝 20%) 동작 확인")
+
+test_low_utilization_check_boundary_cpu()
+
+
+def test_low_utilization_check_scoped_to_ec2_only():
+    """이번 범위는 EC2 전용 — RDS는 cpu_utilization 필드가 있어도(schema/state.py의
+    RDSMetrics 참고) network_in/network_out이 없어 어차피 조건을 못 채우지만,
+    resource_type 게이트 자체도 명시적으로 확인해 향후 회귀를 방지한다."""
+    rds_metrics = {
+        "cpu_utilization": [1.0] * 30,
+        "database_connections": [0.0] * 30,
+        "read_iops": [0.0] * 30,
+        "write_iops": [0.0] * 30,
+    }
+    triggered, is_idle, band = _low_utilization_check("RDS", rds_metrics)
+    assert (triggered, is_idle, band) == ([], False, None), "RDS는 이번 범위에서 제외되어야 함"
+    print("RDS는 이번 범위에서 제외됨을 확인 (resource_type 게이트)")
+
+test_low_utilization_check_scoped_to_ec2_only()
+
+
+def test_detection_node_flags_idle_ec2_via_absolute_threshold():
+    """detection_node 통합 테스트: 완전 평평한 저사용률 윈도우를 넣었을 때
+    anomaly_flag=True가 되고, triggered_metrics에 이번에 추가한 세 지표가
+    포함되는지 확인 (z-score/IForest 콜드스타트 값과 무관하게 절대임계값
+    체크만으로도 탐지가 성립함을 검증)."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    fake_state = {
+        "resource_id": "i-zombie",
+        "resource_type": "EC2",
+        "raw_metrics": {
+            "cpu_utilization": [1.5] * 30,
+            "network_in":      [500.0] * 30,
+            "network_out":     [300.0] * 30,
+            "cost":             [0.05] * 30,
+        },
+        "timestamp": "2026-09-05T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+    }
+
+    result = detection_node(fake_state)
+    print("triggered_metrics:", result["triggered_metrics"])
+    print("anomaly_flag:", result["anomaly_flag"])
+
+    assert result["anomaly_flag"] is True, "저사용률 EC2는 탐지되어야 함"
+    assert set(EC2_IDLE_TARGET_METRICS) <= set(result["triggered_metrics"]), (
+        "triggered_metrics에 cpu_utilization/network_in/network_out이 포함되어야 함"
+    )
+    print("detection_node가 절대임계값 체크로 저사용률 EC2를 탐지함을 확인")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_detection_node_flags_idle_ec2_via_absolute_threshold()
+
+
+_EC2_IDLE_WINDOW_SECONDS = 30 * 300  # n_points × period_seconds 기본값 = 2.5시간(=9000초)
+
+
+def test_low_utilization_check_holds_judgment_for_young_instance():
+    """2026-09-05 실 AWS 테스트에서 발견: 막 생성된 EC2는 윈도우 대부분이 진짜
+    유휴가 아니라 '아직 이력이 없어서 0으로 채워진' 값이라, 부팅 트래픽마저 작았다면
+    즉시 좀비로 오판될 수 있다. 나이가 윈도우 길이보다 어리면 판단을 보류해야 한다."""
+    idle_looking_metrics = {
+        "cpu_utilization": [0.0] * 30,
+        "network_in":      [0.0] * 30,
+        "network_out":     [0.0] * 30,
+    }
+    young_age = _EC2_IDLE_WINDOW_SECONDS - 1  # 윈도우 길이보다 1초 어림
+
+    triggered, is_idle, band = _low_utilization_check("EC2", idle_looking_metrics, young_age)
+
+    assert (triggered, is_idle, band) == ([], False, None), (
+        "생성된 지 윈도우 길이도 안 된 인스턴스는 지표가 idle처럼 보여도 판단을 보류해야 함"
+    )
+    print("신생 인스턴스(윈도우 길이 미만)는 idle 판단이 보류됨을 확인")
+
+test_low_utilization_check_holds_judgment_for_young_instance()
+
+
+def test_low_utilization_check_still_triggers_for_mature_instance():
+    """가드가 진짜 좀비까지 막아버리면 안 됨 — 나이가 윈도우 길이 이상이면
+    (즉 가드에 안 걸리면) 기존처럼 정상적으로 트리거되어야 한다 (회귀 방지)."""
+    idle_metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+    }
+    mature_age = _EC2_IDLE_WINDOW_SECONDS  # 정확히 윈도우 길이 = 판단 허용 경계
+
+    triggered, is_idle, _ = _low_utilization_check("EC2", idle_metrics, mature_age)
+
+    assert is_idle is True, "나이가 윈도우 길이 이상이면 가드에 안 걸리고 정상 판단돼야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)
+    print("나이가 윈도우 길이 이상인 진짜 유휴 인스턴스는 여전히 잡힘을 확인")
+
+test_low_utilization_check_still_triggers_for_mature_instance()
+
+
+def test_low_utilization_check_unknown_age_keeps_old_behavior():
+    """resource_age_seconds를 안 주면(None, 기본값) 가드가 작동하지 않고 기존
+    동작(오늘 이전까지의 동작) 그대로 유지되어야 한다 — 하위호환 확인.
+    실제로 오늘 실 AWS 테스트 인스턴스가 이 경로를 탔다(당시엔 나이 정보 자체가 없었음)."""
+    idle_metrics = {
+        "cpu_utilization": [1.5] * 30,
+        "network_in":      [500.0] * 30,
+        "network_out":     [300.0] * 30,
+    }
+    triggered, is_idle, _ = _low_utilization_check("EC2", idle_metrics)  # resource_age_seconds 생략
+
+    assert is_idle is True, "나이 정보가 없으면(None) 가드 없이 기존처럼 판단해야 함"
+    assert set(triggered) == set(EC2_IDLE_TARGET_METRICS)
+    print("나이 정보 없음(None)이면 하위호환대로 기존 판단 로직이 그대로 적용됨을 확인")
+
+test_low_utilization_check_unknown_age_keeps_old_behavior()
+
+
+from pipeline.detection_agent import (
+    _lambda_error_rate_check,
+    LAMBDA_ERROR_RATE_THRESHOLD,
+    LAMBDA_ERROR_RATE_MIN_INVOCATIONS,
+)
+
+
+def _lambda_metrics(invocation_last3, error_last3):
+    """최근 3개 포인트만 의미 있고 나머지 27개는 평상시 수준(정상)으로 채운
+    Lambda raw_metrics. 지속성 체크가 '최근 k개'만 보므로 앞부분은 무관."""
+    n_normal = 27
+    return {
+        "invocation_count": [20.0] * n_normal + invocation_last3,
+        "error_count":      [1.0] * n_normal + error_last3,
+        "duration_avg":     [100.0] * 30,
+    }
+
+
+def test_lambda_error_rate_check_flags_sustained_surge():
+    """시나리오 4 핵심 케이스: 최근 3포인트 연속 invocation>=10 & error_rate>=50%."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[10.0, 12.0, 15.0],  # 50%, 60%, 75%
+    )
+    triggered, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is True
+    assert set(triggered) == {"error_count", "invocation_count"}
+    print("최근 3포인트 연속 error_rate>=50% & invocation>=10 -> 트리거 확인")
+
+test_lambda_error_rate_check_flags_sustained_surge()
+
+
+def test_lambda_error_rate_check_boundary():
+    """error_rate가 정확히 임계값이면 트리거, 아주 조금이라도 못 미치면 트리거 안 됨 (경계값).
+    LAMBDA_ERROR_RATE_THRESHOLD를 하드코딩하지 않고 상수를 그대로 참조해서, 나중에
+    임계값이 조정돼도 이 테스트가 깨지지 않게 한다 (EC2 경계값 테스트와 동일 패턴)."""
+    inv = LAMBDA_ERROR_RATE_MIN_INVOCATIONS
+    at_err = inv * LAMBDA_ERROR_RATE_THRESHOLD  # 정확히 임계값 비율
+
+    at_boundary = _lambda_metrics(
+        invocation_last3=[inv, inv, inv],
+        error_last3=[at_err, at_err, at_err],
+    )
+    _, is_surge_at = _lambda_error_rate_check("Lambda", at_boundary)
+    assert is_surge_at is True, "error_rate가 임계값과 정확히 같으면(>=) 트리거되어야 함"
+
+    under_boundary = _lambda_metrics(
+        invocation_last3=[inv, inv, inv],
+        error_last3=[at_err - 0.01, at_err - 0.01, at_err - 0.01],
+    )
+    _, is_surge_under = _lambda_error_rate_check("Lambda", under_boundary)
+    assert is_surge_under is False, "error_rate가 임계값에 조금이라도 못 미치면 트리거되면 안 됨"
+
+    print(f"error_rate {LAMBDA_ERROR_RATE_THRESHOLD:.0%} 경계(>=) 동작 확인")
+
+test_lambda_error_rate_check_boundary()
+
+
+def test_lambda_error_rate_check_min_invocation_gate():
+    """호출수가 게이트(LAMBDA_ERROR_RATE_MIN_INVOCATIONS) 미만이면 error_rate가 100%여도
+    트리거 안 됨 -- 노이즈 방지 게이트가 실제로 작동하는지 확인 (0으로 나누기 회귀 방지도 겸함)."""
+    under_gate = LAMBDA_ERROR_RATE_MIN_INVOCATIONS - 1
+    metrics = _lambda_metrics(
+        invocation_last3=[under_gate, under_gate, under_gate],
+        error_last3=[under_gate, under_gate, under_gate],  # 100%, 그러나 호출수가 게이트 미달
+    )
+    triggered, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is False, "최소 호출수 게이트 미달이면 error_rate가 100%여도 트리거되면 안 됨"
+    assert triggered == []
+    print(f"최소 호출수 게이트(포인트당 {LAMBDA_ERROR_RATE_MIN_INVOCATIONS}건) 미달 시 트리거 안 됨을 확인")
+
+test_lambda_error_rate_check_min_invocation_gate()
+
+
+def test_lambda_error_rate_check_ignores_single_blip():
+    """최근 3포인트 중 1개만 폭증하고 나머지 2개는 정상이면(지속성 미충족) 트리거 안 됨
+    -- z-score의 _zscore_check_persistent와 동일한 '순간 노이즈 무시' 철학 회귀 방지."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[1.0, 1.0, 15.0],  # 5%, 5%, 75% -- 마지막 1개만 폭증
+    )
+    _, is_surge = _lambda_error_rate_check("Lambda", metrics)
+
+    assert is_surge is False, "최근 3포인트 중 1개만 튄 순간적 노이즈는 트리거되면 안 됨"
+    print("순간적 노이즈(최근 3포인트 중 1개만 폭증)는 트리거 안 됨을 확인")
+
+test_lambda_error_rate_check_ignores_single_blip()
+
+
+def test_lambda_error_rate_check_scoped_to_lambda_only():
+    """Lambda 전용 -- 다른 리소스 타입(우연히 같은 필드명을 가진 경우는 없지만
+    resource_type 게이트 자체를 명시적으로 확인)은 항상 제외."""
+    metrics = _lambda_metrics(
+        invocation_last3=[20.0, 20.0, 20.0],
+        error_last3=[15.0, 15.0, 15.0],
+    )
+    triggered, is_surge = _lambda_error_rate_check("EC2", metrics)
+    assert (triggered, is_surge) == ([], False)
+    print("Lambda 외 리소스 타입은 항상 제외됨을 확인")
+
+test_lambda_error_rate_check_scoped_to_lambda_only()
+
+
+def test_detection_node_flags_lambda_error_surge_and_activates_clf002():
+    """detection_node 통합 테스트 + CLF-002가 실제로 살아나는지까지 확인.
+    CLF-002(schema/rules/classification_rules.json)는 오늘 이전까지 triggered_metrics에
+    error_count가 절대 안 들어가서 죽어있던 규칙이었다 -- 이번 체크가 그걸 살리는 게
+    핵심 목표이므로, rule_engine.py까지 이어서 실제 매칭을 확인한다.
+
+    2026-09-13: Lambda error_rate가 detection_node의 직접 트리거에서 빠지고
+    IForest 전용 입력으로 바뀌면서, 이 테스트도 예전처럼 cold-start(모델 없음)로
+    돌리면 무조건 실패한다 -- IForest가 아예 없으면 iforest_triggered가 항상
+    False이기 때문(실제 운영은 MOCK_SEED_BUFFER_FROZEN=True로 항상 사전학습된
+    모델이 있어서 이 조건 자체가 비현실적). 그래서 cold-start 대신 실제 운영과
+    동일하게 정상 Lambda mock 윈도우로 모델을 미리 학습시켜두고 검증한다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    # 처음엔 invocation~20 x error_rate 0~2%로 직접 mock을 만들었는데, 반올림하면
+    # error_count가 항상 정확히 0(분산 0)이 돼서 모델이 이 컬럼으로 아무것도
+    # 구분 못 하는 상태가 됐었다(디버깅으로 확인). 실제 프로덕션 시딩 스크립트
+    # (seed_mock_iforest_buffer.make_lambda_window)는 invocation 10/50/150을
+    # 섞어써서 이 문제가 없으므로 그걸 그대로 재사용한다.
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE,
+        _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    fake_state = {
+        "resource_id": "func-retry-storm",
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],  # 75%, 80%, 90%
+        ),
+        "timestamp": "2026-09-05T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+    }
+
+    result = detection_node(fake_state)
+    print("triggered_metrics:", result["triggered_metrics"])
+    print("anomaly_flag:", result["anomaly_flag"])
+
+    assert result["anomaly_flag"] is True
+    assert {"error_count", "invocation_count"} <= set(result["triggered_metrics"])
+
+    from pipeline.rule_engine import RuleEngine
+    engine = RuleEngine()
+    matched = engine.match_classification_rules(result)
+    assert matched is not None, "CLF-002가 매칭되어야 하는데 아무 규칙도 안 잡힘"
+    assert matched["rule_id"] == "CLF-002", f"CLF-002가 아니라 {matched['rule_id']}가 매칭됨"
+    assert matched["result"]["anomaly_type"] == "cost_spike"
+    print(f"CLF-002 활성화 확인 -- 매칭된 규칙: {matched['rule_id']} ({matched['description']})")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_detection_node_flags_lambda_error_surge_and_activates_clf002()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SHAP 해석가능성 프로덕션 경로 연결 (2026-09-14) — Detection/Logging/DB 담당分
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_shap_top_features_populated_when_iforest_triggered():
+    """IForest가 실제로 트리거된 경우 state["shap_top_features"]가 상위 SHAP_TOP_N개
+    (지표명 -> 기여도, 절댓값 내림차순)로 채워지는지 확인. 위 CLF-002 테스트와
+    동일한 시딩 방식(seed_mock_iforest_buffer.make_lambda_window)을 재사용한다 —
+    모델이 없으면 iforest_triggered가 항상 False라 SHAP 자체를 테스트할 수 없다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE,
+        SHAP_TOP_N, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    fake_state = {
+        "resource_id": "func-retry-storm-shap",
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],  # 75%, 80%, 90%
+        ),
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+
+    result = detection_node(fake_state)
+    assert result["_gate_iforest_triggered"] is True, "이 테스트는 IForest가 트리거되는 걸 전제로 함"
+
+    shap = result["shap_top_features"]
+    assert shap is not None, "IForest 트리거 시 shap_top_features가 채워져야 함"
+    assert isinstance(shap, dict) and len(shap) <= SHAP_TOP_N
+    values = list(shap.values())
+    assert values == sorted(values, key=abs, reverse=True), "절댓값 내림차순 정렬이어야 함"
+    # error_count/invocation_count 급증이 원인이므로 최소 하나는 상위에 있어야 함
+    assert {"error_count", "invocation_count", "lambda_error_rate"} & set(shap.keys()), (
+        f"에러 폭증과 무관한 지표만 상위에 잡힘: {shap.keys()}"
+    )
+    print(f"IForest 트리거 시 SHAP 상위 {len(shap)}개 채워짐: {shap}")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_populated_when_iforest_triggered()
+
+
+def test_shap_top_features_skipped_when_only_ec2_idle_triggered():
+    """EC2 유휴 절대임계값만 트리거된 경우(IForest는 구조적으로 이 케이스를 못 잡음,
+    2.1.1절/4.4절 참고) SHAP을 계산하지 않아야 한다 — IForest의 판단이 아닌데
+    IForest 설명을 붙이면 안 되기 때문."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    fake_state = {
+        "resource_id": "i-idle-shap-check",
+        "resource_type": "EC2",
+        "raw_metrics": {
+            "cpu_utilization": [1.5] * 30,
+            "network_in":      [500.0] * 30,
+            "network_out":     [300.0] * 30,
+            "cost":            [0.05] * 30,
+        },
+        "timestamp": "2026-09-14T00:00:00Z",
+        "resource_age_seconds": 3 * 3600,  # 나이 가드(2.5시간) 통과
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+
+    result = detection_node(fake_state)
+    assert result["_gate_idle_triggered"] is True, "이 테스트는 EC2 유휴가 트리거되는 걸 전제로 함"
+    assert result["_gate_iforest_triggered"] is False, (
+        "이 테스트는 IForest가 안 잡는 케이스를 전제로 함(구조적 한계 실측 근거)"
+    )
+    assert result["anomaly_flag"] is True  # 유휴 게이트로 인해 전체 판정은 True
+    assert result["shap_top_features"] is None, "IForest 미트리거 시 SHAP을 계산하면 안 됨"
+    print("EC2 유휴 단독 트리거 시 SHAP 계산 스킵 확인")
+
+test_shap_top_features_skipped_when_only_ec2_idle_triggered()
+
+
+def test_shap_top_features_skipped_when_iforest_not_triggered_with_model_present():
+    """모델이 존재하더라도(콜드스타트가 아니더라도) IForest 자체가 트리거 안 되면
+    SHAP을 계산하지 않는지 확인 — 위 idle 테스트는 모델이 아예 없는 콜드스타트라
+    "모델이 있는데도 안 잡히는" 케이스를 별도로 확인해야 게이팅 조건
+    (iforest_triggered 자체)을 제대로 검증한 게 된다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    # 학습 때 쓴 것과 같은 분포의 "평범한" 윈도우 하나를 그대로 재사용 -- 모델
+    # 입장에서 낯설지 않은 정상 패턴이라 트리거가 안 돼야 함
+    normal_metrics = make_lambda_window(np.random.default_rng(7))
+    fake_state = {
+        "resource_id": "func-normal-shap-check",
+        "resource_type": "Lambda",
+        "raw_metrics": normal_metrics,
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+    }
+    result = detection_node(fake_state)
+    assert result["_gate_iforest_triggered"] is False, "이 테스트는 모델이 있어도 안 잡히는 정상 케이스 전제"
+    assert result["shap_top_features"] is None, "IForest 미트리거 시(모델 존재해도) SHAP 계산 안 해야 함"
+    print("모델 존재 + IForest 미트리거 시에도 SHAP 계산 스킵 확인")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_skipped_when_iforest_not_triggered_with_model_present()
+
+
+def test_shap_top_features_persisted_to_db_via_logging_node():
+    """통합 테스트: detection_node -> logging_node를 실제로 이어 돌려서, IForest가
+    트리거된 케이스의 shap_top_features가 실제 PostgreSQL의
+    agent_steps.output(JSONB) 안에 그대로 저장되는지 DB를 직접 조회해 확인한다.
+    DB 접속 정보가 없거나 연결 실패하면(로컬/CI 환경) 스킵 -- 이 프로젝트의
+    logging_node 자체가 "DB 실패해도 파이프라인은 계속 진행"하는 방어적 설계라,
+    이 테스트도 같은 정신으로 DB 없으면 실패시키지 않고 건너뛴다."""
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+    from sklearn.ensemble import IsolationForest
+    from pipeline.detection_agent import (
+        IFOREST_UNIFIED_MODEL_NAME, IFOREST_CONTAMINATION, IFOREST_RANDOM_STATE, _save_model,
+    )
+    from playground.seed_mock_iforest_buffer import make_lambda_window
+    from pipeline.logging_agent import logging_node, _pg_connection_params
+    import psycopg2
+
+    try:
+        conn = psycopg2.connect(**_pg_connection_params())
+        conn.close()
+    except Exception as exc:
+        print(f"DB 연결 불가 — 통합 테스트 스킵({exc!r})")
+        return
+
+    rng = np.random.default_rng(42)
+    normal_windows = [
+        build_unified_feature_matrix("Lambda", make_lambda_window(rng)) for _ in range(30)
+    ]
+    seed_model = IsolationForest(contamination=IFOREST_CONTAMINATION, random_state=IFOREST_RANDOM_STATE)
+    seed_model.fit(np.vstack(normal_windows))
+    _save_model(IFOREST_UNIFIED_MODEL_NAME, seed_model, ALL_METRICS)
+
+    resource_id = "func-retry-storm-shap-dbtest"
+    fake_state = {
+        "resource_id": resource_id,
+        "resource_type": "Lambda",
+        "raw_metrics": _lambda_metrics(
+            invocation_last3=[20.0, 20.0, 20.0],
+            error_last3=[15.0, 16.0, 18.0],
+        ),
+        "timestamp": "2026-09-14T00:00:00Z",
+        "anomaly_flag": False,
+        "anomaly_score_zscore": None,
+        "anomaly_score_iforest": None,
+        "triggered_metrics": [],
+        "shap_top_features": None,
+        "log_entries": [],
+    }
+    state = detection_node(fake_state)
+    assert state["shap_top_features"] is not None, "DB 저장 확인 전에 SHAP 자체가 비어있으면 테스트 무의미"
+
+    logging_node(state)  # 실패해도 예외를 안 던지는 설계 -- 아래에서 실제 저장 여부를 직접 확인
+
+    conn = psycopg2.connect(**_pg_connection_params())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT s.output
+                FROM agent_steps s
+                JOIN agent_runs r ON r.run_id = s.run_id
+                WHERE r.resource_id = %s AND s.step_name = 'detection'
+                ORDER BY r.run_id DESC
+                LIMIT 1
+                """,
+                (resource_id,),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    assert row is not None, "logging_node가 agent_steps에 detection 행을 저장했어야 함"
+    saved_output = row[0]  # psycopg2가 JSONB를 dict로 자동 변환
+    assert saved_output.get("shap_top_features") == state["shap_top_features"], (
+        f"DB에 저장된 shap_top_features가 state와 다름: {saved_output.get('shap_top_features')} "
+        f"!= {state['shap_top_features']}"
+    )
+    print(f"DB(agent_steps.output JSONB)에 shap_top_features 저장 확인: "
+          f"{saved_output['shap_top_features']}")
+
+    if os.path.exists(IFOREST_MODEL_DIR):
+        shutil.rmtree(IFOREST_MODEL_DIR)
+
+test_shap_top_features_persisted_to_db_via_logging_node()

@@ -1,0 +1,4 @@
+2026-09-13 20:01:28,701 [INFO] 로그 파일: C:\Users\soyoung\Desktop\work\4-졸업과제\detection\langgraph_study\playground\eval_outputs\logs\autoscaling_edos_traffic_trial_20260913_200128.log (SCRIPT_VERSION=4)
+2026-09-13 20:01:30,757 [INFO] ALB 생성: detection-traffic-alb
+2026-09-13 20:03:17,505 [INFO] Target Group 생성: tg-anomaly-0 (listener port=8001)
+2026-09-13 20:03:17,605 [INFO] 리스너 생성: port=8001 -> tg-anomaly-0

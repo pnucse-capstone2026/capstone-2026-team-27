@@ -1,0 +1,457 @@
+[
+  {
+    "resource_id": "i-00f27d6650869a74d",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": true,
+    "anomaly_score_zscore": 0.5825,
+    "anomaly_score_iforest": 0.9294,
+    "triggered_metrics": [
+      "cpu_utilization",
+      "network_in",
+      "network_out"
+    ],
+    "anomaly_type": "cost_inefficiency",
+    "matched_rule_id": null,
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "requires_approval": false,
+    "matched_decision_rule_id": "DEC-001",
+    "candidate_actions": [
+      {
+        "action": "NoAction",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      },
+      {
+        "action": "Stop",
+        "saving_rate": 1.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 1.0,
+        "estimated_saving_usd": 0.001083
+      },
+      {
+        "action": "Stop+Schedule",
+        "saving_rate": 0.5,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.5,
+        "estimated_saving_usd": 0.000542
+      },
+      {
+        "action": "Resize",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      }
+    ],
+    "action_executed": "Stop",
+    "action_result": {
+      "status": "success",
+      "raw": [
+        {
+          "InstanceId": "i-00f27d6650869a74d",
+          "CurrentState": {
+            "Code": 64,
+            "Name": "stopping"
+          },
+          "PreviousState": {
+            "Code": 16,
+            "Name": "running"
+          }
+        }
+      ]
+    },
+    "action_success": true,
+    "qa_passed": true,
+    "sla_check_result": {
+      "cpu_ok": true,
+      "cost_ok": true,
+      "availability_ok": true,
+      "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "rollback_count": 0,
+    "qa_matched_rule_id": "QA-002",
+    "stopped_at": null,
+    "timings": {
+      "detection": 0.167,
+      "classification": 46.376,
+      "decision": 0.006,
+      "action": 0.823,
+      "qa": 300.745,
+      "logging": 0.067,
+      "total": 350.649
+    },
+    "elapsed_sec": 350.6
+  },
+  {
+    "resource_id": "i-013a9d143009d1376",
+    "label": "anomaly",
+    "profile": "whisper_more",
+    "anomaly_flag": true,
+    "anomaly_score_zscore": 0.8203,
+    "anomaly_score_iforest": 0.4158,
+    "triggered_metrics": [
+      "cpu_utilization",
+      "network_in",
+      "network_out"
+    ],
+    "anomaly_type": "cost_inefficiency",
+    "matched_rule_id": null,
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "requires_approval": false,
+    "matched_decision_rule_id": "DEC-001",
+    "candidate_actions": [
+      {
+        "action": "NoAction",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      },
+      {
+        "action": "Stop",
+        "saving_rate": 1.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 1.0,
+        "estimated_saving_usd": 0.001083
+      },
+      {
+        "action": "Stop+Schedule",
+        "saving_rate": 0.5,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.5,
+        "estimated_saving_usd": 0.000542
+      },
+      {
+        "action": "Resize",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      }
+    ],
+    "action_executed": "Stop",
+    "action_result": {
+      "status": "success",
+      "raw": [
+        {
+          "InstanceId": "i-013a9d143009d1376",
+          "CurrentState": {
+            "Code": 64,
+            "Name": "stopping"
+          },
+          "PreviousState": {
+            "Code": 16,
+            "Name": "running"
+          }
+        }
+      ]
+    },
+    "action_success": true,
+    "qa_passed": true,
+    "sla_check_result": {
+      "cpu_ok": true,
+      "cost_ok": true,
+      "availability_ok": true,
+      "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "rollback_count": 0,
+    "qa_matched_rule_id": "QA-002",
+    "stopped_at": null,
+    "timings": {
+      "detection": 0.175,
+      "classification": 81.654,
+      "decision": 0.005,
+      "action": 0.819,
+      "qa": 300.932,
+      "logging": 0.064,
+      "total": 386.159
+    },
+    "elapsed_sec": 386.2
+  },
+  {
+    "resource_id": "i-0238a05593fbcf2f2",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": true,
+    "anomaly_score_zscore": 0.7264,
+    "anomaly_score_iforest": 0.6433,
+    "triggered_metrics": [
+      "cpu_utilization",
+      "network_in",
+      "network_out"
+    ],
+    "anomaly_type": "cost_inefficiency",
+    "matched_rule_id": null,
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "requires_approval": false,
+    "matched_decision_rule_id": "DEC-001",
+    "candidate_actions": [
+      {
+        "action": "NoAction",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      },
+      {
+        "action": "Stop",
+        "saving_rate": 1.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 1.0,
+        "estimated_saving_usd": 0.001083
+      },
+      {
+        "action": "Stop+Schedule",
+        "saving_rate": 0.5,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.5,
+        "estimated_saving_usd": 0.000542
+      },
+      {
+        "action": "Resize",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      }
+    ],
+    "action_executed": "Stop",
+    "action_result": {
+      "status": "success",
+      "raw": [
+        {
+          "InstanceId": "i-0238a05593fbcf2f2",
+          "CurrentState": {
+            "Code": 64,
+            "Name": "stopping"
+          },
+          "PreviousState": {
+            "Code": 16,
+            "Name": "running"
+          }
+        }
+      ]
+    },
+    "action_success": true,
+    "qa_passed": true,
+    "sla_check_result": {
+      "cpu_ok": true,
+      "cost_ok": true,
+      "availability_ok": true,
+      "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "rollback_count": 0,
+    "qa_matched_rule_id": "QA-002",
+    "stopped_at": null,
+    "timings": {
+      "detection": 0.167,
+      "classification": 45.545,
+      "decision": 0.003,
+      "action": 0.786,
+      "qa": 300.777,
+      "logging": 0.069,
+      "total": 349.81
+    },
+    "elapsed_sec": 349.8
+  },
+  {
+    "resource_id": "i-046cbf400dd6dc9d7",
+    "label": "anomaly",
+    "profile": "whisper",
+    "anomaly_flag": true,
+    "anomaly_score_zscore": 0.6283,
+    "anomaly_score_iforest": 0.568,
+    "triggered_metrics": [
+      "cpu_utilization",
+      "network_in",
+      "network_out"
+    ],
+    "anomaly_type": "cost_inefficiency",
+    "matched_rule_id": null,
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "requires_approval": false,
+    "matched_decision_rule_id": "DEC-001",
+    "candidate_actions": [
+      {
+        "action": "NoAction",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      },
+      {
+        "action": "Stop",
+        "saving_rate": 1.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 1.0,
+        "estimated_saving_usd": 0.001083
+      },
+      {
+        "action": "Stop+Schedule",
+        "saving_rate": 0.5,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.5,
+        "estimated_saving_usd": 0.000542
+      },
+      {
+        "action": "Resize",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      }
+    ],
+    "action_executed": "Stop",
+    "action_result": {
+      "status": "success",
+      "raw": [
+        {
+          "InstanceId": "i-046cbf400dd6dc9d7",
+          "CurrentState": {
+            "Code": 64,
+            "Name": "stopping"
+          },
+          "PreviousState": {
+            "Code": 16,
+            "Name": "running"
+          }
+        }
+      ]
+    },
+    "action_success": true,
+    "qa_passed": true,
+    "sla_check_result": {
+      "cpu_ok": true,
+      "cost_ok": true,
+      "availability_ok": true,
+      "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "rollback_count": 0,
+    "qa_matched_rule_id": "QA-002",
+    "stopped_at": null,
+    "timings": {
+      "detection": 0.273,
+      "classification": 47.62,
+      "decision": 0.004,
+      "action": 1.019,
+      "qa": 300.944,
+      "logging": 0.069,
+      "total": 352.297
+    },
+    "elapsed_sec": 352.3
+  },
+  {
+    "resource_id": "i-094595e331b19be17",
+    "label": "anomaly",
+    "profile": "silent",
+    "anomaly_flag": true,
+    "anomaly_score_zscore": 0.5933,
+    "anomaly_score_iforest": 0.9224,
+    "triggered_metrics": [
+      "cpu_utilization",
+      "network_in",
+      "network_out"
+    ],
+    "anomaly_type": "cost_inefficiency",
+    "matched_rule_id": null,
+    "selected_action": "Stop",
+    "risk_level": "LOW",
+    "requires_approval": false,
+    "matched_decision_rule_id": "DEC-001",
+    "candidate_actions": [
+      {
+        "action": "NoAction",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      },
+      {
+        "action": "Stop",
+        "saving_rate": 1.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 1.0,
+        "estimated_saving_usd": 0.001083
+      },
+      {
+        "action": "Stop+Schedule",
+        "saving_rate": 0.5,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.5,
+        "estimated_saving_usd": 0.000542
+      },
+      {
+        "action": "Resize",
+        "saving_rate": 0.0,
+        "impact_score": 0.0,
+        "stability_score": 0.0,
+        "score": 0.0,
+        "estimated_saving_usd": 0.0
+      }
+    ],
+    "action_executed": "Stop",
+    "action_result": {
+      "status": "success",
+      "raw": [
+        {
+          "InstanceId": "i-094595e331b19be17",
+          "CurrentState": {
+            "Code": 64,
+            "Name": "stopping"
+          },
+          "PreviousState": {
+            "Code": 16,
+            "Name": "running"
+          }
+        }
+      ]
+    },
+    "action_success": true,
+    "qa_passed": true,
+    "sla_check_result": {
+      "cpu_ok": true,
+      "cost_ok": true,
+      "availability_ok": true,
+      "detail": "Rule Book 규칙 적용: 야간 배치 작업 시간대 (02:00-06:00 KST) 비용 증가 허용"
+    },
+    "rollback_count": 0,
+    "qa_matched_rule_id": "QA-002",
+    "stopped_at": null,
+    "timings": {
+      "detection": 0.147,
+      "classification": 12.916,
+      "decision": 0.004,
+      "action": 0.784,
+      "qa": 300.913,
+      "logging": 0.056,
+      "total": 317.264
+    },
+    "elapsed_sec": 317.3
+  }
+]

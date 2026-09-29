@@ -17,7 +17,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pipeline.QA_agent import (
+from pipeline.qa_agent import (
     qa_node,
     qa_node_force_fail,
     qa_node_force_pass,
@@ -300,7 +300,7 @@ print("=" * 60)
 
 try:
     from pipeline.graph import build_graph
-    from pipeline.QA_agent import qa_node as real_qa_node
+    from pipeline.qa_agent import qa_node as real_qa_node
 
     # QA 노드를 실제 구현으로 교체한 그래프 빌드
     # 참고: graph.py에서 dummy_nodes의 qa_node를 사용하므로

@@ -121,7 +121,7 @@ def find_promotion_candidates(logs: list[dict], min_count: int) -> list[dict]:
     그룹핑 키: (resource_type, sorted(triggered_metrics), anomaly_type)
     조건: qa_passed=True인 항목만 카운트, min_count 이상이면 후보
 
-    ⚠️ triggered_metrics가 비어있는 경우 (Isolation Forest만으로 탐지된 케이스):
+    triggered_metrics가 비어있는 경우 (Isolation Forest만으로 탐지된 케이스):
        metrics_summary에서 평균 대비 2배 이상 급증한 지표들을 추출하여 대체.
     """
     # 그룹별 카운트 및 샘플 저장
