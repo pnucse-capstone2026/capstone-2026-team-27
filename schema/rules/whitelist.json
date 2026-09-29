@@ -34,5 +34,23 @@
     "expires_at": null,
     "created_at": "2025-01-01T00:00:00Z",
     "created_by": "qa-team"
+  },
+  {
+    "entry_id": "WL-005",
+    "created_at": "2026-09-01T11:35:07Z",
+    "created_by": "admin",
+    "resource_id": "test-test-*",
+    "resource_type": "lambda",
+    "reason": "테스트",
+    "expires_at": null
+  },
+  {
+    "entry_id": "WL-006",
+    "created_at": "2026-09-01T11:38:56Z",
+    "created_by": "admin",
+    "resource_id": "test-test2-*",
+    "resource_type": "EC2",
+    "reason": "테스트",
+    "expires_at": "2026-09-02T23:59:59Z"
   }
 ]

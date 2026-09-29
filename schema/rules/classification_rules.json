@@ -31,7 +31,7 @@
     "priority": 10,
     "enabled": true,
     "created_at": "2025-01-01T00:00:00Z",
-    "updated_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2026-09-01T12:07:14Z",
     "author": "system",
     "rationale": "2026-09-12 탐지 지표를 group_desired_capacity(값 가짓수가 적어 통계적 탐지에 불리)에서 request_count(ALB RequestCount)로 전환한 것에 맞춰 분류 규칙도 동일 지표로 갱신. request_count가 평균 대비 2배 이상 급증하는 것만으로는 단순 인기 폭증과 구분이 안 됨 - (1)최근 구간 대부분 계속 높게 유지되는지(sustained_fraction), (2)화이트리스트에 event_period로 등록된 알려진 이벤트 기간이 아닌지(skip_if_whitelisted)까지 같이 봐야 EDoS로 확정"
   },
@@ -180,5 +180,50 @@
     "updated_at": "2026-08-30T16:54:30Z",
     "author": "auto-promoted",
     "rationale": "14건의 LLM 판단 로그 기반 자동 승격, 승격일 2026-08-30"
+  },
+  {
+    "rule_id": "CLF-007",
+    "rule_type": "classification",
+    "description": "Lambda duration_avg+invocation_count -> cost_spike",
+    "resource_types": [
+      "Lambda"
+    ],
+    "conditions": {
+      "triggered_metrics": [
+        "duration_avg",
+        "invocation_count"
+      ]
+    },
+    "result": {
+      "anomaly_type": "cost_spike",
+      "interim_action": "Lambda 호출 원인 및 최근 배포 확인",
+      "reasoning_template": "Lambda 호출 횟수와 평균 실행 시간이 평소 대비 급증하여 비용 급증이 예상됩니다."
+    },
+    "priority": 100,
+    "enabled": true,
+    "created_at": "2026-09-01T11:30:32Z",
+    "updated_at": "2026-09-01T11:30:32Z",
+    "author": "auto-promoted",
+    "rationale": "5건의 LLM 판단 로그 기반 자동 승격, 승격일 2026-09-01"
+  },
+  {
+    "rule_id": "CLF-008",
+    "rule_type": "classification",
+    "created_at": "2026-09-01T11:48:17Z",
+    "updated_at": "2026-09-01T11:48:17Z",
+    "author": "admin",
+    "enabled": true,
+    "description": "EC2 cpu<10% -> cost_spike",
+    "resource_types": [
+      "EC2"
+    ],
+    "conditions": {
+      "custom": "cpu<10%"
+    },
+    "result": {
+      "anomaly_type": "cost_spike"
+    },
+    "priority": 50,
+    "rationale": "관리자가 수동 추가"
   }
 ]
