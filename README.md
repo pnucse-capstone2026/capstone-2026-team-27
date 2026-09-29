@@ -357,21 +357,20 @@ python -m api.main
 ```
 → 접속: http://localhost:8000
 
-**4) 프론트엔드**
+**4) 프론트엔드 접속**
+→ https://detection.vercel.app (admin1 / admin1)
+
+> 프론트엔드는 Vercel에 배포되어 있어 별도 실행이 필요 없습니다.
+> 각자 로컬에서 DB와 백엔드만 실행하면, 배포된 프론트엔드가 로컬 백엔드(localhost:8000)에 연결됩니다.
+
+**로컬 개발 시** (선택):
 ```bash
 cd frontend
 npm run dev
 ```
-→ 접속: http://localhost:3000 (admin1 / admin1)
+→ http://localhost:3000
 
-### 한 번에 실행 (Windows)
-
-```powershell
-PowerShell -ExecutionPolicy Bypass -File start.ps1
-```
-백엔드/프론트엔드를 각각 새 창으로 자동 실행합니다. (Postgres/Grafana는 미리 떠있어야 함)
-
-**의존성 요약**: `Postgres` → `Grafana`, `백엔드` → `프론트엔드`
+**의존성 요약**: `Postgres` → `백엔드` → `프론트엔드 접속`
 
 ---
 
