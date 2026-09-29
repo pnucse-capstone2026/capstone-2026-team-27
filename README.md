@@ -340,11 +340,7 @@ cp .env.example .env
 ```
 
 ### 배포 URL (클라우드)
-
-| 서비스 | URL |
-|--------|-----|
-| **프론트엔드** | https://detection.vercel.app |
-| **백엔드 API** | https://finops-auto-recovery-production.up.railway.app |
+https://detection.vercel.app
 
 → 로그인: admin1 / admin1
 
